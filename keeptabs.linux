@@ -1,0 +1,25 @@
+{
+  "shell": "rc",
+  "timeout": 30,
+  "exclude": [
+    "\\.git"
+  ],
+  "rules": [
+    {
+      "include": [
+        "\\.go$"
+      ],
+      "exclude": [
+        "#.*"
+      ],
+      "run": [
+        {
+          "script": "go test -race ./^`{dirname $CHANGED_PATH} && go install -v ./..."
+        },
+        {
+          "script": "staticcheck ./^`{dirname $CHANGED_PATH}"
+        }
+      ]
+    }
+  ]
+}

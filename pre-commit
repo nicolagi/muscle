@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euxo pipefail
+gofiles=$(
+	git diff --cached --name-only --diff-filter ACM |
+	grep '\.go$' || true
+)
+for f in $gofiles ; do
+	goimports -w $f
+	git add $f
+done
+staticcheck ./...
+go vet ./...
+go test -race ./...
+# Did I forget copying the latest version of the hook?
+cmp pre-commit $0
