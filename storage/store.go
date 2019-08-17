@@ -38,6 +38,8 @@ type Enumerable interface {
 
 func NewStore(c *config.C) (Store, error) {
 	switch c.Storage {
+	case "disk":
+		return NewDiskStore(c.DiskStoreDir), nil
 	case "null":
 		return NullStore{}, nil
 	case "s3":

@@ -5,6 +5,7 @@ require (
 	github.com/aws/aws-sdk-go v1.15.0
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/go-ini/ini v1.37.0 // indirect
+	github.com/google/go-cmp v0.3.1
 	github.com/google/gops v0.3.5
 	github.com/google/uuid v1.0.0
 	github.com/gopherjs/gopherjs v0.0.0-20180628210949-0892b62f0d9f // indirect

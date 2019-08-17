@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"flag"
 	"os"
 	"strings"
@@ -264,13 +263,7 @@ func main() {
 		log.Fatalf("Could not start new paired store with log %q: %v", cfg.PropagationLogFilePath(), err)
 	}
 	martino := storage.NewMartino(stagingStore, pairedStore)
-
-	encryptionKey, err := hex.DecodeString(cfg.EncryptionKey)
-	if err != nil {
-		log.Fatalf("Could not get bytes from hex key %q: %v", cfg.EncryptionKey, err)
-	}
-
-	treeStore, err = tree.NewStore(martino, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, encryptionKey)
+	treeStore, err = tree.NewStore(martino, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}

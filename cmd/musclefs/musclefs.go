@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -269,11 +268,14 @@ func runCommand(ops *ops, cmd string) error {
 			return fmt.Errorf("could not get local revision: %v", err)
 		}
 		revisionKey, err := ts.RemoteRevisionKey("")
-		if err != nil {
+		if err != nil && !errors.Is(err, storage.ErrNotFound) {
 			return fmt.Errorf("could not get remote revision: %v", err)
 		}
-		// DO NOT change order of revision keys or you'll break history. It assumes the parent to follow is the last one.
-		parents = append(parents, revisionKey)
+		// DO NOT change order of revision keys or you'll break history.
+		// The history code assumes the parent to follow to reconstruct the history of an instance is the last one.
+		if revisionKey != nil {
+			parents = append(parents, revisionKey)
+		}
 		revision := tree.NewRevision(localRoot.Key(), parents)
 		// Need this or reachable keys below won't find the right things...
 		if e := ts.PushRevisionLocally(revision); e != nil {
@@ -485,7 +487,7 @@ func main() {
 		log.Warningf("Could not start gops agent: %v", err)
 	}
 
-	base := flag.String("config", config.DefaultBaseDirectoryPath, "Base directory for configuration, logs and cache files")
+	base := flag.String("base", config.DefaultBaseDirectoryPath, "Base directory for configuration, logs and cache files")
 	flag.Parse()
 	cfg, err := config.Load(*base)
 	if err != nil {
@@ -523,12 +525,7 @@ func main() {
 	pairedStore.EnsureBackgroundPuts()
 
 	martino := storage.NewMartino(stagingStore, pairedStore)
-	key, err := hex.DecodeString(cfg.EncryptionKey)
-	if err != nil {
-		log.Fatalf("Could not get bytes from hex key %q: %v", cfg.EncryptionKey, err)
-	}
-
-	treeStore, err := tree.NewStore(martino, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, key)
+	treeStore, err := tree.NewStore(martino, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -107,6 +106,7 @@ Commands:
 
 	diff: compare local tree to a remote tree
 	history: shows the history of a tree
+	init: initializes configuration given the base directory
 	list: list all keys in remote store
 	merge: generate commands to merge a remote tree into the local one
 	merge-base: find the merge base for two revisions
@@ -181,6 +181,11 @@ func main() {
 			exitUsage(fmt.Sprintf("Expected 1 positional argument for the revision to display history for, got %d\n", narg))
 		}
 		historyContext.rev = historyFlags.Arg(0)
+	case "init":
+		_ = emptyFlags.Parse(os.Args[2:])
+		if narg := emptyFlags.NArg(); narg != 0 {
+			exitUsage(fmt.Sprintf("init: no args expected, got %d", narg))
+		}
 	case "list":
 		_ = emptyFlags.Parse(os.Args[2:])
 		if narg := emptyFlags.NArg(); narg != 0 {
@@ -226,6 +231,15 @@ func main() {
 	}
 	log.SetLevel(ll)
 
+	// The init subcommand is special, because it must create configuration, not use it.
+	// Therefore it is handled outside of the big switch statement below.
+	if os.Args[1] == "init" {
+		if err := config.Initialize(globalContext.base); err != nil {
+			log.Fatalf("Could not initialize config in %q: %v", globalContext.base, err)
+		}
+		return
+	}
+
 	if err := agent.Listen(agent.Options{
 		ShutdownCleanup: true,
 	}); err != nil {
@@ -249,11 +263,7 @@ func main() {
 	}
 	// TODO martino is a terrible name. what does this store do? how does it differ from the paired store?
 	martino := storage.NewMartino(stagingStore, paired)
-	key, err := hex.DecodeString(cfg.EncryptionKey)
-	if err != nil {
-		log.Fatalf("Could not get bytes from hex key %q: %v", cfg.EncryptionKey, err)
-	}
-	treeStore, err := tree.NewStore(martino, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, key)
+	treeStore, err := tree.NewStore(martino, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
