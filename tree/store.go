@@ -212,10 +212,12 @@ func (s *Store) loadRevisionAndRoot(key storage.Pointer) (*Revision, *Node, erro
 }
 
 func (s *Store) History(maxRevisions int, key storage.Pointer) (rr []*Revision, err error) {
-	var r *Revision
-	r, _, err = s.loadRevisionAndRoot(key)
+	if key.IsNull() {
+		return nil, nil
+	}
+	r, _, err := s.loadRevisionAndRoot(key)
 	if err != nil {
-		return
+		return nil, err
 	}
 	return s.history(r, maxRevisions)
 }
@@ -226,12 +228,15 @@ func (s *Store) history(r *Revision, maxRevisions int) (rr []*Revision, err erro
 			break
 		}
 		rr = append(rr, r)
-		if r.parents == nil {
+		if len(r.parents) == 0 {
 			break
 		}
 		// The parent corresponding to the local instance is always the last element in the revision's parent.
-		i := len(r.parents) - 1
-		r = &Revision{key: r.parents[i]}
+		pk := r.parents[len(r.parents)-1]
+		if pk.IsNull() {
+			break
+		}
+		r = &Revision{key: pk}
 		err = s.LoadRevision(r)
 		if err != nil {
 			break

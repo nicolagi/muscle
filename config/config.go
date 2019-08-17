@@ -1,13 +1,19 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	mathrand "math/rand"
 	"os"
 	"os/user"
 	"path"
+	"path/filepath"
 	"runtime"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -55,12 +61,19 @@ type C struct {
 	S3Region  string `json:"s3-region"`
 	S3Bucket  string `json:"s3-bucket"`
 
+	// These only make sense if the storage type is "disk".
+	// If the path is relative, it will be assumed relative to the base dir.
+	DiskStoreDir string `json:"disk-store-dir"`
+
 	// Other instances to expose read-only trees for (see snapshotsfs).
 	ReadOnlyInstances []string `json:"read-only-instances"`
 
 	// Directory holding muscle config file and other files.
 	// Other directories and files are derived from this.
 	base string
+
+	// Computed from the corresponding string at load time.
+	encryptionKey []byte
 }
 
 // Load loads the configuration from the file called "config" in the provided base
@@ -84,6 +97,13 @@ func Load(base string) (*C, error) {
 	c, err := load(f)
 	if err == nil {
 		c.base = base
+	}
+	c.encryptionKey, err = hex.DecodeString(c.EncryptionKey)
+	if err != nil {
+		err = fmt.Errorf("%q: %w", c.EncryptionKey, err)
+	}
+	if c.DiskStoreDir != "" && !filepath.IsAbs(c.DiskStoreDir) {
+		c.DiskStoreDir = filepath.Clean(filepath.Join(c.base, c.DiskStoreDir))
 	}
 	return c, err
 }
@@ -143,4 +163,52 @@ func (c *C) RootKeyFilePath() string {
 
 func (c *C) StagingDirectoryPath() string {
 	return path.Join(c.base, "staging")
+}
+
+func (c *C) EncryptionKeyBytes() []byte {
+	return c.encryptionKey
+}
+
+// Initialize generates an initial configuration at the given directory.
+func Initialize(baseDir string) error {
+	if err := os.MkdirAll(baseDir, 0700); err != nil {
+		return fmt.Errorf("%q: could not mkdir: %w", baseDir, err)
+	}
+	path := filepath.Join(baseDir, "config")
+	_, err := os.Stat(path)
+	if err == nil {
+		return fmt.Errorf("%q: already exists", path)
+	}
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("%q: could not determine if it exists: %w", path, err)
+	}
+	var c C
+	c.ListenIP = "127.0.0.1"
+	mathrand.Seed(time.Now().UnixNano())
+	c.ListenPort = 49152 + mathrand.Intn(65535-49152)
+	b := make([]byte, 32)
+	n, err := rand.Read(b)
+	if err != nil {
+		return fmt.Errorf("could not read 32 random bytes: %w", err)
+	}
+	if n != 32 {
+		return fmt.Errorf("could not read 32 random bytes, got only %d", n)
+	}
+	c.EncryptionKey = hex.EncodeToString(b)
+	name, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("could not get host name: %w", err)
+	}
+	c.Instance = name
+	c.Storage = "disk"
+	c.DiskStoreDir = "permanent"
+	b, err = json.MarshalIndent(c, "", "	")
+	if err != nil {
+		return fmt.Errorf("could not marshal generated configuration: %w", err)
+	}
+	err = ioutil.WriteFile(path, b, 0600)
+	if err != nil {
+		return fmt.Errorf("could not write generated configuration to %q: %w", path, err)
+	}
+	return nil
 }

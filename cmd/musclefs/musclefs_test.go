@@ -1,11 +1,8 @@
 package main_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
-	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -16,6 +13,7 @@ import (
 	"github.com/nicolagi/go9p/p"
 	"github.com/nicolagi/go9p/p/clnt"
 	"github.com/nicolagi/muscle/config"
+	"github.com/nicolagi/muscle/netutil"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
 	"github.com/stretchr/testify/assert"
@@ -288,41 +286,28 @@ func Test(t *testing.T) {
 // for the graft command.
 func setUp(t *testing.T) (client *clnt.Clnt, factory *tree.Factory, tearDown func(*testing.T)) {
 	// dir will store what is usually in $HOME/lib/musclefs.
-	dir, err := ioutil.TempDir("", "")
+	dir, err := ioutil.TempDir("", "musclefs")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("The temporary directory is at %q", dir)
-	f, err := os.OpenFile(path.Join(dir, "config"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+
+	if err := config.Initialize(dir); err != nil {
+		t.Fatal(err)
+	}
+	c, err := config.Load(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The encryption key is shared between the ephemeral musclefs configuration
 	// and the tree store. Otherwise any fixture created via the factory will be unreadable
 	// by the ephemeral musclefs.
-	sharedKey := make([]byte, 16)
-	rand.Seed(time.Now().Unix())
-	rand.Read(sharedKey)
-	port := 5000 + rand.Intn(5000)
-	err = json.NewEncoder(f).Encode(config.C{
-		ListenIP:          "127.0.0.1",
-		ListenPort:        port,
-		Instance:          "test",
-		ReadOnlyInstances: []string{"test"},
-		Storage:           "null",
-		EncryptionKey:     fmt.Sprintf("%x", sharedKey),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testAddress := fmt.Sprintf("127.0.0.1:%d", port)
-
-	ready := make(chan struct{})
+	sharedKey := c.EncryptionKeyBytes()
+	testAddress := c.ListenAddress()
 
 	// Start process asynchronously, creating a process group id, so we can later
 	// kill this process and all its children.
-	command := exec.Command("go", "run", "-race", ".", "-config", dir)
+	command := exec.Command("go", "run", "-race", ".", "-base", dir)
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	// Attach the ephemeral musclefs stdin and stdout to a file for debugging.
 	serverLog, err := os.Create(path.Join(dir, "combined-output"))
@@ -331,22 +316,8 @@ func setUp(t *testing.T) (client *clnt.Clnt, factory *tree.Factory, tearDown fun
 	command.Stderr = serverLog
 	require.Nil(t, command.Start())
 
-	// Probe test port.
-	go func() {
-		for {
-			if conn, err := net.Dial("tcp", testAddress); err == nil {
-				_ = conn.Close()
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		close(ready)
-	}()
-
-	select {
-	case <-time.After(5 * time.Second):
-		t.Fatal("Initialization timed out")
-	case <-ready:
+	if err := netutil.WaitForListener(testAddress, 5*time.Second); err != nil {
+		t.Fatalf("Initialization timed out: %v", err)
 	}
 
 	user := p.OsUsers.Uid2User(os.Geteuid())
@@ -370,8 +341,8 @@ func setUp(t *testing.T) (client *clnt.Clnt, factory *tree.Factory, tearDown fun
 	// process and temporary files around for debugging.
 	return client, factory, func(t *testing.T) {
 		// Can't use command.Process.Kill() because that would kill go run, not its child.
-		//ng        9368  9353  0 18:52 ?        00:00:00 go run -race . -config ./config.test
-		//ng        9477  9368  0 18:52 ?        00:00:00 /tmp/go-build420765022/b001/exe/musclefs -config ./config.test
+		//ng        9368  9353  0 18:52 ?        00:00:00 go run -race . -base ./config.test
+		//ng        9477  9368  0 18:52 ?        00:00:00 /tmp/go-build420765022/b001/exe/musclefs -base ./config.test
 		if err := syscall.Kill(-command.Process.Pid, syscall.SIGKILL); err != nil {
 			t.Errorf("Could not kill test server: %v", err)
 		}
