@@ -19,7 +19,11 @@ import (
 )
 
 var (
-	AWSCredentialsPath       string
+	AWSCredentialsPath string
+
+	// DefaultBaseDirectoryPath is where all muscle commands store configuration and data.
+	// It defaults to $MUSCLE_BASE if it is set, otherwise it defaults to $HOME/lib/muscle.
+	// Commands override this via the -base flag.
 	DefaultBaseDirectoryPath string
 )
 
@@ -28,7 +32,10 @@ func init() {
 	if err != nil {
 		log.Fatalf("Could not get current user: %w", err)
 	}
-	DefaultBaseDirectoryPath = path.Join(u.HomeDir, "lib/muscle")
+	DefaultBaseDirectoryPath = os.Getenv("MUSCLE_BASE")
+	if DefaultBaseDirectoryPath == "" {
+		DefaultBaseDirectoryPath = path.Join(u.HomeDir, "lib/muscle")
+	}
 	// The AWS Go packages could be updated to use $home instead of $HOME for Plan 9,
 	// but I'd hate the location $home/.aws/credentials on Plan 9.
 	AWSCredentialsPath = ""
