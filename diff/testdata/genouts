@@ -1,0 +1,8 @@
+#!/bin/bash
+for left in *-left.in ; do
+	testNumber=$(echo "$left" | cut -d- -f1)
+	for ctxlines in 1 2 3 5 8 11 ; do
+		out=$(printf "%s-diff-%02d.out" "$testNumber" $ctxlines)
+		diff -U$ctxlines "$testNumber"-left.in "$testNumber"-right.in 2>&1 | grep -vE "^[+-]{3} " >"$out"
+	done
+done

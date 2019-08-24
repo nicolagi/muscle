@@ -1,0 +1,17 @@
+@@ -4,3 +4,3 @@
+ of
+-text
++TEXT
+ that
+@@ -9,3 +9,5 @@
+ be
+-changed
++CHANGED
++OR
++EXTENDED
+ or
+@@ -17,3 +19,3 @@
+ I really
+-need
++NEED
+ to

@@ -1,0 +1,25 @@
+@@ -1,10 +1,10 @@
+ some
+ common
+ lines
+ of
+-text
++TEXT
+ that
+ could
+ perhaps
+ be
+ changed
+@@ -13,11 +13,11 @@
+ they
+ will
+ not
+ because
+ I really
+-need
++NEED
+ to
+ test
+ the
+ case
+ of

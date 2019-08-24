@@ -13,7 +13,7 @@ require (
 	github.com/jtolds/gls v0.0.0-20170503224851-77f18212c9c7 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/nicolagi/go9p v0.0.0-20190223215146-b21015e18963
-	github.com/sergi/go-diff v1.0.0 // indirect
+	github.com/sergi/go-diff v1.0.0
 	github.com/sirupsen/logrus v1.4.2
 	github.com/smartystreets/assertions v0.0.0-20180725160413-e900ae048470 // indirect
 	github.com/smartystreets/goconvey v0.0.0-20180222194500-ef6db91d284a // indirect

@@ -1,0 +1,20 @@
+@@ -3,10 +3,10 @@
+ lines
+ of
+-text
++TEXT
+ that
+ could
+ perhaps
+ be
+-changed
++CHANGED
+ or
+ maybe
+@@ -16,5 +16,5 @@
+ because
+ I really
+-need
++NEED
+ to
+ test

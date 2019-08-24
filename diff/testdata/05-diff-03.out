@@ -1,0 +1,24 @@
+@@ -2,12 +2,12 @@
+ common
+ lines
+ of
+-text
++TEXT
+ that
+ could
+ perhaps
+ be
+-changed
++CHANGED
+ or
+ maybe
+ they
+@@ -15,7 +15,7 @@
+ not
+ because
+ I really
+-need
++NEED
+ to
+ test
+ the
