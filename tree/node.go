@@ -147,6 +147,9 @@ func (node *Node) Key() storage.Pointer {
 
 // Path returns the full path name to this node.
 func (node *Node) Path() string {
+	if node == nil {
+		return ""
+	}
 	if node.parent == nil {
 		return node.D.Name
 	}

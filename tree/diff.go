@@ -1,19 +1,15 @@
 package tree
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"path/filepath"
 	"sort"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/nicolagi/muscle/diff"
-
-	foobar "github.com/andreyvit/diff"
 )
 
 const maxBlobSizeForDiff = 1024 * 1024
@@ -89,67 +85,6 @@ func (node treeNode) Content() (string, error) {
 	return string(content), err
 }
 
-type stateFn func(row int) (nextRow int, nextState stateFn)
-
-func trimContext(lines []string, context int) string {
-	buf := bytes.NewBuffer(nil)
-
-	var lastDiffRow int
-	var ignored int
-	var ignoreState stateFn
-	var outputState stateFn
-
-	ignoreState = func(row int) (int, stateFn) {
-		if isDiff(lines[row][0]) {
-			lastDiffRow = row
-			ignored -= context
-			if ignored < 0 {
-				ignored = 0
-			}
-			return max(0, row-context), outputState
-		}
-		ignored++
-		return row + 1, ignoreState
-	}
-
-	outputState = func(row int) (int, stateFn) {
-		if ignored > 0 {
-			fmt.Fprintf(buf, "### Skipped %d common lines ###\n", ignored)
-			ignored = 0
-		}
-		buf.WriteString(lines[row])
-		buf.WriteRune('\n')
-		if isDiff(lines[row][0]) {
-			lastDiffRow = row
-		} else if row-lastDiffRow >= context {
-			return row + 1, ignoreState
-		}
-		return row + 1, outputState
-	}
-
-	state := ignoreState
-	row := 0
-	for row < len(lines) {
-		row, state = state(row)
-		if state == nil {
-			break
-		}
-	}
-
-	return buf.String()
-}
-
-func max(a int, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func isDiff(r uint8) bool {
-	return r == '+' || r == '-'
-}
-
 type diffTreesOptions struct {
 	contextLines int
 	//namesOnly    bool
@@ -201,44 +136,51 @@ func DiffTrees(a, b *Tree, options ...DiffTreesOption) error {
 }
 
 func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
-	if a == nil {
-		fmt.Fprintf(opts.output, "--- a/dev/null\n+++ b/%s\n", b.Path())
-		return nil
+	var an, bn diff.Node
+
+	an = nodeMeta{n: a}
+	bn = nodeMeta{n: b}
+	output, err := diff.Unified(an, bn, opts.contextLines)
+	if err != nil {
+		return err
 	}
-	if b == nil {
-		fmt.Fprintf(opts.output, "--- a/%s\n+++ b/dev/null\n", a.Path())
-		return nil
-	}
-	if a.pointer.Equals(b.pointer) {
+	if output == "" {
 		return nil
 	}
 
-	lineDiffLines := foobar.LineDiffAsLines(a.DiffRepr(), b.DiffRepr())
-	lineDiff := trimContext(lineDiffLines, opts.contextLines)
-	fmt.Fprintf(opts.output, "--- a/%s\n+++ b/%s\n", a.Path(), b.Path())
-	fmt.Fprint(opts.output, lineDiff)
+	ap := a.Path()
+	if ap == "" {
+		ap = "/dev/null"
+	} else {
+		ap = filepath.Join("a", ap)
+	}
+	bp := b.Path()
+	if bp == "" {
+		bp = "/dev/null"
+	} else {
+		bp = filepath.Join("b", bp)
+	}
 
-	if !a.hasEqualBlocks(b) {
-		if a.D.Length < maxBlobSizeForDiff && b.D.Length < maxBlobSizeForDiff {
-			aText := make([]byte, int(a.D.Length))
-			bText := make([]byte, int(b.D.Length))
-			atree.ReadAt(a, aText, 0)
-			btree.ReadAt(b, bText, 0)
-			lineDiffLines := foobar.LineDiffAsLines(string(aText), string(bText))
-			lineDiff := trimContext(lineDiffLines, opts.contextLines)
-			lineDiff, printable := extractPrintable(lineDiff)
-			if printable {
-				fmt.Fprintf(opts.output, "%s\n", lineDiff)
-			} else {
-				fmt.Fprintf(opts.output, "*** BINARY files differ***\n")
-			}
-		} else {
-			fmt.Fprintf(opts.output, "*** diff of contents OMITTED (too large, aSize=%d bSize=%d maxSize=%d) ***\n", a.D.Length, b.D.Length, maxBlobSizeForDiff)
-		}
+	_, _ = fmt.Fprintf(opts.output, "--- %s+meta\n+++ %s+meta\n", ap, bp)
+	_, _ = fmt.Fprint(opts.output, output)
+
+	an = treeNode{t: atree, n: a}
+	bn = treeNode{t: btree, n: b}
+	output, err = diff.Unified(an, bn, opts.contextLines)
+	if errors.Is(err, errTreeNodeLarge) {
+		_, _ = fmt.Fprintf(opts.output, "omitting diff for large node: %v\n", err)
+		err = nil
+	}
+	if err != nil {
+		return err
+	}
+	if output != "" {
+		_, _ = fmt.Fprintf(opts.output, "--- %s\n+++ %s\n", ap, bp)
+		_, _ = fmt.Fprint(opts.output, output)
 	}
 
 	// We can recurse only if they are both directories.
-	if !a.IsDir() || !b.IsDir() {
+	if a == nil || b == nil || !a.IsDir() || !b.IsDir() {
 		return nil
 	}
 
@@ -273,70 +215,4 @@ func orderedUnionOfChildrenNames(a, b map[string]*Node) []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-func extractPrintable(input string) (output string, wasPrintable bool) {
-	outputBuffer := bytes.NewBuffer(nil)
-	wasPrintable = true
-	off := 0
-
-	isPrintable := func(r rune) bool {
-		if r == utf8.RuneError {
-			return false
-		}
-		if strings.ContainsRune("\t\r\n", r) {
-			return true
-		}
-		return unicode.IsPrint(r)
-	}
-
-	isPrintablePrefix := func(s string, prefixLen int) (flag bool, consumedBytes int, consumedRunes int) {
-		for ; prefixLen > 0; prefixLen-- {
-			r, size := utf8.DecodeRuneInString(s[consumedBytes:])
-			consumedBytes += size
-			consumedRunes++
-			if !isPrintable(r) {
-				return
-			}
-		}
-		flag = true
-		return
-	}
-
-	// Note: When this is called, we know we're looking at at least 5 printable runes.
-	consumePrintable := func() {
-		for off < len(input) {
-			r, size := utf8.DecodeRuneInString(input[off:])
-			if !isPrintable(r) {
-				break
-			}
-			outputBuffer.WriteRune(r)
-			off += size
-		}
-	}
-
-	// Will stop when looking at least 5 printable runes.
-	consumeNonPrintable := func() {
-		counter := 0
-		for off < len(input) {
-			if flag, consumedBytes, consumedRunes := isPrintablePrefix(input[off:], 5); flag {
-				// Reached end of string or a non-printable rune.
-				if counter > 0 {
-					wasPrintable = false
-					fmt.Fprintf(outputBuffer, "…%d…", counter)
-				}
-				break
-			} else {
-				counter += consumedRunes
-				off += consumedBytes
-			}
-		}
-	}
-
-	for off < len(input) {
-		consumeNonPrintable()
-		consumePrintable()
-	}
-
-	return outputBuffer.String(), wasPrintable
 }
