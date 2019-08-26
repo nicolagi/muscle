@@ -60,6 +60,9 @@ type Node struct {
 
 // DiffRepr is a representation of the node's metadata that is good for line-wise diff.
 func (node *Node) DiffRepr() string {
+	if node == nil {
+		return ""
+	}
 	output := bytes.NewBuffer(nil)
 	fmt.Fprintf(
 		output,
@@ -87,8 +90,8 @@ Dir.Muid %q
 		node.D.Qid.Version,
 		node.D.Qid.Path,
 		node.D.Mode,
-		time.Unix(int64(node.D.Atime), 0).Format(time.RFC3339),
-		time.Unix(int64(node.D.Mtime), 0).Format(time.RFC3339),
+		time.Unix(int64(node.D.Atime), 0).UTC().Format(time.RFC3339),
+		time.Unix(int64(node.D.Mtime), 0).UTC().Format(time.RFC3339),
 		node.D.Length,
 		node.D.Name,
 		node.D.Uid,

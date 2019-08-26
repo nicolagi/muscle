@@ -2,6 +2,7 @@ package tree
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,8 +11,83 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/nicolagi/muscle/diff"
+
 	foobar "github.com/andreyvit/diff"
 )
+
+const maxBlobSizeForDiff = 1024 * 1024
+
+var (
+	errTreeNodeLarge = errors.New("tree node too large")
+
+	// Should never happen, but if it does, it's bad. It means a node's length
+	// and its blocks are not in sync. Not that the blocks could not be loaded,
+	// but that the metadata is indeed inconsistent.
+	errTreeNodeTruncated = errors.New("tree node truncated")
+)
+
+// nodeMeta is an implementation of diff.Node for file system node metadata.
+type nodeMeta struct {
+	n *Node
+}
+
+func (node nodeMeta) SameAs(otherNode diff.Node) bool {
+	other, ok := otherNode.(nodeMeta)
+	if !ok {
+		return false
+	}
+	if node.n == nil && other.n == nil {
+		return true
+	}
+	if node.n == nil || other.n == nil {
+		return false
+	}
+	return node.n.pointer.Equals(other.n.pointer)
+}
+
+func (node nodeMeta) Content() (string, error) {
+	return node.n.DiffRepr(), nil
+}
+
+// treeNode is an implementation of diff.Node for file system node contents.
+type treeNode struct {
+	t *Tree
+	n *Node
+}
+
+func (node treeNode) SameAs(otherNode diff.Node) bool {
+	other, ok := otherNode.(treeNode)
+	if !ok {
+		return false
+	}
+	if node.n == nil && other.n == nil {
+		return true
+	}
+	if node.n == nil || other.n == nil {
+		return false
+	}
+	return node.n.hasEqualBlocks(other.n)
+}
+
+func (node treeNode) Content() (string, error) {
+	if node.n == nil {
+		return "", nil
+	}
+	nodeSize := int(node.n.D.Length)
+	if nodeSize > maxBlobSizeForDiff {
+		return "", fmt.Errorf("%d: %w", nodeSize, errTreeNodeLarge)
+	}
+	content := make([]byte, nodeSize)
+	n, err := node.t.ReadAt(node.n, content, 0)
+	if err != nil {
+		return "", err
+	}
+	if n != nodeSize {
+		return "", fmt.Errorf("got %d out of %d bytes: %w", n, nodeSize, errTreeNodeTruncated)
+	}
+	return string(content), err
+}
 
 type stateFn func(row int) (nextRow int, nextState stateFn)
 

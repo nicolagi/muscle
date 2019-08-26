@@ -6,8 +6,7 @@ import (
 )
 
 const (
-	maxBlobSizeForDiff = 1024 * 1024
-	SnapshotFrequency  = 3 * time.Minute
+	SnapshotFrequency = 3 * time.Minute
 )
 
 var (
