@@ -130,9 +130,9 @@ func main() {
 	cleanFlags.StringVar(&cleanContext.neededKeys, "needed", "", "`file` listing needed keys - output from muscle reachable")
 
 	diffFlags := newFlagSet("diff")
-	diffFlags.BoolVar(&diffContext.verbose, "v", false, "include metadata changes")                        // TODO defaults seems to be true
-	diffFlags.IntVar(&diffContext.context, "C", 3, "number of context `lines`")                            // TODO doesn't work
-	diffFlags.BoolVar(&diffContext.names, "N", false, "only output paths that changed, not context diffs") // TODO doesn't work
+	diffFlags.BoolVar(&diffContext.verbose, "v", false, "include metadata changes")
+	diffFlags.IntVar(&diffContext.context, "U", 3, "number of unified context `lines`")
+	diffFlags.BoolVar(&diffContext.names, "N", false, "only output paths that changed, not context diffs")
 	diffFlags.StringVar(&diffContext.prefix, "prefix", "", "omit diffs outside of `path`, e.g., project/name")
 
 	// For all commands that don't take flags.
@@ -142,7 +142,7 @@ func main() {
 	// TODO I need a glossary
 
 	historyFlags := newFlagSet("history")
-	historyFlags.IntVar(&historyContext.context, "C", 3, "number of context `lines` (requires -d)")
+	historyFlags.IntVar(&historyContext.context, "U", 3, "number of unified context `lines` (requires -d)")
 	historyFlags.BoolVar(&historyContext.diff, "d", false, "show diff between revisions")
 	historyFlags.StringVar(&historyContext.prefix, "prefix", "", "omit diffs outside of `path`, e.g., project/name")
 	historyFlags.BoolVar(&historyContext.names, "N", false, "Only output paths that changed, not context diffs (requires -d)")
@@ -344,7 +344,12 @@ func main() {
 		if err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not load remote tree")
 		}
-		err = tree.DiffTrees(localTree, remoteTree, tree.DiffTreesOutput(os.Stdout), tree.DiffTreesInitialPath(diffContext.prefix))
+		err = tree.DiffTrees(localTree, remoteTree, tree.DiffTreesOutput(os.Stdout),
+			tree.DiffTreesInitialPath(diffContext.prefix),
+			tree.DiffTreesContext(diffContext.context),
+			tree.DiffTreesNamesOnly(diffContext.names),
+			tree.DiffTreesVerbose(diffContext.verbose),
+		)
 		if err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not diff against remote tree")
 		}
@@ -362,7 +367,12 @@ func main() {
 			if historyContext.diff && i < len(rr)-1 {
 				a, _ := treeFactory.NewTree(rr[i+1].Key(), true)
 				b, _ := treeFactory.NewTree(this.Key(), true)
-				tree.DiffTrees(a, b, tree.DiffTreesOutput(os.Stdout), tree.DiffTreesInitialPath(historyContext.prefix))
+				tree.DiffTrees(a, b, tree.DiffTreesOutput(os.Stdout),
+					tree.DiffTreesInitialPath(historyContext.prefix),
+					tree.DiffTreesContext(historyContext.context),
+					tree.DiffTreesNamesOnly(historyContext.names),
+					tree.DiffTreesVerbose(historyContext.verbose),
+				)
 				fmt.Println()
 			}
 		}

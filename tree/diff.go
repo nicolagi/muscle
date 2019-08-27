@@ -87,9 +87,10 @@ func (node treeNode) Content() (string, error) {
 
 type diffTreesOptions struct {
 	contextLines int
-	//namesOnly    bool
-	output      io.Writer
-	initialPath string
+	namesOnly    bool
+	verbose      bool
+	output       io.Writer
+	initialPath  string
 }
 
 // DiffTreesOption follows the functional options pattern to pass options to DiffTrees.
@@ -100,9 +101,28 @@ func DiffTreesOutput(w io.Writer) DiffTreesOption {
 		opts.output = w
 	}
 }
+
 func DiffTreesInitialPath(pathname string) DiffTreesOption {
 	return func(opts *diffTreesOptions) {
 		opts.initialPath = pathname
+	}
+}
+
+func DiffTreesContext(value int) DiffTreesOption {
+	return func(opts *diffTreesOptions) {
+		opts.contextLines = value
+	}
+}
+
+func DiffTreesNamesOnly(value bool) DiffTreesOption {
+	return func(opts *diffTreesOptions) {
+		opts.namesOnly = value
+	}
+}
+
+func DiffTreesVerbose(value bool) DiffTreesOption {
+	return func(opts *diffTreesOptions) {
+		opts.verbose = value
 	}
 }
 
@@ -148,21 +168,30 @@ func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
 		return nil
 	}
 
+	var commonp string
 	ap := a.Path()
 	if ap == "" {
 		ap = "/dev/null"
 	} else {
+		commonp = ap
 		ap = filepath.Join("a", ap)
 	}
 	bp := b.Path()
 	if bp == "" {
 		bp = "/dev/null"
 	} else {
+		commonp = bp
 		bp = filepath.Join("b", bp)
 	}
 
-	_, _ = fmt.Fprintf(opts.output, "--- %s+meta\n+++ %s+meta\n", ap, bp)
-	_, _ = fmt.Fprint(opts.output, output)
+	if opts.verbose {
+		if opts.namesOnly {
+			_, _ = fmt.Fprintln(opts.output, commonp+"+meta")
+		} else {
+			_, _ = fmt.Fprintf(opts.output, "--- %s+meta\n+++ %s+meta\n", ap, bp)
+			_, _ = fmt.Fprint(opts.output, output)
+		}
+	}
 
 	an = treeNode{t: atree, n: a}
 	bn = treeNode{t: btree, n: b}
@@ -175,8 +204,12 @@ func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
 		return err
 	}
 	if output != "" {
-		_, _ = fmt.Fprintf(opts.output, "--- %s\n+++ %s\n", ap, bp)
-		_, _ = fmt.Fprint(opts.output, output)
+		if opts.namesOnly {
+			_, _ = fmt.Fprintln(opts.output, commonp)
+		} else {
+			_, _ = fmt.Fprintf(opts.output, "--- %s\n+++ %s\n", ap, bp)
+			_, _ = fmt.Fprint(opts.output, output)
+		}
 	}
 
 	// We can recurse only if they are both directories.
