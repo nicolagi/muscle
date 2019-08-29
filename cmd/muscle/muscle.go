@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/user"
 	"strings"
 
 	"github.com/google/gops/agent"
@@ -204,10 +205,20 @@ func main() {
 		}
 		mergeBaseContext.rev1 = emptyFlags.Arg(0)
 		mergeBaseContext.rev2 = emptyFlags.Arg(1)
+	case "mount":
+		_ = emptyFlags.Parse(os.Args[2:])
+		if narg := emptyFlags.NArg(); narg != 0 {
+			exitUsage(fmt.Sprintf("mount: no args expected, got %d", narg))
+		}
 	case "reachable":
 		_ = emptyFlags.Parse(os.Args[2:])
 		if narg := emptyFlags.NArg(); narg != 0 {
 			exitUsage(fmt.Sprintf("reachable: no args expected, got %d", narg))
+		}
+	case "umount":
+		_ = emptyFlags.Parse(os.Args[2:])
+		if narg := emptyFlags.NArg(); narg != 0 {
+			exitUsage(fmt.Sprintf("umount: no args expected, got %d", narg))
 		}
 	case "update-encoding":
 		_ = emptyFlags.Parse(os.Args[2:])
@@ -249,6 +260,33 @@ func main() {
 	cfg, err := config.Load(globalContext.base)
 	if err != nil {
 		log.Fatalf("Could not load config from %q: %v", globalContext.base, err)
+	}
+
+	// Sub-commands mount and umount only require the configuration.
+	if os.Args[1] == "mount" {
+		u, err := user.Current()
+		if err != nil {
+			log.Fatalf("Could not get current user: %v", err)
+		}
+		ofmt := fmt.Sprintf(
+			"trans=tcp,port=%%d,dfltuid=%s,dfltgid=%s,uname=%s,access=any",
+			u.Uid,
+			u.Gid,
+			u.Username,
+		)
+		fmt.Println("# Sweep and send as appropriate:")
+		fmt.Println("sudo", "mount", cfg.ListenIP, cfg.MuscleFSMount(), "-t", "9p", "-o", fmt.Sprintf(ofmt, cfg.ListenPort))
+		fmt.Println("sudo", "mount", "127.0.0.1", cfg.SnapshotsFSMount(), "-t", "9p", "-o", fmt.Sprintf(ofmt, 2929))
+		fmt.Println("9pfuse", cfg.ListenAddress(), cfg.MuscleFSMount())
+		fmt.Println("9pfuse", "127.0.0.1:2929", cfg.SnapshotsFSMount())
+		return
+	} else if os.Args[1] == "umount" {
+		fmt.Println("# Sweep and send as appropriate:")
+		fmt.Println("sudo", "umount", cfg.MuscleFSMount())
+		fmt.Println("sudo", "umount", cfg.SnapshotsFSMount())
+		fmt.Println("fusermount", "-u", cfg.MuscleFSMount())
+		fmt.Println("fusermount", "-u", cfg.SnapshotsFSMount())
+		return
 	}
 
 	stagingStore := storage.NewDiskStore(cfg.StagingDirectoryPath())
