@@ -52,6 +52,11 @@ type C struct {
 	ListenIP   string `json:"listen-ip"`
 	ListenPort int    `json:"listen-port"`
 
+	// Base directory to mount filesystems in. Used by "muscle mount". If
+	// the mount is "/mnt", then musclefs would be mounted on "/mnt/muscle"
+	// and snapshotsfs on "/mnt/snapshots".
+	Mount string `json:"mount"`
+
 	// 64 hex digits - do not lose this or you lose access to all
 	// data.
 	EncryptionKey string `json:"encryption-key"`
@@ -149,6 +154,14 @@ func (c *C) SnapshotsFSLogFilePath() string {
 	return path.Join(c.base, "snapshotsfs.log")
 }
 
+func (c *C) MuscleFSMount() string {
+	return path.Join(c.Mount, "muscle")
+}
+
+func (c *C) SnapshotsFSMount() string {
+	return path.Join(c.Mount, "snapshots")
+}
+
 // An instance of *storage.Paired will log keys to propagate from the
 // fast store to the slow store to this append-only log.  This will
 // ensure all data is eventually copied to the slow store, even if
@@ -193,6 +206,7 @@ func Initialize(baseDir string) error {
 	c.ListenIP = "127.0.0.1"
 	mathrand.Seed(time.Now().UnixNano())
 	c.ListenPort = 49152 + mathrand.Intn(65535-49152)
+	c.Mount = "/mnt"
 	b := make([]byte, 32)
 	n, err := rand.Read(b)
 	if err != nil {
