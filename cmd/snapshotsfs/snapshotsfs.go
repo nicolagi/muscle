@@ -281,7 +281,7 @@ func main() {
 	s.Dotu = false
 	s.Id = "snapshotsfs"
 	s.Start(s)
-	if err := s.StartNetListener("tcp", "localhost:2929"); err != nil {
+	if err := s.StartNetListener("tcp", cfg.SnapshotsFSListenAddr()); err != nil {
 		log.Fatalf("Could not start net listener: %v", err)
 	}
 }

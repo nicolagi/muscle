@@ -269,16 +269,16 @@ func main() {
 			log.Fatalf("Could not get current user: %v", err)
 		}
 		ofmt := fmt.Sprintf(
-			"trans=tcp,port=%%d,dfltuid=%s,dfltgid=%s,uname=%s,access=any",
+			"'trans=tcp,port=%%d,dfltuid=%s,dfltgid=%s,uname=%s,access=any'",
 			u.Uid,
 			u.Gid,
 			u.Username,
 		)
 		fmt.Println("# Sweep and send as appropriate:")
 		fmt.Println("sudo", "mount", cfg.ListenIP, cfg.MuscleFSMount, "-t", "9p", "-o", fmt.Sprintf(ofmt, cfg.ListenPort))
-		fmt.Println("sudo", "mount", "127.0.0.1", cfg.SnapshotsFSMount, "-t", "9p", "-o", fmt.Sprintf(ofmt, 2929))
+		fmt.Println("sudo", "mount", cfg.SnapshotsFSListenIP, cfg.SnapshotsFSMount, "-t", "9p", "-o", fmt.Sprintf(ofmt, cfg.SnapshotsFSListenPort))
 		fmt.Println("9pfuse", cfg.ListenAddress(), cfg.MuscleFSMount)
-		fmt.Println("9pfuse", "127.0.0.1:2929", cfg.SnapshotsFSMount)
+		fmt.Println("9pfuse", cfg.SnapshotsFSListenAddr(), cfg.SnapshotsFSMount)
 		return
 	} else if os.Args[1] == "umount" {
 		fmt.Println("# Sweep and send as appropriate:")

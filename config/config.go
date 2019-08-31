@@ -52,6 +52,9 @@ type C struct {
 	ListenIP   string `json:"listen-ip"`
 	ListenPort int    `json:"listen-port"`
 
+	SnapshotsFSListenIP   string `json:"snapshotsfs-listen-ip"`
+	SnapshotsFSListenPort int    `json:"snapshotsfs-listen-port"`
+
 	MuscleFSMount    string `json:"musclefs-mount"`
 	SnapshotsFSMount string `json:"snapshotsfs-mount"`
 
@@ -123,9 +126,14 @@ func load(r io.Reader) (c *C, err error) {
 	return
 }
 
-// ListenAddress is the ip:port pair to listen on.
+// ListenAddress is the ip:port pair for musclefs to listen on.
 func (c *C) ListenAddress() string {
 	return fmt.Sprintf("%s:%d", c.ListenIP, c.ListenPort)
+}
+
+// SnapshotsFSListenAddr is the ip:port pair for snapshotsfs to listen on.
+func (c *C) SnapshotsFSListenAddr() string {
+	return fmt.Sprintf("%s:%d", c.SnapshotsFSListenIP, c.SnapshotsFSListenPort)
 }
 
 func (c *C) CacheDirectoryPath() string {
@@ -194,8 +202,10 @@ func Initialize(baseDir string) error {
 	}
 	var c C
 	c.ListenIP = "127.0.0.1"
+	c.SnapshotsFSListenIP = "127.0.0.1"
 	mathrand.Seed(time.Now().UnixNano())
 	c.ListenPort = 49152 + mathrand.Intn(65535-49152)
+	c.SnapshotsFSListenPort = 49152 + mathrand.Intn(65535-49152)
 	c.MuscleFSMount = "/mnt/muscle"
 	c.SnapshotsFSMount = "/mnt/snapshots"
 	b := make([]byte, 32)
