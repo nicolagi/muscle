@@ -275,17 +275,17 @@ func main() {
 			u.Username,
 		)
 		fmt.Println("# Sweep and send as appropriate:")
-		fmt.Println("sudo", "mount", cfg.ListenIP, cfg.MuscleFSMount(), "-t", "9p", "-o", fmt.Sprintf(ofmt, cfg.ListenPort))
-		fmt.Println("sudo", "mount", "127.0.0.1", cfg.SnapshotsFSMount(), "-t", "9p", "-o", fmt.Sprintf(ofmt, 2929))
-		fmt.Println("9pfuse", cfg.ListenAddress(), cfg.MuscleFSMount())
-		fmt.Println("9pfuse", "127.0.0.1:2929", cfg.SnapshotsFSMount())
+		fmt.Println("sudo", "mount", cfg.ListenIP, cfg.MuscleFSMount, "-t", "9p", "-o", fmt.Sprintf(ofmt, cfg.ListenPort))
+		fmt.Println("sudo", "mount", "127.0.0.1", cfg.SnapshotsFSMount, "-t", "9p", "-o", fmt.Sprintf(ofmt, 2929))
+		fmt.Println("9pfuse", cfg.ListenAddress(), cfg.MuscleFSMount)
+		fmt.Println("9pfuse", "127.0.0.1:2929", cfg.SnapshotsFSMount)
 		return
 	} else if os.Args[1] == "umount" {
 		fmt.Println("# Sweep and send as appropriate:")
-		fmt.Println("sudo", "umount", cfg.MuscleFSMount())
-		fmt.Println("sudo", "umount", cfg.SnapshotsFSMount())
-		fmt.Println("fusermount", "-u", cfg.MuscleFSMount())
-		fmt.Println("fusermount", "-u", cfg.SnapshotsFSMount())
+		fmt.Println("sudo", "umount", cfg.MuscleFSMount)
+		fmt.Println("sudo", "umount", cfg.SnapshotsFSMount)
+		fmt.Println("fusermount", "-u", cfg.MuscleFSMount)
+		fmt.Println("fusermount", "-u", cfg.SnapshotsFSMount)
 		return
 	}
 
