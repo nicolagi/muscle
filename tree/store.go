@@ -295,7 +295,7 @@ func (s *Store) Fork(source, target string) error {
 	if err != nil {
 		return err
 	}
-	trev := NewRevision(sroot.Key(), []storage.Pointer{srev.key})
+	trev := NewRevision(target, sroot.Key(), []storage.Pointer{srev.key})
 	data, err := s.encryptEncodeRevision(trev)
 	if err != nil {
 		return err

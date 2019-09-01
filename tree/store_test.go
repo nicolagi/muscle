@@ -36,7 +36,7 @@ func TestStoreFork(t *testing.T) {
 	})
 
 	t.Run("source exists, target does not (happy path)", func(t *testing.T) {
-		sr := tree.NewRevision(root.Key(), nil)
+		sr := tree.NewRevision(instance, root.Key(), nil)
 		require.Nil(t, store.PushRevisionRemotely(sr))
 		require.Nil(t, store.Fork(instance, "desktop"))
 

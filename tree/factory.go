@@ -24,3 +24,12 @@ func NewFactory(store *Store) *Factory {
 func (f *Factory) NewTree(revisionKey storage.Pointer, readOnly bool) (*Tree, error) {
 	return newTree(f.store, revisionKey, readOnly)
 }
+
+func (f *Factory) NewTreeForInstance(instance string, revision storage.Pointer) (*Tree, error) {
+	t, err := f.NewTree(revision, false)
+	if err != nil {
+		return nil, err
+	}
+	t.instance = instance
+	return t, nil
+}

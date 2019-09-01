@@ -19,7 +19,7 @@ func (tree *Tree) CreateRevision() error {
 	if tree.readOnly {
 		return ErrReadOnly
 	}
-	rev := NewRevision(tree.root.pointer, []storage.Pointer{tree.revision})
+	rev := NewRevision(tree.instance, tree.root.pointer, []storage.Pointer{tree.revision})
 	err = tree.store.PushRevisionLocally(rev)
 	if err != nil {
 		return err

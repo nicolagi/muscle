@@ -158,7 +158,7 @@ func TestInit(t *testing.T) {
 		if got, want := len(lines), 8; got != want {
 			t.Fatalf("got %d lines, want %d", got, want)
 		}
-		if got, want := lines[3], "parents"; got != want {
+		if got, want := lines[4], "parents"; got != want {
 			t.Errorf("got %q as parents line, want %q", got, want)
 		}
 	})

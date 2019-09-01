@@ -20,6 +20,7 @@ type Tree struct {
 
 	revision storage.Pointer
 	root     *Node
+	instance string
 
 	readOnly bool
 
@@ -54,6 +55,7 @@ func newTree(
 	if err != nil {
 		return nil, err
 	}
+	tree.instance = rev.instance
 	tree.revision = rev.key
 	tree.root = &Node{pointer: rev.rootKey}
 	err = tree.store.LoadNode(tree.root)

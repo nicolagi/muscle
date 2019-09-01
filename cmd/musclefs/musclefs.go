@@ -275,7 +275,7 @@ func runCommand(ops *ops, cmd string) error {
 		if revisionKey != nil {
 			parents = append(parents, revisionKey)
 		}
-		revision := tree.NewRevision(localRoot.Key(), parents)
+		revision := tree.NewRevision(ops.instanceID, localRoot.Key(), parents)
 		// Need this or reachable keys below won't find the right things...
 		if e := ts.PushRevisionLocally(revision); e != nil {
 			return e
@@ -532,7 +532,7 @@ func main() {
 		log.Fatalf("Could not load tree: %v", err)
 	}
 	factory := tree.NewFactory(treeStore)
-	tt, err := factory.NewTree(revisionKey, false)
+	tt, err := factory.NewTreeForInstance(cfg.Instance, revisionKey)
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}

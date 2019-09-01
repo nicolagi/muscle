@@ -16,12 +16,12 @@ type Revision struct {
 
 	parents  []storage.Pointer
 	rootKey  storage.Pointer
-	instance string
+	instance  string
 	hostname string // From where the snapshot was taken.
 	when     int64  // When the snapshot was taken (in seconds).
 }
 
-func NewRevision(rootKey storage.Pointer, parents []storage.Pointer) *Revision {
+func NewRevision(instance string, rootKey storage.Pointer, parents []storage.Pointer) *Revision {
 	hostname, err := os.Hostname()
 	if err != nil {
 		log.WithField("err", err.Error()).Error("Could not get hostname")
@@ -30,6 +30,7 @@ func NewRevision(rootKey storage.Pointer, parents []storage.Pointer) *Revision {
 	return &Revision{
 		parents:  parents,
 		rootKey:  rootKey,
+		instance: instance,
 		hostname: hostname,
 		when:     time.Now().Unix(),
 	}
