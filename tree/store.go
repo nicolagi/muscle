@@ -185,7 +185,9 @@ func (s *Store) RemoteRevisionKey(instance string) (storage.Pointer, error) {
 	return storage.NewPointerFromHex(string(rootContents))
 }
 
-func (s *Store) RemoteRevision(instance string) (*Revision, *Node, error) {
+// RemoteRevision loads the most recent revision object associated with
+// the given instance and the filesystem root contained therein.
+func (s *Store) RemoteRevision(instance string) (rev *Revision, root *Node, err error) {
 	key, err := s.RemoteRevisionKey(instance)
 	if err != nil {
 		return nil, nil, err
@@ -280,4 +282,32 @@ func (s *Store) MergeBase(a, b storage.Pointer) (ancestorRevisionKey storage.Poi
 // TODO I wish this method could be avoided.
 func (s *Store) IsStaging(k storage.Pointer) (bool, error) {
 	return s.martino.BelongsToStagingArea(k)
+}
+
+// Fork writes the first revision for the target instance, using as root
+// node the root node of the head revision of the source instance, and using
+// as parent revision the head revision of the source instance. The target
+// instance will therefore have the same contents as the source instance
+// (at the current head revision) and will inherit all the history. Fork
+// will try not to overwrite the target.
+func (s *Store) Fork(source, target string) error {
+	srev, sroot, err := s.RemoteRevision(source)
+	if err != nil {
+		return err
+	}
+	trev := NewRevision(sroot.Key(), []storage.Pointer{srev.key})
+	data, err := s.encryptEncodeRevision(trev)
+	if err != nil {
+		return err
+	}
+	trev.key = storage.PointerTo(data)
+	err = s.remote.Put(trev.key.Key(), data)
+	if err != nil {
+		return err
+	}
+	k := storage.Key(RemoteRootKeyPrefix + target)
+	if _, err := s.remote.Get(k); err == nil {
+		return fmt.Errorf("target instance %q already exists", target)
+	}
+	return s.remote.Put(k, []byte(trev.key.Hex()))
 }
