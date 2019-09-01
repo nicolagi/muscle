@@ -16,9 +16,9 @@ type Revision struct {
 
 	parents  []storage.Pointer
 	rootKey  storage.Pointer
+	instance string
 	hostname string // From where the snapshot was taken.
 	when     int64  // When the snapshot was taken (in seconds).
-	comment  string
 }
 
 func NewRevision(rootKey storage.Pointer, parents []storage.Pointer) *Revision {
@@ -46,6 +46,7 @@ func (r *Revision) String() string {
 	ago := time.Since(when).Truncate(time.Second).String()
 	buf := bytes.NewBuffer(nil)
 	fmt.Fprintf(buf, "revision taken %s ago, precisely %s\n", ago, when)
+	fmt.Fprintf(buf, "instance %s\n", r.instance)
 	fmt.Fprintf(buf, "host %s\n", r.hostname)
 	fmt.Fprintf(buf, "key %s\n", r.key.Hex())
 	fmt.Fprint(buf, "parents")
@@ -54,8 +55,6 @@ func (r *Revision) String() string {
 	}
 	fmt.Fprintln(buf)
 	fmt.Fprintf(buf, "root %s\n", r.rootKey.Hex())
-	// TODO Nothing writes this, I should probably remove it and write codec_v14.
-	fmt.Fprintf(buf, "comment %s\n", r.comment)
 	return buf.String()
 }
 

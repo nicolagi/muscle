@@ -88,8 +88,7 @@ func TestEncodeThenDecodeRevision(t *testing.T) {
 		}},
 		{"with timestamp", Revision{when: rand.Int63()}},
 		{"with hostname", Revision{hostname: "hostname"}}, // TODO randomize
-		{"with comment", Revision{comment: `something Nicola says
-with newlines, even.`}}, // TODO randomize
+		{"with comment", Revision{instance: "darkstar"}},  // TODO randomize
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

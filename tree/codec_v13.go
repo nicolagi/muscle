@@ -92,7 +92,7 @@ func (codecV13) decodeNode(data []byte, dest *Node) error {
 }
 
 func (codecV13) encodeRevision(rev *Revision) ([]byte, error) {
-	size := 46 + len(rev.hostname) + len(rev.comment) + 32*len(rev.parents)
+	size := 46 + len(rev.hostname) + len(rev.instance) + 32*len(rev.parents)
 	buf := make([]byte, size)
 	ptr := buf
 	ptr = pint8(13, ptr)
@@ -111,7 +111,7 @@ func (codecV13) encodeRevision(rev *Revision) ([]byte, error) {
 	}
 	ptr = pint64(uint64(rev.when), ptr)
 	ptr = pstr(rev.hostname, ptr)
-	ptr = pstr(rev.comment, ptr)
+	ptr = pstr(rev.instance, ptr)
 	if len(ptr) != 0 {
 		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
 	}
@@ -132,7 +132,7 @@ func (codecV13) decodeRevision(data []byte, rev *Revision) error {
 	u64, ptr = gint64(ptr)
 	rev.when = int64(u64)
 	rev.hostname, ptr = gstr(ptr)
-	rev.comment, ptr = gstr(ptr)
+	rev.instance, ptr = gstr(ptr)
 	if len(ptr) != 0 {
 		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
 	}
