@@ -41,6 +41,11 @@ var (
 		verbose bool
 	}
 
+	forkContext struct {
+		source string
+		target string
+	}
+
 	historyContext struct {
 		rev    string
 		prefix string
@@ -105,6 +110,7 @@ Commands:
 		removed from the remote).
 
 	diff: compare local tree to a remote tree
+	fork: start a new instance from an existing one
 	history: shows the history of a tree
 	init: initializes configuration given the base directory
 	list: list all keys in remote store
@@ -175,6 +181,13 @@ func main() {
 			exitUsage(fmt.Sprintf("Expected 1 positional argument for the remote tree to diff against, got %d\n", narg))
 		}
 		diffContext.tree = diffFlags.Arg(0)
+	case "fork":
+		_ = emptyFlags.Parse(os.Args[2:])
+		if narg := emptyFlags.NArg(); narg != 2 {
+			exitUsage(fmt.Sprintf("list: 2 args expected, got %d", narg))
+		}
+		forkContext.source = emptyFlags.Arg(0)
+		forkContext.target = emptyFlags.Arg(1)
 	case "history":
 		_ = historyFlags.Parse(os.Args[2:])
 		if narg := historyFlags.NArg(); narg != 1 {
@@ -298,6 +311,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
+
+	if os.Args[1] == "fork" {
+		err := treeStore.Fork(forkContext.source, forkContext.target)
+		if err != nil {
+			log.Errorf(
+				"Could not fork %s from %s: %v",
+				forkContext.target,
+				forkContext.source,
+				err,
+			)
+		}
+		return
+	}
+
 	revisionKey, err := treeStore.LocalRevisionKey()
 	// TODO use new errors.Is()
 	if os.IsNotExist(err) {
