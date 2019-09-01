@@ -26,7 +26,7 @@ func (rr revisionsByTime) Len() int {
 // Less reports whether the element with
 // index i should sort before the element with index j.
 func (rr revisionsByTime) Less(i int, j int) bool {
-	return rr[i].When > rr[j].When
+	return rr[i].when > rr[j].when
 }
 
 // Swap swaps the elements with indexes i and j.

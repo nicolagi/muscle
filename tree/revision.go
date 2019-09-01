@@ -17,7 +17,7 @@ type Revision struct {
 	parents  []storage.Pointer
 	rootKey  storage.Pointer
 	hostname string // From where the snapshot was taken.
-	When     int64  // When the snapshot was taken. TODO that fact it's exported is probably a *BAD* sign.
+	when     int64  // When the snapshot was taken (in seconds).
 	comment  string
 }
 
@@ -31,14 +31,18 @@ func NewRevision(rootKey storage.Pointer, parents []storage.Pointer) *Revision {
 		parents:  parents,
 		rootKey:  rootKey,
 		hostname: hostname,
-		When:     time.Now().Unix(),
+		when:     time.Now().Unix(),
 	}
 }
 
 func (r *Revision) Key() storage.Pointer { return r.key }
 
+func (r *Revision) Time() time.Time {
+	return time.Unix(r.when, 0)
+}
+
 func (r *Revision) String() string {
-	when := time.Unix(r.When, 0)
+	when := time.Unix(r.when, 0)
 	ago := time.Since(when).Truncate(time.Second).String()
 	buf := bytes.NewBuffer(nil)
 	fmt.Fprintf(buf, "revision taken %s ago, precisely %s\n", ago, when)

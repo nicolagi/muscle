@@ -86,7 +86,7 @@ func TestEncodeThenDecodeRevision(t *testing.T) {
 				storage.RandomPointer(),
 			},
 		}},
-		{"with timestamp", Revision{When: rand.Int63()}},
+		{"with timestamp", Revision{when: rand.Int63()}},
 		{"with hostname", Revision{hostname: "hostname"}}, // TODO randomize
 		{"with comment", Revision{comment: `something Nicola says
 with newlines, even.`}}, // TODO randomize

@@ -109,7 +109,7 @@ func (codecV13) encodeRevision(rev *Revision) ([]byte, error) {
 			ptr = ptr[32:]
 		}
 	}
-	ptr = pint64(uint64(rev.When), ptr)
+	ptr = pint64(uint64(rev.when), ptr)
 	ptr = pstr(rev.hostname, ptr)
 	ptr = pstr(rev.comment, ptr)
 	if len(ptr) != 0 {
@@ -130,7 +130,7 @@ func (codecV13) decodeRevision(data []byte, rev *Revision) error {
 		ptr = ptr[32:]
 	}
 	u64, ptr = gint64(ptr)
-	rev.When = int64(u64)
+	rev.when = int64(u64)
 	rev.hostname, ptr = gstr(ptr)
 	rev.comment, ptr = gstr(ptr)
 	if len(ptr) != 0 {

@@ -162,8 +162,7 @@ func (isd *instanceSnapshotsDirectory) reload() error {
 		return err
 	}
 	for _, revision := range remoteRevisions {
-		revisionTime := time.Unix(revision.When, 0)
-		rootName := revisionTime.Format("2006-01-02T15-04")
+		rootName := revision.Time().Format("2006-01-02T15-04")
 		child := isd.File.Find(rootName)
 		if child != nil {
 			// We know about it already.
