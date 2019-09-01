@@ -53,3 +53,6 @@ func (username pool) Uname2User(name string) p.User {
 func usersPool() p.Users {
 	return pool(os.Getenv("user"))
 }
+
+func gopsListen() {
+}

@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/gops/agent"
 	"github.com/nicolagi/go9p/p"
 	"github.com/nicolagi/go9p/p/srv"
 	"github.com/nicolagi/muscle/config"
@@ -481,11 +480,10 @@ func setLevel(level string) error {
 }
 
 func main() {
-	if err := agent.Listen(agent.Options{
-		ShutdownCleanup: true,
-	}); err != nil {
-		log.Warningf("Could not start gops agent: %v", err)
-	}
+	// Dummy in Plan 9. The gops agent can be made to listen on
+	// "$sysname:0", but there's no point since the executable gops
+	// can't be built.
+	gopsListen()
 
 	base := flag.String("base", config.DefaultBaseDirectoryPath, "Base directory for configuration, logs and cache files")
 	flag.Parse()
