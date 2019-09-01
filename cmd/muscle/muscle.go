@@ -9,7 +9,6 @@ import (
 	"os/user"
 	"strings"
 
-	"github.com/google/gops/agent"
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
@@ -249,12 +248,6 @@ func main() {
 			log.Fatalf("Could not initialize config in %q: %v", globalContext.base, err)
 		}
 		return
-	}
-
-	if err := agent.Listen(agent.Options{
-		ShutdownCleanup: true,
-	}); err != nil {
-		log.Warningf("Could not start gops agent: %v", err)
 	}
 
 	cfg, err := config.Load(globalContext.base)
