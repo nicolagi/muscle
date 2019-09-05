@@ -1,6 +1,7 @@
 package tree
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/nicolagi/muscle/diff"
 )
@@ -43,7 +45,49 @@ func (node nodeMeta) SameAs(otherNode diff.Node) bool {
 }
 
 func (node nodeMeta) Content() (string, error) {
-	return node.n.DiffRepr(), nil
+	if node.n == nil {
+		return "", nil
+	}
+	var output bytes.Buffer
+	_, _ = fmt.Fprintf(
+		&output,
+		`Key %s
+Dir.Size %d
+Dir.Type %d
+Dir.Dev %d
+Dir.Qid.Type %d
+Dir.Qid.Version %d
+Dir.Qid.Path %d
+Dir.Mode %d
+Dir.Atime %s
+Dir.Mtime %s
+Dir.Length %d
+Dir.Name %q
+Dir.Uid %q
+Dir.Gid %q
+Dir.Muid %q
+`,
+		node.n.pointer.Hex(),
+		node.n.D.Size,
+		node.n.D.Type,
+		node.n.D.Dev,
+		node.n.D.Qid.Type,
+		node.n.D.Qid.Version,
+		node.n.D.Qid.Path,
+		node.n.D.Mode,
+		time.Unix(int64(node.n.D.Atime), 0).UTC().Format(time.RFC3339),
+		time.Unix(int64(node.n.D.Mtime), 0).UTC().Format(time.RFC3339),
+		node.n.D.Length,
+		node.n.D.Name,
+		node.n.D.Uid,
+		node.n.D.Gid,
+		node.n.D.Muid,
+	)
+	_, _ = fmt.Fprintf(&output, "blocks:\n")
+	for _, b := range node.n.blocks {
+		_, _ = fmt.Fprintf(&output, "\t%s\n", b.pointer.Hex())
+	}
+	return output.String(), nil
 }
 
 // treeNode is an implementation of diff.Node for file system node contents.

@@ -1,7 +1,6 @@
 package tree
 
 import (
-	"bytes"
 	"crypto/sha1"
 	"fmt"
 	"path"
@@ -56,53 +55,6 @@ type Node struct {
 	// relevant for regular files.
 	children []*Node
 	blocks   []*Block
-}
-
-// DiffRepr is a representation of the node's metadata that is good for line-wise diff.
-func (node *Node) DiffRepr() string {
-	if node == nil {
-		return ""
-	}
-	output := bytes.NewBuffer(nil)
-	fmt.Fprintf(
-		output,
-		`Key %s
-Dir.Size %d
-Dir.Type %d
-Dir.Dev %d
-Dir.Qid.Type %d
-Dir.Qid.Version %d
-Dir.Qid.Path %d
-Dir.Mode %d
-Dir.Atime %s
-Dir.Mtime %s
-Dir.Length %d
-Dir.Name %q
-Dir.Uid %q
-Dir.Gid %q
-Dir.Muid %q
-`,
-		node.pointer.Hex(),
-		node.D.Size,
-		node.D.Type,
-		node.D.Dev,
-		node.D.Qid.Type,
-		node.D.Qid.Version,
-		node.D.Qid.Path,
-		node.D.Mode,
-		time.Unix(int64(node.D.Atime), 0).UTC().Format(time.RFC3339),
-		time.Unix(int64(node.D.Mtime), 0).UTC().Format(time.RFC3339),
-		node.D.Length,
-		node.D.Name,
-		node.D.Uid,
-		node.D.Gid,
-		node.D.Muid,
-	)
-	fmt.Fprintf(output, "blocks:\n")
-	for _, b := range node.blocks {
-		fmt.Fprintf(output, "\t%s\n", b.pointer.Hex())
-	}
-	return output.String()
 }
 
 func (node *Node) isLoaded() bool {
