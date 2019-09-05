@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -105,14 +104,13 @@ func (s *Store) parents(heads revisionSet, output io.Writer) (revisionSet, error
 				return nil, err
 			}
 			if !child.rootKey.Equals(parent.rootKey) {
-				host := strings.Split(child.hostname, ".")[0]
 				fmt.Fprintf(
 					output,
 					"%q -> %q [label=%q color=%q];\n",
 					revNode(child),
 					revNode(parent),
-					fmt.Sprintf("%s-%d", host, edgeOutputCounter),
-					colorFor(host),
+					fmt.Sprintf("%s-%d", child.instance, edgeOutputCounter),
+					colorFor(child.instance),
 				)
 				edgeOutputCounter++
 			}
