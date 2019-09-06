@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/nicolagi/muscle/tree/mergebase"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/nicolagi/go9p/p"
@@ -247,36 +249,64 @@ func (s *Store) history(r *Revision, maxRevisions int) (rr []*Revision, err erro
 	return
 }
 
-func (s *Store) MergeBase(a, b storage.Pointer) (ancestorRevisionKey storage.Pointer, err error) {
-	ar := &Revision{key: a}
-	br := &Revision{key: b}
-	err = s.LoadRevision(ar)
-	if err != nil {
-		return storage.Null, err
-	}
-	err = s.LoadRevision(br)
-	if err != nil {
-		return storage.Null, err
-	}
-	output, _ := ioutil.TempFile("", "*.dot")
-	fmt.Fprintln(output, "digraph {")
-	defer func() {
-		fmt.Fprintln(output, "}")
-		output.Close()
-		// TODO In the graphs generated below I see duplicated edges in some cases.
-		// That means the algorithm is not pruning the search, and it should.
-		// Not a problem for performance at the moment, but
-		// it makes the resulting diagram more complicated than it needs to be.
-		// And with 4 participating hosts, it's a bit complicated.
-		// Best effort.
-		if err := exec.Command("dot", "-O", "-Tsvg", output.Name()).Run(); err == nil {
-			// A hack for myself, because I don't even want for this to be an option.
-			if os.Getenv("MUSCLE_AUTO_OPEN_SVG") != "" {
-				_ = exec.Command("firefox", output.Name()+".svg").Start()
-			}
+// MergeBase finds a revision that is a common parent of revisions a and b.
+func (s *Store) MergeBase(a, b storage.Pointer) (storage.Pointer, error) {
+	prefetched := make(map[string]*Revision)
+
+	fetch := func(rp storage.Pointer) (*Revision, error) {
+		r := &Revision{key: rp}
+		err := s.LoadRevision(r)
+		if err == nil {
+			prefetched[rp.Hex()] = r
 		}
-	}()
-	return s.findAncestor(ar, br, output)
+		return r, err
+	}
+
+	convert := func(r *Revision) mergebase.Node {
+		return mergebase.Node{
+			GraphID: r.instance,
+			ID:      r.key.Hex(),
+		}
+	}
+
+	arev, err := fetch(a)
+	if err != nil {
+		return storage.Null, err
+	}
+	brev, err := fetch(b)
+	if err != nil {
+		return storage.Null, err
+	}
+	graph, base, err := mergebase.Find(convert(arev), convert(brev), func(child mergebase.Node) (parents []mergebase.Node, err error) {
+		for _, rp := range prefetched[child.ID].parents {
+			r, err := fetch(rp)
+			if err != nil {
+				return nil, err
+			}
+			parents = append(parents, convert(r))
+		}
+		return parents, nil
+	})
+	if err != nil {
+		return storage.Null, err
+	}
+
+	// Best effort for my personal use - might expose it someday.
+	output, err := ioutil.TempFile("", "*.dot")
+	if err == nil {
+		_, _ = fmt.Fprintln(output, graph)
+		_ = output.Close()
+		defer func() {
+			if err := exec.Command("dot", "-O", "-Tsvg", output.Name()).Run(); err == nil {
+				// A hack for myself, because I don't even want for this to be an option.
+				if os.Getenv("MUSCLE_AUTO_OPEN_SVG") != "" {
+					_ = exec.Command("firefox", output.Name()+".svg").Start()
+				}
+			}
+		}()
+	}
+
+	return storage.NewPointerFromHex(base.ID)
 }
 
 // TODO I wish this method could be avoided.
