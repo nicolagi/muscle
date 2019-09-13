@@ -303,6 +303,28 @@ func runCommand(ops *ops, cmd string) error {
 			return e
 		}
 
+		// At this point the revision.key has changed due to
+		// re-encryption.
+		//
+		// (r1,d1) -> (r0,d0) (local)
+		// (s1,d1) -> (r0,d0) (remote)
+		//
+		// If we don't do anything else here, when new revisions are
+		// published locally (e.g., flushing via the control file, or
+		// automatically every couple minutes), we'll end up with
+		//
+		// (rn,dn) -> ... -> (r1,d1) -> (r0,d0) (local)
+		// (s1,d1) -> (r0,d0) (remote)
+		//
+		// so the merge base of local and remote would be (r0,d0)
+		// rather than (s1,d1).
+		//
+		// Therefore we update the revision key in the tree to be the one
+		// just pushed remotely, which will be the parent for the next
+		// local revision. (Note though that only at the next flush will
+		// the local revision appear as a child of the remote revision.)
+		ops.tree.SetRevision(revision)
+
 	default:
 		return fmt.Errorf("command not recognized: %q", cmd)
 	}
