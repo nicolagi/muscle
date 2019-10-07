@@ -467,7 +467,7 @@ func main() {
 		}
 		keepLocalFn, cleanup := tree.MustKeepLocalFn(cfg.ConflictResolutionDirectoryPath())
 		defer cleanup()
-		err = tree.Merge(keepLocalFn, localTree, mergeContext.tree, treeFactory)
+		err = tree.Merge(keepLocalFn, localTree, mergeContext.tree, treeFactory, cfg)
 		if err != nil {
 			fmt.Printf("There was a fatal error: %v\n", err)
 		}

@@ -7,6 +7,8 @@ import (
 	"path"
 	"strings"
 	"sync"
+
+	"github.com/nicolagi/muscle/config"
 )
 
 type KeepLocalFn func(string, string) bool
@@ -54,7 +56,7 @@ func keepPathName(dir string, revision string) string {
 
 // Merge logs diagnostic messages and command to be run to merge changes from another revision.
 // It will not modify the tree.
-func Merge(keepLocalFn KeepLocalFn, dst *Tree, srcInstance string, factory *Factory) error {
+func Merge(keepLocalFn KeepLocalFn, dst *Tree, srcInstance string, factory *Factory, cfg *config.C) error {
 	remote, err := factory.store.RemoteRevisionKey(srcInstance)
 	if err != nil {
 		return fmt.Errorf("could not get remote revision for %q: %v", srcInstance, err)
@@ -72,12 +74,11 @@ func Merge(keepLocalFn KeepLocalFn, dst *Tree, srcInstance string, factory *Fact
 		return fmt.Errorf("could not build tree for %q (ancestor): %v", ancestor.Hex(), err)
 	}
 	defer func() {
-		fmt.Println("echo flush >> /n/muscle/ctl")
-		fmt.Println("find $HOME/lib/musclefs/staging -type f | wc -l")
+		fmt.Printf("echo flush > %s/ctl\n", cfg.MuscleFSMount)
 		fmt.Println("# If all is merged fine, run the following to create a merge commit.")
-		fmt.Printf("# echo snapshot %s >> /n/muscle/ctl\n", remote.Hex())
+		fmt.Printf("# echo snapshot %s > %s/ctl\n", remote.Hex(), cfg.MuscleFSMount)
 	}()
-	return merge3way(keepLocalFn, dst, ancestorTree, remoteTree, dst.root, ancestorTree.root, remoteTree.root, remote.Hex())
+	return merge3way(keepLocalFn, dst, ancestorTree, remoteTree, dst.root, ancestorTree.root, remoteTree.root, remote.Hex(), cfg)
 }
 
 func sameKeyOrBothNil(a, b *Node) bool {
@@ -88,7 +89,7 @@ func sameKeyOrBothNil(a, b *Node) bool {
 }
 
 // TODO Some commands are output in comments so one can't just pipe to rc. (One shouldn't without checking, anyway...)
-func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, local, base, remote *Node, remoteRev string) error {
+func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, local, base, remote *Node, remoteRev string, cfg *config.C) error {
 	if sameKeyOrBothNil(local, remote) {
 		// Local is equal to remote, nothing to do
 		return nil
@@ -122,9 +123,9 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 		}
 		p = strings.TrimPrefix(p, "root/")
 		if remote != nil {
-			fmt.Printf("echo graft %s/%s %s >> /n/muscle/ctl\n", remoteRev, p, p)
+			fmt.Printf("echo graft %s/%s %s > %s/ctl\n", remoteRev, p, p, cfg.MuscleFSMount)
 		} else {
-			fmt.Printf("# echo rm -rf /n/muscle/%s\n", p)
+			fmt.Printf("# echo rm -rf %s/%s\n", cfg.MuscleFSMount, p)
 		}
 		return nil
 	}
@@ -150,9 +151,9 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 			p := remote.Path()
 			fmt.Printf("%s/%s\n", remoteRev, p)
 			p = strings.TrimPrefix(p, "root/")
-			fmt.Printf("# echo graft %s/%s %s >> /n/muscle/ctl\n", remoteRev, p, p+".merge-conflict")
-			fmt.Printf("# echo graft %s/%s %s >> /n/muscle/ctl\n", remoteRev, p, p)
-			fmt.Printf("# echo keep-local-for %s/%s >> /n/muscle/ctl\n", remoteRev, p)
+			fmt.Printf("# echo graft %s/%s %s > %s/ctl\n", remoteRev, p, p+".merge-conflict", cfg.MuscleFSMount)
+			fmt.Printf("# echo graft %s/%s %s > %s/ctl\n", remoteRev, p, p, cfg.MuscleFSMount)
+			fmt.Printf("# echo keep-local-for %s/%s > %s/ctl\n", remoteRev, p, cfg.MuscleFSMount)
 		}
 		fmt.Println("EOE")
 		return nil
@@ -181,7 +182,7 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 	}
 
 	for name := range mergeNames {
-		if err := merge3way(keepLocalFn, localTree, baseTree, remoteTree, getChild(localChildren, name), getChild(baseChildren, name), getChild(remoteChildren, name), remoteRev); err != nil {
+		if err := merge3way(keepLocalFn, localTree, baseTree, remoteTree, getChild(localChildren, name), getChild(baseChildren, name), getChild(remoteChildren, name), remoteRev, cfg); err != nil {
 			return err
 		}
 	}
