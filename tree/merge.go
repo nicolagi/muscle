@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -51,7 +51,7 @@ func KeepLocalFor(dir, revision, pathname string) error {
 }
 
 func keepPathName(dir string, revision string) string {
-	return path.Join(dir, revision+".keep")
+	return filepath.Join(dir, revision+".keep")
 }
 
 // Merge logs diagnostic messages and command to be run to merge changes from another revision.
@@ -78,7 +78,7 @@ func Merge(keepLocalFn KeepLocalFn, dst *Tree, srcInstance string, factory *Fact
 		fmt.Println("# If all is merged fine, run the following to create a merge commit.")
 		fmt.Printf("# echo snapshot %s > %s/ctl\n", remote.Hex(), cfg.MuscleFSMount)
 	}()
-	return merge3way(keepLocalFn, dst, ancestorTree, remoteTree, dst.root, ancestorTree.root, remoteTree.root, remote.Hex(), cfg)
+	return merge3way(keepLocalFn, dst, ancestorTree, remoteTree, dst.root, ancestorTree.root, remoteTree.root, ancestor.Hex(), remote.Hex(), cfg)
 }
 
 func sameKeyOrBothNil(a, b *Node) bool {
@@ -89,7 +89,7 @@ func sameKeyOrBothNil(a, b *Node) bool {
 }
 
 // TODO Some commands are output in comments so one can't just pipe to rc. (One shouldn't without checking, anyway...)
-func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, local, base, remote *Node, remoteRev string, cfg *config.C) error {
+func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, local, base, remote *Node, baseRev, remoteRev string, cfg *config.C) error {
 	if sameKeyOrBothNil(local, remote) {
 		// Local is equal to remote, nothing to do
 		return nil
@@ -153,6 +153,21 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 			p = strings.TrimPrefix(p, "root/")
 			fmt.Printf("# echo graft %s/%s %s > %s/ctl\n", remoteRev, p, p+".merge-conflict", cfg.MuscleFSMount)
 			fmt.Printf("# echo graft %s/%s %s > %s/ctl\n", remoteRev, p, p, cfg.MuscleFSMount)
+			localVersion := filepath.Join(
+				cfg.MuscleFSMount,
+				p,
+			)
+			baseVersion := filepath.Join(
+				cfg.SnapshotsFSMount,
+				baseRev,
+				p,
+			)
+			remoteVersion := filepath.Join(
+				cfg.SnapshotsFSMount,
+				remoteRev,
+				p,
+			)
+			fmt.Printf("meld %s %s %s\n", localVersion, baseVersion, remoteVersion)
 			fmt.Printf("# echo keep-local-for %s/%s > %s/ctl\n", remoteRev, p, cfg.MuscleFSMount)
 		}
 		fmt.Println("EOE")
@@ -182,7 +197,7 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 	}
 
 	for name := range mergeNames {
-		if err := merge3way(keepLocalFn, localTree, baseTree, remoteTree, getChild(localChildren, name), getChild(baseChildren, name), getChild(remoteChildren, name), remoteRev, cfg); err != nil {
+		if err := merge3way(keepLocalFn, localTree, baseTree, remoteTree, getChild(localChildren, name), getChild(baseChildren, name), getChild(remoteChildren, name), baseRev, remoteRev, cfg); err != nil {
 			return err
 		}
 	}
