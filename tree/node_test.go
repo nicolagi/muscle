@@ -22,17 +22,5 @@ func TestNodePath(t *testing.T) {
 	assert.Equal(t, "root/child", b.Path())
 	assert.Equal(t, "root/child/rosemary", c.Path())
 
-	nodes, ok := a.walk("child", "rosemary")
-	assert.True(t, ok)
-	assert.Equal(t, []*Node{b, c}, nodes)
-
-	nodes, ok = a.walk("kid")
-	assert.False(t, ok)
-	assert.Len(t, nodes, 0)
-
-	nodes, ok = a.walk("child", "sage")
-	assert.False(t, ok)
-	assert.Equal(t, []*Node{b}, nodes)
-
 	assert.Equal(t, "", (*Node)(nil).Path())
 }

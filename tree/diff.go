@@ -12,11 +12,10 @@ import (
 	"time"
 
 	"github.com/nicolagi/go9p/p"
-
 	"github.com/nicolagi/muscle/diff"
 )
 
-const maxBlobSizeForDiff = 1024 * 1024
+const defaultMaxBlobSizeForDiff = 256 * 1024 // 256 kB
 
 var (
 	errTreeNodeLarge = errors.New("tree node too large")
@@ -94,8 +93,9 @@ Dir.Muid %q
 
 // treeNode is an implementation of diff.Node for file system node contents.
 type treeNode struct {
-	t *Tree
-	n *Node
+	t       *Tree
+	n       *Node
+	maxSize int
 }
 
 func (node treeNode) SameAs(otherNode diff.Node) bool {
@@ -116,17 +116,16 @@ func (node treeNode) Content() (string, error) {
 	if node.n == nil {
 		return "", nil
 	}
-	nodeSize := int(node.n.D.Length)
-	if nodeSize > maxBlobSizeForDiff {
-		return "", fmt.Errorf("%d: %w", nodeSize, errTreeNodeLarge)
+	if node.n.D.Length > uint64(node.maxSize) {
+		return "", fmt.Errorf("%d: %w", node.n.D.Length, errTreeNodeLarge)
 	}
-	content := make([]byte, nodeSize)
+	content := make([]byte, node.n.D.Length)
 	n, err := node.t.ReadAt(node.n, content, 0)
 	if err != nil {
 		return "", err
 	}
-	if n != nodeSize {
-		return "", fmt.Errorf("got %d out of %d bytes: %w", n, nodeSize, errTreeNodeTruncated)
+	if uint64(n) != node.n.D.Length {
+		return "", fmt.Errorf("got %d out of %d bytes: %w", n, node.n.D.Length, errTreeNodeTruncated)
 	}
 	return string(content), err
 }
@@ -137,10 +136,17 @@ type diffTreesOptions struct {
 	verbose      bool
 	output       io.Writer
 	initialPath  string
+	maxSize      int
 }
 
 // DiffTreesOption follows the functional options pattern to pass options to DiffTrees.
 type DiffTreesOption func(*diffTreesOptions)
+
+func DiffTreesMaxSize(value int) DiffTreesOption {
+	return func(opts *diffTreesOptions) {
+		opts.maxSize = value
+	}
+}
 
 func DiffTreesOutput(w io.Writer) DiffTreesOption {
 	return func(opts *diffTreesOptions) {
@@ -177,6 +183,7 @@ func DiffTrees(a, b *Tree, options ...DiffTreesOption) error {
 	opts := diffTreesOptions{
 		contextLines: 3,
 		output:       ioutil.Discard,
+		maxSize:      defaultMaxBlobSizeForDiff,
 	}
 	for _, opt := range options {
 		opt(&opts)
@@ -239,8 +246,8 @@ func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
 		}
 	}
 
-	an = treeNode{t: atree, n: a}
-	bn = treeNode{t: btree, n: b}
+	an = treeNode{t: atree, n: a, maxSize: opts.maxSize}
+	bn = treeNode{t: btree, n: b, maxSize: opts.maxSize}
 	output, err = diff.Unified(an, bn, opts.contextLines)
 	if errors.Is(err, errTreeNodeLarge) {
 		_, _ = fmt.Fprintf(opts.output, "omitting diff for large node: %v\n", err)

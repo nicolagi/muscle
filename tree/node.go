@@ -108,20 +108,6 @@ func (node *Node) Path() string {
 	return path.Join(node.parent.Path(), node.D.Name)
 }
 
-func (node *Node) walk(names ...string) ([]*Node, bool) {
-	var walkedNodes []*Node
-	it := node
-	for i := 0; i < len(names); i++ {
-		c, ok := it.followBranch(names[i])
-		if !ok {
-			return walkedNodes, false
-		}
-		walkedNodes = append(walkedNodes, c)
-		it = c
-	}
-	return walkedNodes, true
-}
-
 func (node *Node) IsDir() bool {
 	return node.D.Mode&p.DMDIR != 0
 }

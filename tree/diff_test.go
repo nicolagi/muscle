@@ -196,14 +196,14 @@ func TestTreeNodeContent(t *testing.T) {
 		assert.Nil(t, err)
 	})
 	t.Run("get contents for small node", func(t *testing.T) {
-		a := &treeNode{t: &Tree{}, n: &Node{}}
+		a := &treeNode{t: &Tree{}, n: &Node{}, maxSize: 1024}
 		require.Nil(t, a.t.WriteAt(a.n, []byte("some text"), 0))
 		content, err := a.Content()
 		assert.Equal(t, "some text", content)
 		assert.Nil(t, err)
 	})
 	t.Run("no error but not all node contents", func(t *testing.T) {
-		a := &treeNode{}
+		a := &treeNode{maxSize: 1024}
 		a.t = &Tree{}
 		a.n = &Node{}
 		a.n.D.Length = 42
@@ -213,15 +213,15 @@ func TestTreeNodeContent(t *testing.T) {
 		assert.True(t, errors.Is(err, errTreeNodeTruncated))
 	})
 	t.Run("get contents for too large a node", func(t *testing.T) {
-		a := &treeNode{n: &Node{}}
-		a.n.D.Length = maxBlobSizeForDiff + 1
+		a := &treeNode{n: &Node{}, maxSize: 1024}
+		a.n.D.Length = 1025
 		content, err := a.Content()
 		assert.Equal(t, "", content)
 		assert.NotNil(t, err)
 		assert.True(t, errors.Is(err, errTreeNodeLarge))
 	})
 	t.Run("read error bubbles up", func(t *testing.T) {
-		a := &treeNode{t: &Tree{}, n: &Node{}}
+		a := &treeNode{t: &Tree{}, n: &Node{}, maxSize: 1024}
 
 		// Set up the tree with a store that will only return errors.
 		innerErr := errors.New("some error")

@@ -39,6 +39,7 @@ var (
 		tree    string
 		names   bool
 		verbose bool
+		maxSize int
 	}
 
 	forkContext struct {
@@ -56,6 +57,7 @@ var (
 		context int
 		names   bool
 		verbose bool
+		maxSize int
 	}
 
 	mergeContext struct {
@@ -140,6 +142,7 @@ func main() {
 	diffFlags.IntVar(&diffContext.context, "U", 3, "number of unified context `lines`")
 	diffFlags.BoolVar(&diffContext.names, "N", false, "only output paths that changed, not context diffs")
 	diffFlags.StringVar(&diffContext.prefix, "prefix", "", "omit diffs outside of `path`, e.g., project/name")
+	diffFlags.IntVar(&diffContext.maxSize, "S", 256*1024, "do not diff nodes larger than `count` bytes")
 
 	// For all commands that don't take flags.
 	emptyFlags := newFlagSet("empty")
@@ -154,6 +157,7 @@ func main() {
 	historyFlags.BoolVar(&historyContext.names, "N", false, "Only output paths that changed, not context diffs (requires -d)")
 	historyFlags.IntVar(&historyContext.count, "n", 3, "Number of `revisions` to show")
 	historyFlags.BoolVar(&historyContext.verbose, "v", false, "include metadata changes (requires -d)")
+	historyFlags.IntVar(&historyContext.maxSize, "S", 256*1024, "do not diff nodes larger than `count` bytes")
 
 	// TODO does update encoding work?
 
@@ -407,6 +411,7 @@ func main() {
 			tree.DiffTreesContext(diffContext.context),
 			tree.DiffTreesNamesOnly(diffContext.names),
 			tree.DiffTreesVerbose(diffContext.verbose),
+			tree.DiffTreesMaxSize(diffContext.maxSize),
 		)
 		if err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not diff against remote tree")
@@ -430,6 +435,7 @@ func main() {
 					tree.DiffTreesContext(historyContext.context),
 					tree.DiffTreesNamesOnly(historyContext.names),
 					tree.DiffTreesVerbose(historyContext.verbose),
+					tree.DiffTreesMaxSize(historyContext.maxSize),
 				)
 				fmt.Println()
 			}
