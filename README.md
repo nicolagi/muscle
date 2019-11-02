@@ -1,29 +1,36 @@
 # muscle
 
-(This project is experimental. It works for me. It may not work for you.)
+The muscle project consists of musclefs, snapshotsfs, and muscle.
 
-The project consists of musclefs, snapshotsfs, and muscle. The former
-two are 9P file servers, S3-backed, with a git-like backend allowing
-for file system history and file system merge. musclefs is for the
-current revision of the filesystem, snapshotsfs is for looking at any
-past revision.  Revisions are linked together in a git-like history.
-The latter is a CLI tool that offers additional operations on the same
-data that is exposed via the file server.
+The former two, musclefs and snapshotsfs, are 9P file servers, Amazon
+S3-backed, with a git-like backend allowing for file system history
+and file system merge. Musclefs serves the current revision of the
+filesystem, while snapshotsfs serves any and all past revisions.
+Revisions are linked together in a git-like history.
 
-Later sections will go more in-depth, but here is an overview of the features.
+The latter, muscle, is a command-line tool that offers additional
+operations on the same data that is exposed via the file server.
+
+A walk-through of the most common use cases is in the wiki,
+https://github.com/nicolagi/muscle/wiki/Walk-through. That page should
+answer with examples how this project can be useful.
+
+The rest of this page goes into technical matters instead.
+
+## Overview
 
 The storage backend of the file system consists of many layers, but is
 ultimately backed by cloud storage. (That would be S3 at the time of
 writing, but more can be added.) This makes it possible to expose and
 operate on the same data in all computers. In particular, it makes it
-possible to have that same data in a freshly installed machine, loading
-data from the cloud when necessary.
+possible to have that same data in a freshly installed machine, downloading
+data from the cloud as necessary.
 
 The file system can often be used without a persistent internet
 connection, as data is stored locally as well. A local store is paired
-with the remote store, essentially acting as a write-back cache. There is
-no automatic expiration of items from the cache, but it can be trivially
-be achieved with `find` and, say, `-atime +30` test, for blobs last
+with the remote store and acts as a write-back cache. There is
+no automatic expiration of items from the cache, but that can be
+achieved with `find` and, say, `-atime +30`, for blobs last
 accessed more than a month ago. (I won't provide exact commands as what
 needs to be escaped depends on the shell.)
 
@@ -31,60 +38,33 @@ The file system supports taking incremental snapshots, called revisions,
 which are linked, in such a way that you can have a history of snapshots
 akin to a git history of commits. In particular, it is possible to see
 the diff between any two revisions of the file system.  For example,
-showing difference between last two revisions for the tree named plank:
+showing names of modified files in recent revisions for the instance
+named plank can be done as follows:
 
 ```
-% muscle history -d -n 1 plank
-revision taken 2m50s ago, precisely 2019-06-24 03:46:49 +0100 IST
-host plank.localdomain
-key f615760c8733c73cbd29979c80739cc1dffd2358efd8fc5c3683b8480760b4a6
-parents 10b5dec073b47914c98d6c4c7b17671f555b0e62e75ab7db1b4e574f83a565c0
-root 5fb88bac5d2e83d7d91691512225159ffdb9bac42303ae6dab48f60af84672dc
-comment
+% muscle history -d -N plank | 9 grep '^$|^(key|root/)' | uniq
+key 86420c0f76b8c4070e166dba6f8356adb80e7c51a3df23ee6b5871fffc041f01
 
-... some output concerning parent dirs of go.mod removed ...
---- a/root/sources/muscle/go.mod
-+++ b/root/sources/muscle/go.mod
--Key 89d6252f5caae01bf24b6d7ad53014697302ef8d854fc6b9040b2a8299dbe5ce
-+Key c5e7edad8063ca89031b5508f80d2fbdee0ad2656e2e0641593f79a6ecbe2634
- Dir.Size 0
- Dir.Type 0
- Dir.Dev 0
- Dir.Type 0
- Dir.Dev 0
- Dir.Qid.Type 0
--Dir.Qid.Version 2312512815
-+Dir.Qid.Version 3320311213
- Dir.Qid.Path 11244905243916250064
--Dir.Mode 420
--Dir.Atime 2019-06-03T06:05:00+01:00
--Dir.Mtime 2019-06-03T06:05:00+01:00
--Dir.Length 1141
-+Dir.Mode 438
-+Dir.Atime 2019-06-23T23:42:58+01:00
-+Dir.Mtime 2019-06-23T23:42:58+01:00
-+Dir.Length 1190
- Dir.Name "go.mod"
- Dir.Uid "ng"
- Dir.Gid ""
- Dir.Gid ""
- Dir.Muid ""
- blocks:
--	edb3cd14097bf6629a2102380d04dcc2c45d013d7d608f9a3e705e7d0a47aa9c
-+	c4756e75ad60dce960d82fbc56ed77ea96cb2ca2e864b4b61a8a8aa4eceee494
-### Skipped 23 common lines ###
- 
- replace github.com/lionkov/go9p => ../go9p
- 
-+replace github.com/sirupsen/logrus => ../logrus
-+
- go 1.13
+root/src/muscle.wiki/Walkthrough.md
+
+key c763eae2ef3441db7575649952cdf361e4ba83156ed3dd8dd0e6e61e59d68da2
+
+root/src/muscle/README.md
+root/src/muscle.wiki/Walkthrough.md
+root/worklogs/bookmarks
+
+key c603dd7f5d332fad15d4f5588caa1c62af8525f847d9db37629b668709820951
+
+root/src/muscle.wiki/images
+root/tmp/snippets-walk-through
 ```
 
 To allow for disconnected operation, each host running musclefs
-corresponds to a separate tree. Such trees can be merged (think merging
-git branches) in such a way that all these trees converge to the same
-data. (This is the clunkiest part of the system but works for me.)
+corresponds to a separate tree, called an instance.
+
+Such trees can be merged (think merging git branches) in such a way that
+all these trees converge to the same data. (This is the clunkiest part
+of the system but works for me.)
 
 All blobs are encrypted before being sent to cloud storage. But a big
 caveat, I'm not at all an expert and the encryption might be stupidly
@@ -96,9 +76,9 @@ to be a temporary name.
 ## Motivation
 
 Ever since I read about Plan 9 and the possibility of having the same
-experience on any machine participating in a Plan 9 cluster, I longed
+data on any machine participating in a Plan 9 cluster, I longed
 for that experience in the operating systems I use (mainly Linux, with
-plan9port, sometimes a 9front VM).
+plan9port, sometimes a 9front VM these days).
 
 I believe that one should try to find already existing software
 before embarking on writing something new.  At some point I found out
@@ -136,7 +116,7 @@ in a history with generation of diffs between snapshots.
 The file server is implemented using the 9P protocol because it allows
 mounting it on many operating systems in a number of ways. I sometimes
 mount it with 9pfuse, but most often with v9fs in Linux. Sometimes I
-mount it in Plan 9 of course.
+mount it in Plan 9.
 
 # How it works
 
@@ -179,8 +159,7 @@ at times when deleting a file that I shouldn't have.
 At the end of snapshot the staging area will be empty and local and
 remote history will coincide. The only way to know if all data has been
 propagated to persistent storage is by looking at the propagation log
-file, and count the number of lines marked `todo` with the number of
-lines marked `done`.
+file, and match the lines marked `todo` with those marked `done`.
 
 ```
 % cat lib/muscle/propagation.log
@@ -191,28 +170,19 @@ lines marked `done`.
 ```
 
 The in-memory data can be flushed to disk also by issuing a flush command
-with `echo flush >> /n/muscle/ctl`, otherwise its done automatically every
+with `echo flush >/n/muscle/ctl`, otherwise its done automatically every
 2 minutes. Data will also be flushed to disk when terminating `musclefs`
 with SIGINT or SIGTERM. Don't SIGKILL unless you absolutely have to!
 
 # Getting started
 
-I'm surprised you want to try it, but thanks.
-
 Install with `go get -u github.com/nicolagi/muscle/cmd/...`.
 
-Look at `config/config.go` to understand what the JSON configuration
-to be stored in `$HOME/lib/muscle/config` has to look like. This file
-should have permissions 0600 because it contains the encryption key.
+Get an initial configuration with `muscle init`
+and customize. The walk-through wiki shows how, see
+https://github.com/nicolagi/muscle/wiki/Walk-through.
 
-Start `musclefs` (it does not fork so send it to the background).
+Start `musclefs` and `snapshotsfs` as background processes.
 
-Mount in Linux with options similar to the below, or use `9pfuse`
-from plan9port.
-
-```
-ng@clausius:/n/muscle$ mount | grep 9p
-...
-127.0.0.1 on /n/muscle type 9p (rw,relatime,sync,dirsync,dfltuid=1000,dfltgid=1004,access=1000,trans=tcp,noextend,port=4646)
-...
-```
+Run `muscle mount` to get hints on how to mount the filesystems, either
+using the 9P driver in Linux or 9pfuse from plan9port.
