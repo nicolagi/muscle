@@ -2,8 +2,6 @@ package main
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestControlRead(t *testing.T) {
@@ -49,52 +47,4 @@ func TestControlRead(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestControlAppend(t *testing.T) {
-	t.Run("append-nothing", func(t *testing.T) {
-		c := new(ctl)
-		assert.Len(t, c.append(nil), 0)
-	})
-	t.Run("append-incomplete-line", func(t *testing.T) {
-		c := new(ctl)
-		assert.Len(t, c.append([]byte("this line is")), 0)
-	})
-	t.Run("append-complete-line", func(t *testing.T) {
-		c := new(ctl)
-		lines := c.append([]byte("this line is complete\n"))
-		assert.Len(t, lines, 1)
-		assert.Equal(t, "this line is complete", lines[0])
-	})
-	t.Run("append-many-complete-lines", func(t *testing.T) {
-		c := new(ctl)
-		lines := c.append([]byte("this line is complete\nand another\n"))
-		assert.Len(t, lines, 2)
-		assert.Equal(t, "this line is complete", lines[0])
-		assert.Equal(t, "and another", lines[1])
-	})
-	t.Run("append-complete-line-twice", func(t *testing.T) {
-		c := new(ctl)
-		lines := c.append([]byte("this line is complete\n"))
-		assert.Len(t, lines, 1)
-		assert.Equal(t, "this line is complete", lines[0])
-		lines = c.append([]byte("and another\n"))
-		assert.Len(t, lines, 1)
-		assert.Equal(t, "and another", lines[0])
-	})
-	t.Run("append-incomplete-then-complete", func(t *testing.T) {
-		c := new(ctl)
-		lines := c.append([]byte("this line is "))
-		assert.Len(t, lines, 0)
-		lines = c.append([]byte("complete\n"))
-		assert.Len(t, lines, 1)
-		assert.Equal(t, "this line is complete", lines[0])
-	})
-	t.Run("append-many-times-then-read", func(t *testing.T) {
-		c := new(ctl)
-		assert.Len(t, c.append([]byte("this line ")), 0)
-		assert.Equal(t, []string{"this line is complete"}, c.append([]byte("is complete\nbut this ")))
-		assert.Equal(t, []string{"but this one is not."}, c.append([]byte("one is not.\n")))
-		assert.Equal(t, "this line is complete\nbut this one is not.\n", string(c.contents))
-	})
 }

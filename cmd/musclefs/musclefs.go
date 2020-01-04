@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"flag"
@@ -36,7 +35,6 @@ type ops struct {
 	// Control node
 	c *ctl
 
-	controlLog         string
 	mergeConflictsPath string
 }
 
@@ -176,10 +174,10 @@ func runCommand(ops *ops, cmd string) error {
 	case "lsof":
 		paths := ops.tree.ListNodesInUse()
 		sort.Strings(paths)
-		log.WithFields(log.Fields{
-			"op":    "lsof",
-			"paths": paths,
-		}).Info("Listed open files")
+		for _, path := range paths {
+			outputBuffer.WriteString(path)
+			outputBuffer.WriteByte(10)
+		}
 	case "dump":
 		ops.tree.DumpNodes()
 	case "keep-local-for":
@@ -329,27 +327,7 @@ func runCommand(ops *ops, cmd string) error {
 		return fmt.Errorf("command not recognized: %q", cmd)
 	}
 
-	// Best effort attempt at adding the output buffer contents to the
-	// control node log file.
-	func() {
-		file, err := os.OpenFile(ops.controlLog, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
-		if err != nil {
-			log.WithField("cause", err.Error()).Error("Could not open control log file")
-			return
-		}
-		outputTime := time.Now().String()
-		s := bufio.NewScanner(outputBuffer)
-		for s.Scan() {
-			outputLine := fmt.Sprintf("%s %s %s\n", outputTime, cmd, s.Text())
-			if _, e := file.Write([]byte(outputLine)); e != nil {
-				log.WithFields(log.Fields{
-					"cause": e.Error(),
-				}).Error("Could not write to control log file")
-				return
-			}
-		}
-		_ = file.Close()
-	}()
+	ops.c.contents = outputBuffer.Bytes()
 
 	return nil
 }
@@ -359,12 +337,10 @@ func (ops *ops) Write(r *srv.Req) {
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
 	if node.IsController() {
-		lines := ops.c.append(r.Tc.Data)
-		for _, cmd := range lines {
-			if err := runCommand(ops, cmd); err != nil {
-				r.RespondError(err)
-				return
-			}
+		// Assumption: One Twrite per command.
+		if err := runCommand(ops, string(r.Tc.Data)); err != nil {
+			r.RespondError(err)
+			return
 		}
 		r.RespondRwrite(uint32(len(r.Tc.Data)))
 		return
@@ -565,7 +541,6 @@ func main() {
 		martino:            martino,
 		tree:               tt,
 		c:                  new(ctl),
-		controlLog:         cfg.ControlLogFilePath(),
 		mergeConflictsPath: cfg.ConflictResolutionDirectoryPath(),
 	}
 	ops.instanceID = cfg.Instance

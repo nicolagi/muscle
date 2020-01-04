@@ -140,10 +140,6 @@ func (c *C) CacheDirectoryPath() string {
 	return path.Join(c.base, "cache")
 }
 
-func (c *C) ControlLogFilePath() string {
-	return path.Join(c.base, "ctl.log")
-}
-
 func (c *C) ConflictResolutionDirectoryPath() string {
 	return path.Join(c.base, "conflicts")
 }
