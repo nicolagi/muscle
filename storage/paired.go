@@ -2,155 +2,129 @@ package storage
 
 import (
 	"bufio"
-	"compress/gzip"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
-const defaultPropagationBacklogSize = 4096
+// Valid prefix byte in the propagation log lines. A pending item is only in the
+// fast store, that needs to copied to the slow store. A done item is in the slow
+// store and may or may not be in the fast store (might have been evicted). A
+// missing item is one that was to be propagated from fast to slow store, but
+// was not found in the fast store.
+const (
+	itemPending = 'p'
+	itemMissing = 'm'
+	itemDone    = 'd'
+)
+
+// The log consists of lines of known length (a byte, a key, a newline).
+const logLineLength = 66
 
 type propagationLog struct {
-	mu sync.Mutex
-	f  *os.File
+	pollInterval time.Duration
+	readOffset   int64
+
+	mu   sync.Mutex
+	file *os.File
 }
 
-func readPropagationLog(pathname string) (keys []Key, err error) {
-	var f *os.File
-	f, err = os.OpenFile(pathname, os.O_RDONLY|os.O_CREATE, 0644)
+// newLog reads the log at pathname (creating it if necessary), compacts it, and time stamps the previous version.
+func newLog(pathname string) (*propagationLog, error) {
+	curr, err := os.OpenFile(pathname, os.O_RDONLY|os.O_CREATE, 0644)
 	if err != nil {
-		return nil, fmt.Errorf("could not open read-only %q: %v", pathname, err)
+		return nil, fmt.Errorf("open %q read-only: %w", pathname, err)
 	}
-	m := make(map[string]struct{})
-	s := bufio.NewScanner(f)
+	next, err := os.OpenFile(pathname+".new", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("open %q write-only: %w", pathname+".new", err)
+	}
+	s := bufio.NewScanner(curr)
 	for s.Scan() {
-		fields := strings.Fields(s.Text())
-		switch fields[1] {
-		case "todo":
-			m[fields[2]] = struct{}{}
-		case "done":
-			delete(m, fields[2])
+		line := s.Text()
+		switch state := line[0]; state {
+		case itemPending, itemMissing:
+			if _, err := fmt.Fprintln(next, line); err != nil {
+				return nil, fmt.Errorf("copying line from %q to %q: %w", curr.Name(), next.Name(), err)
+			}
+		case itemDone:
 		default:
-			return nil, fmt.Errorf("unknown verb %q in propagation log", fields[1])
+			log.Errorf("Skipping unrecognized item state: %d", state)
 		}
 	}
-	err = f.Close()
+	if err := s.Err(); err != nil {
+		return nil, fmt.Errorf("scan %q: %w", curr.Name(), err)
+	}
+	if err := curr.Close(); err != nil {
+		return nil, fmt.Errorf("close %q: %w", curr.Name(), err)
+	}
+	if err := next.Close(); err != nil {
+		return nil, fmt.Errorf("close %q: %w", next.Name(), err)
+	}
+	if err := os.Rename(curr.Name(), fmt.Sprintf("%s.%d", curr.Name(), time.Now().Unix())); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	if err := os.Rename(next.Name(), curr.Name()); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	curr, err = os.OpenFile(pathname, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return nil, fmt.Errorf("could not close %q: %v", pathname, err)
+		return nil, fmt.Errorf("open %q read-write: %w", pathname, err)
 	}
-	for key := range m {
-		keys = append(keys, Key(key))
+	// Seek to end for writes. (Reads will use ReadAt instead.)
+	if _, err := curr.Seek(0, io.SeekEnd); err != nil {
+		return nil, fmt.Errorf("seek %q to EOF: %w", curr.Name(), err)
 	}
-	return
+	return &propagationLog{file: curr, pollInterval: 5 * time.Second}, nil
 }
 
-func archivePropagationLog(pathname string) error {
-	wrapErr := func(err error) error {
-		return fmt.Errorf("when archiving %q: %v", pathname, err)
+func (pl *propagationLog) add(key Key) error {
+	pl.mu.Lock()
+	n, err := fmt.Fprintf(pl.file, "%c%s\n", itemPending, key)
+	pl.mu.Unlock()
+	if n != logLineLength {
+		return fmt.Errorf("written only %d of %d bytes", n, logLineLength)
 	}
-	f, err := os.Open(pathname)
-	if err != nil {
-		return wrapErr(err)
-	}
-	g, err := os.Create(fmt.Sprintf("%s.%d", pathname, time.Now().Unix()))
-	if err != nil {
-		return wrapErr(err)
-	}
-	z := gzip.NewWriter(g)
-	_, err = io.Copy(z, f)
-	if err != nil {
-		return wrapErr(err)
-	}
-	err = f.Close()
-	if err != nil {
-		return wrapErr(err)
-	}
-	err = z.Close()
-	if err != nil {
-		return wrapErr(err)
-	}
-	err = g.Close()
-	if err != nil {
-		return wrapErr(err)
-	}
-	return nil
-}
-
-func writePropagationLog(pathname string, keys []Key) error {
-	f, err := ioutil.TempFile(filepath.Dir(pathname), "propagation.*.log")
-	if err != nil {
-		return fmt.Errorf("could not create temporary file to compact propagation log: %v", err)
-	}
-	ts := time.Now().Format(time.RFC3339)
-	for _, k := range keys {
-		if _, err = fmt.Fprintf(f, "%s todo %s\n", ts, k); err != nil {
-			return fmt.Errorf("could not write to do item to temporary file %q: %v", f.Name(), err)
-		}
-	}
-	if err = f.Close(); err != nil {
-		return fmt.Errorf("could not close temporary file %q: %v", f.Name(), err)
-	}
-	if err = os.Rename(f.Name(), pathname); err != nil {
-		return fmt.Errorf("could not rename %q to %q: %v", f.Name(), pathname, err)
-	}
-	return nil
-}
-
-func newPropagationLog(pathname string) (*propagationLog, []Key, error) {
-	keys, err := readPropagationLog(pathname)
-	if err != nil {
-		return nil, nil, err
-	}
-	log.WithField("count", len(keys)).Info("Found keys to propagate in the propagation log")
-	fi, err := os.Stat(pathname)
-	if err != nil {
-		return nil, nil, err
-	}
-	if fi.Size() > 1024*1024 {
-		if err = archivePropagationLog(pathname); err != nil {
-			return nil, nil, err
-		}
-		if err = writePropagationLog(pathname, keys); err != nil {
-			return nil, nil, err
-		}
-	}
-	f, err := os.OpenFile(pathname, os.O_WRONLY|os.O_APPEND, 0644)
-	return &propagationLog{f: f}, keys, err
-}
-
-func (l *propagationLog) todo(key Key) error {
-	l.mu.Lock()
-	_, err := fmt.Fprintf(l.f, "%s todo %s\n", time.Now().Format(time.RFC3339), key)
-	l.mu.Unlock()
 	return err
 }
 
-func (l *propagationLog) done(k Key) {
-	l.mu.Lock()
-	_, err := fmt.Fprintf(l.f, "%s done %s\n", time.Now().Format(time.RFC3339), k)
-	l.mu.Unlock()
-	if err != nil {
-		// Logging as warning only, and otherwise ignoring the error. If this is called, the item has been propagated
-		// from the fast to the slow store, and the only risk here is redoing that.
-		log.WithFields(log.Fields{
-			"op":    "writeback",
-			"key":   k,
-			"cause": err,
-		}).Warning("Could not mark done")
+func (pl *propagationLog) next(p []byte) {
+	for {
+		pl.mu.Lock()
+		n, err := pl.file.ReadAt(p, pl.readOffset)
+		pl.mu.Unlock()
+		if n == logLineLength && err == nil {
+			break
+		}
+		time.Sleep(pl.pollInterval)
 	}
 }
 
-type asyncWrite struct {
-	key      Key
-	contents Value
+func (pl *propagationLog) mark(state byte) error {
+	pl.mu.Lock()
+	n, err := pl.file.WriteAt([]byte{state}, pl.readOffset)
+	pl.mu.Unlock()
+	pl.readOffset += logLineLength // Advance to next line.
+	if n != 1 {
+		return fmt.Errorf("wrote %d bytes instead of 1", n)
+	}
+	return err
+}
+
+func (pl *propagationLog) skip() {
+	pl.readOffset += logLineLength
+}
+
+func (pl *propagationLog) close() {
+	pl.mu.Lock()
+	_ = pl.file.Close()
+	pl.file = nil // panic if somebody tries to use the log after this.
+	pl.mu.Unlock()
 }
 
 // Paired is a store implementation that is meant to provide the benefits of a fast local store and long term
@@ -164,31 +138,16 @@ type Paired struct {
 	// To start the background goroutine from Put operations.
 	once sync.Once
 
-	queue chan asyncWrite
-	log   *propagationLog
+	log *propagationLog
 }
 
 func NewPaired(fast, slow Store, logPath string) (p *Paired, err error) {
 	p = new(Paired)
 	p.fast = fast
 	p.slow = slow
-	var keys []Key
-	p.log, keys, err = newPropagationLog(logPath)
+	p.log, err = newLog(logPath)
 	if err != nil {
 		return
-	}
-	sz := defaultPropagationBacklogSize
-	if sz < len(keys) {
-		// Make sure the paired store doesn't block on start!
-		sz = len(keys)
-	}
-	p.queue = make(chan asyncWrite, sz)
-	for _, key := range keys {
-		contents, e := p.fast.Get(key)
-		if e != nil {
-			return nil, fmt.Errorf("can't get key %q from the fast store, won't be able to copy it to the slow store: %v", key, err)
-		}
-		p.queue <- asyncWrite{key, contents}
 	}
 	return p, err
 }
@@ -222,33 +181,40 @@ func (p *Paired) Put(k Key, v Value) error {
 	if err := p.fast.Put(k, v); err != nil {
 		return err
 	}
-	if err := p.log.todo(k); err != nil {
+	if err := p.log.add(k); err != nil {
 		return err
 	}
-	p.queue <- asyncWrite{k, v}
 	return nil
 }
 
 func (p *Paired) EnsureBackgroundPuts() {
-	p.once.Do(func() {
-		go func() {
-			for w := range p.queue {
-				for {
-					err := p.slow.Put(w.key, w.contents)
-					if err == nil {
-						p.log.done(w.key)
-						break
-					}
-					log.WithFields(log.Fields{
-						"key":   w.key,
-						"cause": err.Error(),
-					}).Warn("Could propagate to permanent storage, will retry")
-					// TODO: We need some sort of exponential backoff here.
-					time.Sleep(500 * time.Millisecond)
-				}
+	p.once.Do(func() { go p.propagate() })
+}
+
+func (p *Paired) propagate() {
+	line := make([]byte, logLineLength)
+	for {
+		p.log.next(line)
+		if state := line[0]; state != itemPending && state != itemMissing {
+			log.Warnf("skipping item with unexpected state: %d", state)
+			p.log.skip()
+			continue
+		}
+		key := Key(line[1:65])
+		value, err := p.fast.Get(key)
+		if err != nil {
+			p.log.mark(itemMissing)
+			continue
+		}
+		for {
+			if err = p.slow.Put(key, value); err != nil {
+				log.Warnf("failure to put %q to slow store (will retry): %v", key, err)
+				time.Sleep(5 * time.Second)
 			}
-		}()
-	})
+			break
+		}
+		p.log.mark(itemDone)
+	}
 }
 
 // Delete deletes an item from the slow store first, then from the fast store second. Note that if done in the other

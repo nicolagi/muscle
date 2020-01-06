@@ -2,10 +2,13 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"testing/quick"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -13,51 +16,77 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// This is fairly limited, examines only one interleaving of the events that happen concurrently.
+// Any sequence of add(), next(), mark() can happen.
 func TestPropagationLogPreservesStateAcrossRestarts(t *testing.T) {
-	for i := 0; i < 100; i++ {
-		t.Run("", func(t *testing.T) {
-			todoCount := rand.Intn(10)
-			doneCount := rand.Intn(10)
-			if doneCount > todoCount {
-				doneCount = todoCount
+	f := func(byteKeys [][32]byte, restart int) bool {
+		logFile, err := ioutil.TempFile("", "")
+		require.Nil(t, err)
+		defer func() {
+			_ = os.Remove(logFile.Name())
+			matches, _ := filepath.Glob(logFile.Name() + ".*")
+			for _, archived := range matches {
+				_ = os.Remove(archived)
 			}
+		}()
+		_ = logFile.Close()
+		log, err := newLog(logFile.Name())
+		require.Nil(t, err)
 
-			pathname, cleanup := disposablePathName(t)
-			defer cleanup()
-
-			log, keys, err := newPropagationLog(pathname)
-			require.Nil(t, err)
-			require.Len(t, keys, 0)
-
-			var before []Key
-			for i := 0; i < todoCount; i++ {
-				pointer := RandomPointer()
-				require.Nil(t, log.todo(pointer.Key()))
-				before = append(before, pointer.Key())
+		keys := make([]Key, len(byteKeys))
+		for i, raw := range byteKeys {
+			k := Key(fmt.Sprintf("%x", raw))
+			keys[i] = k
+			require.Nil(t, log.add(k))
+		}
+		p := make([]byte, logLineLength)
+		i := 0
+		stop := 0
+		if len(byteKeys) > 0 {
+			stop = restart % len(byteKeys)
+		}
+		for ; i < stop; i++ {
+			log.next(p)
+			if strings.IndexByte("pmd", p[0]) == -1 {
+				t.Errorf("unknown state %d", p[0])
+				return false
 			}
-
-			// Mark the required number of keys as done in the log - order should not matter.
-			rand.Shuffle(len(before), func(i, j int) {
-				before[i], before[j] = before[j], before[i]
-			})
-			for i := 0; i < doneCount; i++ {
-				log.done(before[i])
+			if nextKey := Key(p[1:65]); nextKey != keys[i] {
+				t.Errorf("key mismatch, got %q, want %q", nextKey, keys[i])
+				return false
 			}
+			require.Nil(t, log.mark(itemDone))
+		}
+		// Shutdown.
+		log.close()
 
-			require.Nil(t, log.f.Close())
+		// Restart and process the rest.
+		log, err = newLog(logFile.Name())
+		require.Nil(t, err)
+		for ; i < len(byteKeys); i++ {
+			log.next(p)
+			if strings.IndexByte("pmd", p[0]) == -1 {
+				t.Errorf("unknown state %d", p[0])
+				return false
+			}
+			if nextKey := Key(p[1:65]); nextKey != keys[i] {
+				t.Errorf("key mismatch, got %q, want %q", nextKey, keys[i])
+				return false
+			}
+			require.Nil(t, log.mark(itemDone))
+		}
 
-			_, after, err := newPropagationLog(pathname)
-			require.Nil(t, err)
-			assert.ElementsMatch(t, before[doneCount:], after)
-		})
+		return true
+	}
+	if err := quick.Check(f, nil); err != nil {
+		t.Error(err)
 	}
 }
 
 func TestPaired(t *testing.T) {
 
 	t.Run("Successful put and get from fast store", func(t *testing.T) {
-		fast, cleanupStore := disposableDiskStore(t)
-		defer cleanupStore()
+		fast := NewInMemory()
 		logFilePath, cleanupLog := disposablePathName(t)
 		defer cleanupLog()
 		paired, err := NewPaired(fast, NullStore{}, logFilePath)
@@ -70,8 +99,8 @@ func TestPaired(t *testing.T) {
 	})
 
 	t.Run("Get when fast store does not have key and slow store breaks", func(t *testing.T) {
-		fast, cleanupStore := disposableDiskStore(t)
-		defer cleanupStore()
+		fast := NewInMemory()
+
 		pathname, cleanupLog := disposablePathName(t)
 		defer cleanupLog()
 
@@ -88,10 +117,8 @@ func TestPaired(t *testing.T) {
 	})
 
 	t.Run("Get propagates from slow to fast", func(t *testing.T) {
-		fast, cleanupFast := disposableDiskStore(t)
-		defer cleanupFast()
-		slow, cleanupSlow := disposableDiskStore(t)
-		defer cleanupSlow()
+		fast := NewInMemory()
+		slow := NewInMemory()
 
 		k, v := RandomPair()
 		assert.Nil(t, slow.Put(k, v))
@@ -113,8 +140,7 @@ func TestPaired(t *testing.T) {
 		fast.On("Get", mock.Anything).Return(nil, ErrNotFound)
 		fast.On("Put", mock.Anything, mock.Anything).Return(errors.New("failed"))
 
-		slow, cleanupStore := disposableDiskStore(t)
-		defer cleanupStore()
+		slow := NewInMemory()
 
 		k, v := RandomPair()
 		assert.Nil(t, slow.Put(k, v))
@@ -128,29 +154,36 @@ func TestPaired(t *testing.T) {
 	})
 
 	t.Run("Put propagates asynchronously from fast to slow", func(t *testing.T) {
-		fast, cleanupFast := disposableDiskStore(t)
-		defer cleanupFast()
-		slow, cleanupSlow := disposableDiskStore(t)
-		defer cleanupSlow()
+		fast := NewInMemory()
+		slow := NewInMemory()
 
 		k, v := RandomPair()
 		pathname, cleanupLog := disposablePathName(t)
 		defer cleanupLog()
 		store, err := NewPaired(fast, slow, pathname)
 		require.Nil(t, err)
+		store.log.pollInterval = 5 * time.Millisecond
 		_ = store.Put(k, v)
 		contents, err := fast.Get(k)
 		assert.Equal(t, Value(v), contents)
 		assert.Nil(t, err)
 
-		for {
-			if len(store.queue) == 0 {
+		done := make(chan struct{})
+		go func() {
+			for {
 				after, err := slow.Get(k)
-				assert.Equal(t, v, after)
-				assert.Nil(t, err)
-				break
+				if err == nil {
+					assert.Equal(t, v, after)
+					break
+				}
+				time.Sleep(50 * time.Millisecond)
 			}
-			time.Sleep(time.Millisecond)
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Errorf("timed out waiting for item to be in slow store")
 		}
 	})
 }
