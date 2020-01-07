@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"strings"
@@ -305,9 +306,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not create remote store: %v", err)
 	}
-	paired, err := storage.NewPaired(cacheStore, remoteStore, cfg.PropagationLogFilePath())
+	f, err := ioutil.TempFile("", "")
 	if err != nil {
-		log.Fatalf("Could not start new paired store with log %q: %v", cfg.PropagationLogFilePath(), err)
+		log.Fatalf("Could not create temporary file for bugs propagation log: %v", err)
+	}
+	paired, err := storage.NewPaired(cacheStore, remoteStore, f.Name())
+	if err != nil {
+		log.Fatalf("Could not start new paired store with log %q: %v", f.Name(), err)
 	}
 	// TODO martino is a terrible name. what does this store do? how does it differ from the paired store?
 	martino := storage.NewMartino(stagingStore, paired)
