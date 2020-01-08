@@ -157,11 +157,10 @@ func (ops *ops) Read(r *srv.Req) {
 }
 
 func runCommand(ops *ops, cmd string) error {
-	if cmd == "" {
+	args := strings.Fields(cmd)
+	if len(args) == 0 {
 		return nil
 	}
-
-	args := strings.Fields(cmd)
 	cmd = args[0]
 	args = args[1:]
 
