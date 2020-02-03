@@ -124,11 +124,6 @@ Commands:
 		Unless you're debugging some problem with the merge command, you don't need this.
 
 	reachable: reads a list of line-separated revision keys from standard input and lists all keys reachable from them to standard output
-	update-encoding: migrate all nodes to the latest metadata encoding
-
-		Unless you're developing a new metadata encoding, you don't need this. This command must run with no musclefs
-		running as it must have exclusive access to the root key file.
-
 	version: show version information
 `, os.Args[0])
 	os.Exit(2)
@@ -237,11 +232,6 @@ func main() {
 		_ = emptyFlags.Parse(os.Args[2:])
 		if narg := emptyFlags.NArg(); narg != 0 {
 			exitUsage(fmt.Sprintf("umount: no args expected, got %d", narg))
-		}
-	case "update-encoding":
-		_ = emptyFlags.Parse(os.Args[2:])
-		if narg := emptyFlags.NArg(); narg != 0 {
-			exitUsage(fmt.Sprintf("update-encoding: no args expected, got %d", narg))
 		}
 	case "version":
 		_ = emptyFlags.Parse(os.Args[2:])
@@ -528,24 +518,6 @@ func main() {
 		}
 		for k := range m {
 			fmt.Println(k)
-		}
-
-	case "update-encoding":
-		cmdlog := log.WithField("op", cmd)
-		key, err := treeStore.LocalRootKey()
-		if err != nil {
-			cmdlog.WithField("cause", err).Fatal("Could not get the local revision key")
-		}
-		cmdlog = cmdlog.WithField("key", key.Hex())
-		t, err := treeFactory.NewTreeFromRoot(key, false)
-		if err != nil {
-			cmdlog.WithField("cause", err).Fatal("Could not load tree")
-		}
-		if err := t.UpdateEncoding(); err != nil {
-			cmdlog.WithField("cause", err).Fatal("Could not update encoding")
-		}
-		if err := t.Flush(); err != nil {
-			cmdlog.WithField("cause", err).Fatal("Could not create new revision pointing to updated metadata")
 		}
 
 	case "version":

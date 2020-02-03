@@ -328,24 +328,3 @@ func (tree *Tree) Rename(source, target string) error {
 	nodeToMove.recomputeQID()
 	return fmt.Errorf("add failed")
 }
-
-func (tree *Tree) markDirtyForward(node *Node) error {
-	if err := tree.Grow(node); err != nil {
-		return err
-	}
-	for _, child := range node.children {
-		if err := tree.markDirtyForward(child); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// UpdateEncoding marks all the metadata nodes as dirty,
-// so they will have to be saved again, using the latest encoding.
-func (tree *Tree) UpdateEncoding() error {
-	if err := tree.markDirtyForward(tree.root); err != nil {
-		return err
-	}
-	return tree.Flush()
-}
