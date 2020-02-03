@@ -11,9 +11,7 @@ Revisions are linked together in a git-like history.
 The latter, muscle, is a command-line tool that offers additional
 operations on the same data that is exposed via the file server.
 
-A walk-through of the most common use cases is in the wiki,
-https://github.com/nicolagi/muscle/wiki/Walk-through. That page should
-answer with examples how this project can be useful.
+The [walk-through](doc/walk-through.md) page shows with examples how muscle can be useful.
 
 The rest of this page goes into technical matters instead.
 
@@ -178,9 +176,8 @@ with SIGINT or SIGTERM. Don't SIGKILL unless you absolutely have to!
 
 Install with `go get -u github.com/nicolagi/muscle/cmd/...`.
 
-Get an initial configuration with `muscle init`
-and customize. The walk-through wiki shows how, see
-https://github.com/nicolagi/muscle/wiki/Walk-through.
+Get an initial configuration with `muscle init` and customize.
+The [walk-through page](doc/walk-through.md) shows how.
 
 Start `musclefs` and `snapshotsfs` as background processes.
 
