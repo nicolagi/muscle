@@ -154,11 +154,15 @@ func TestInit(t *testing.T) {
 		if err != nil {
 			t.Errorf("could not print (non-empty) history for generated config: %v", err)
 		}
+		t.Log(string(output))
 		lines := strings.Split(string(output), "\n")
-		if got, want := len(lines), 8; got != want {
+		if got, want := len(lines), 15; got != want {
 			t.Fatalf("got %d lines, want %d", got, want)
 		}
-		if got, want := lines[4], "parents"; got != want {
+		if !strings.HasPrefix(lines[4], "parents ") {
+			t.Errorf(`got %q, want something prefixed by "parents "`, lines[4])
+		}
+		if got, want := lines[11], "parents"; got != want {
 			t.Errorf("got %q as parents line, want %q", got, want)
 		}
 	})

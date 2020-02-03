@@ -91,6 +91,19 @@ func (s *Store) LoadBlock(dst *Block) error {
 	return err
 }
 
+func (s *Store) StoreRevision(r *Revision) error {
+	encoded, err := s.codec.encodeRevision(r)
+	if err != nil {
+		return err
+	}
+	encrypted, err := s.cryptography.encrypt(encoded)
+	if err != nil {
+		return err
+	}
+	r.key = storage.PointerTo(encoded)
+	return s.martino.PutWithKey(r.key, encrypted)
+}
+
 func (s *Store) LoadRevision(dst *Revision) error {
 	encrypted, err := s.martino.Get(dst.key)
 	if err == nil {
@@ -113,36 +126,17 @@ func (s *Store) LoadNode(dst *Node) error {
 	return err
 }
 
-func (s *Store) PushRevisionLocally(r *Revision) error {
-	encrypted, err := s.encryptEncodeRevision(r)
-	if err != nil {
-		return err
-	}
-	r.key, err = s.martino.Put(encrypted)
-	if err != nil {
-		return err
-	}
-	log.WithField("key", r.key.Hex()).Info("Attempting to store new local revision")
+// TODO: Belongs to musclefs, not to the tree package.
+func (s *Store) updateLocalRootPointer(rootKey storage.Pointer) error {
+	log.WithField("key", rootKey).Info("Attempting to store new local root")
 	tmp := fmt.Sprintf("%s.%d", s.localRootKeyFile, time.Now().Unix())
-	err = ioutil.WriteFile(tmp, []byte(r.key.Hex()), 0600)
-	if err != nil {
+	if err := ioutil.WriteFile(tmp, []byte(rootKey.Hex()), 0600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, s.localRootKeyFile)
 }
 
-// PushRevisionRemotely encodes, encrypts, hashes, stores to the remote,
-// updates the remote root key to point to the the new revision.
-func (s *Store) PushRevisionRemotely(r *Revision) error {
-	encrypted, err := s.encryptEncodeRevision(r)
-	if err != nil {
-		return err
-	}
-	r.key = storage.PointerTo(encrypted)
-	err = s.remote.Put(r.key.Key(), encrypted)
-	if err != nil {
-		return err
-	}
+func (s *Store) UpdateRemoteRevision(r *Revision) error {
 	// TODO These remote root keys are the only keys that aren't hashes of something,
 	// and it bothers me.
 	return s.remote.Put(storage.Key(s.remoteRootKey), []byte(r.key.Hex()))
@@ -156,7 +150,7 @@ func (s *Store) encryptEncodeRevision(r *Revision) ([]byte, error) {
 	return s.cryptography.encrypt(encoded)
 }
 
-func (s *Store) LocalRevisionKey() (storage.Pointer, error) {
+func (s *Store) LocalRootKey() (storage.Pointer, error) {
 	b, err := ioutil.ReadFile(s.localRootKeyFile)
 	if os.IsNotExist(err) {
 		return storage.Null, nil
@@ -164,12 +158,12 @@ func (s *Store) LocalRevisionKey() (storage.Pointer, error) {
 	return storage.NewPointerFromHex(string(b))
 }
 
-func (s *Store) LocalRevision() (*Revision, *Node, error) {
-	key, err := s.LocalRevisionKey()
+func (s *Store) LocalRoot() (*Node, error) {
+	key, err := s.LocalRootKey()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return s.loadRevisionAndRoot(key)
+	return s.loadRoot(key)
 }
 
 func (s *Store) RemoteRevisionKey(instance string) (storage.Pointer, error) {
@@ -197,6 +191,12 @@ func (s *Store) RemoteRevision(instance string) (rev *Revision, root *Node, err 
 	return s.loadRevisionAndRoot(key)
 }
 
+func (s *Store) LoadRevisionByKey(key storage.Pointer) (*Revision, error) {
+	revision := &Revision{key: key}
+	err := s.LoadRevision(revision)
+	return revision, err
+}
+
 func (s *Store) loadRevisionAndRoot(key storage.Pointer) (*Revision, *Node, error) {
 	revision := &Revision{key: key}
 	if err := s.LoadRevision(revision); err != nil {
@@ -215,15 +215,25 @@ func (s *Store) loadRevisionAndRoot(key storage.Pointer) (*Revision, *Node, erro
 	return revision, root, nil
 }
 
-func (s *Store) History(maxRevisions int, key storage.Pointer) (rr []*Revision, err error) {
-	if key.IsNull() {
-		return nil, nil
+func (s *Store) loadRoot(key storage.Pointer) (*Node, error) {
+	root := &Node{
+		pointer: key,
+		parent:  nil, // That's what makes it the root.
 	}
-	r, _, err := s.loadRevisionAndRoot(key)
-	if err != nil {
+	if err := s.LoadNode(root); err != nil {
 		return nil, err
 	}
-	return s.history(r, maxRevisions)
+	// These two lines would not be needed if I didn't have some bad metadata in my oldest trees.
+	root.D.Mode |= p.DMDIR
+	root.D.Type = p.QTDIR
+	return root, nil
+}
+
+func (s *Store) History(maxRevisions int, head *Revision) (rr []*Revision, err error) {
+	if head == nil {
+		return nil, nil
+	}
+	return s.history(head, maxRevisions)
 }
 
 func (s *Store) history(r *Revision, maxRevisions int) (rr []*Revision, err error) {
@@ -250,7 +260,7 @@ func (s *Store) history(r *Revision, maxRevisions int) (rr []*Revision, err erro
 }
 
 // MergeBase finds a revision that is a common parent of revisions a and b.
-func (s *Store) MergeBase(a, b storage.Pointer) (storage.Pointer, error) {
+func (s *Store) MergeBase(arev, brev *Revision) (storage.Pointer, error) {
 	prefetched := make(map[string]*Revision)
 
 	fetch := func(rp storage.Pointer) (*Revision, error) {
@@ -269,14 +279,9 @@ func (s *Store) MergeBase(a, b storage.Pointer) (storage.Pointer, error) {
 		}
 	}
 
-	arev, err := fetch(a)
-	if err != nil {
-		return storage.Null, err
-	}
-	brev, err := fetch(b)
-	if err != nil {
-		return storage.Null, err
-	}
+	prefetched[arev.key.Hex()] = arev
+	prefetched[brev.key.Hex()] = brev
+
 	graph, base, err := mergebase.Find(convert(arev), convert(brev), func(child mergebase.Node) (parents []mergebase.Node, err error) {
 		for _, rp := range prefetched[child.ID].parents {
 			r, err := fetch(rp)

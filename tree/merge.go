@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/nicolagi/muscle/config"
+	"github.com/nicolagi/muscle/storage"
 )
 
 type KeepLocalFn func(string, string) bool
@@ -57,17 +58,24 @@ func keepPathName(dir string, revision string) string {
 // Merge logs diagnostic messages and command to be run to merge changes from another revision.
 // It will not modify the tree.
 func Merge(keepLocalFn KeepLocalFn, dst *Tree, srcInstance string, factory *Factory, cfg *config.C) error {
-	remote, err := factory.store.RemoteRevisionKey(srcInstance)
+	remote, _, err := factory.store.RemoteRevision(srcInstance)
 	if err != nil {
 		return fmt.Errorf("could not get remote revision for %q: %v", srcInstance, err)
 	}
-	ancestor, err := factory.store.MergeBase(dst.revision, remote)
+	// dst.revision is going to be empty because the local revision (the destination)
+	// doesn't really exist. We make it up just as in ../cmd/muscle/muscle.go:/parseRevision/.
+	parentKey, err := factory.store.RemoteRevisionKey(dst.instance)
 	if err != nil {
-		return fmt.Errorf("could not find ancestor for %q (destination, local) and %q (source, remote): %v", dst.revision.Hex(), remote.Hex(), err)
+		return err
 	}
-	remoteTree, err := factory.NewTree(remote, true)
+	dstrev := NewRevision(dst.instance, dst.root.pointer, []storage.Pointer{parentKey})
+	ancestor, err := factory.store.MergeBase(dstrev, remote)
 	if err != nil {
-		return fmt.Errorf("could not build tree for %q (remote): %v", remote.Hex(), err)
+		return fmt.Errorf("could not find ancestor for %q (destination, local) and %q (source, remote): %v", dst.revision.Hex(), remote.key.Hex(), err)
+	}
+	remoteTree, err := factory.NewTree(remote.key, true)
+	if err != nil {
+		return fmt.Errorf("could not build tree for %q (remote): %v", remote.key, err)
 	}
 	ancestorTree, err := factory.NewTree(ancestor, true)
 	if err != nil {
@@ -76,9 +84,9 @@ func Merge(keepLocalFn KeepLocalFn, dst *Tree, srcInstance string, factory *Fact
 	defer func() {
 		fmt.Printf("echo flush > %s/ctl\n", cfg.MuscleFSMount)
 		fmt.Println("# If all is merged fine, run the following to create a merge commit.")
-		fmt.Printf("# echo snapshot %s > %s/ctl\n", remote.Hex(), cfg.MuscleFSMount)
+		fmt.Printf("# echo snapshot %s > %s/ctl\n", remote.key.Hex(), cfg.MuscleFSMount)
 	}()
-	return merge3way(keepLocalFn, dst, ancestorTree, remoteTree, dst.root, ancestorTree.root, remoteTree.root, ancestor.Hex(), remote.Hex(), cfg)
+	return merge3way(keepLocalFn, dst, ancestorTree, remoteTree, dst.root, ancestorTree.root, remoteTree.root, ancestor.Hex(), remote.key.Hex(), cfg)
 }
 
 func sameKeyOrBothNil(a, b *Node) bool {

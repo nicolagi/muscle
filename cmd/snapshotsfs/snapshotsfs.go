@@ -153,7 +153,7 @@ func (isd *instanceSnapshotsDirectory) Open(fid *srv.FFid, mode uint8) error {
 }
 
 func (isd *instanceSnapshotsDirectory) reload() error {
-	remote, err := treeStore.RemoteRevisionKey(isd.Name)
+	remote, _, err := treeStore.RemoteRevision(isd.Name)
 	if err != nil {
 		return err
 	}

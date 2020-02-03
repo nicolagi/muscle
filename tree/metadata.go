@@ -7,8 +7,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// CreateRevision dumps the in-memory changes to the staging area if not done recently (according to the snapshot frequency constant).
-func (tree *Tree) CreateRevision() error {
+// FlushIfNotDoneRecently dumps the in-memory changes to the staging area if not done recently (according to the snapshot frequency constant).
+func (tree *Tree) FlushIfNotDoneRecently() error {
 	if time.Since(tree.lastFlushed) < SnapshotFrequency {
 		return nil
 	}
@@ -19,12 +19,10 @@ func (tree *Tree) CreateRevision() error {
 	if tree.readOnly {
 		return ErrReadOnly
 	}
-	rev := NewRevision(tree.instance, tree.root.pointer, []storage.Pointer{tree.revision})
-	err = tree.store.PushRevisionLocally(rev)
+	err = tree.store.updateLocalRootPointer(tree.root.Key())
 	if err != nil {
 		return err
 	}
-	tree.revision = rev.key
 	tree.lastFlushed = time.Now()
 	return nil
 }

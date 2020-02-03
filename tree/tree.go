@@ -219,7 +219,9 @@ func (tree *Tree) reachableKeysInTheStagingArea(node *Node, accumulator map[stri
 			accumulator[block.pointer.Hex()] = struct{}{}
 		}
 	}
-	tree.Grow(node)
+	if err := tree.Grow(node); err != nil {
+		return err
+	}
 	for _, child := range node.children {
 		if e := tree.reachableKeysInTheStagingArea(child, accumulator); e != nil {
 			return e
@@ -260,7 +262,7 @@ func (tree *Tree) reachableKeys(node *Node, accumulator map[string]struct{}) err
 func (tree *Tree) Flush() error {
 	// Make sure it looks like more than 5 minutes have passed.
 	tree.lastFlushed = time.Unix(0, 0)
-	return tree.CreateRevision()
+	return tree.FlushIfNotDoneRecently()
 }
 
 // Graft is a low-level operation. The child may come from a historical tree.

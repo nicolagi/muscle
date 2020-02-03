@@ -1,6 +1,7 @@
 package tree
 
 import (
+	"github.com/nicolagi/go9p/p"
 	"github.com/nicolagi/muscle/storage"
 )
 
@@ -32,4 +33,48 @@ func (f *Factory) NewTreeForInstance(instance string, revision storage.Pointer) 
 	}
 	t.instance = instance
 	return t, nil
+}
+
+func (f *Factory) NewTreeForInstanceFromRoot(instance string, key storage.Pointer) (*Tree, error) {
+	t, err := f.NewTreeFromRoot(key, false)
+	if err != nil {
+		return nil, err
+	}
+	t.instance = instance
+	return t, nil
+}
+
+func (f *Factory) NewTreeReadOnlyFromRevisionRoot(r *Revision) (*Tree, error) {
+	return f.NewTreeFromRoot(r.rootKey, true)
+}
+
+func (f *Factory) NewTreeFromRoot(rootKey storage.Pointer, readOnly bool) (*Tree, error) {
+	tree := &Tree{
+		store:    f.store,
+		readOnly: readOnly,
+	}
+	if rootKey == nil {
+		tree.root = &Node{
+			D: p.Dir{
+				Name: "root",
+				Mode: 0700 | p.DMDIR,
+				Qid: p.Qid{
+					Type: p.QTDIR,
+				},
+			},
+			dirty: true,
+		}
+		tree.Add(tree.root, "ctl", 0600)
+		return tree, nil
+	}
+	tree.root = &Node{pointer: rootKey}
+	err := tree.store.LoadNode(tree.root)
+	if err != nil {
+		return nil, err
+	}
+	// Fix mode for roots created before mode was used...
+	tree.root.D.Mode |= 0700 | p.DMDIR
+	// TODO when does it exit?
+	go tree.trimPeriodically()
+	return tree, err
 }

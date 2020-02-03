@@ -62,7 +62,7 @@ func TestComformsToManualPages(t *testing.T) {
 	// convention directories contain no explicit entry for ..  or . (dot).  The parent of the root directory of a
 	// server's tree is itself.
 	t.Run("walk to .. from root gives root", func(t *testing.T) {
-		client, _, tearDown := setUp(t)
+		client, _, _, tearDown := setUp(t)
 		defer tearDown(t)
 		newfid := client.FidAlloc()
 		qids, err := client.Walk(client.Root, newfid, []string{".."})
@@ -74,7 +74,7 @@ func TestComformsToManualPages(t *testing.T) {
 		assert.Equal(t, "root", dir.Name)
 	})
 	t.Run("walk to .. from dir gives parent", func(t *testing.T) {
-		client, _, tearDown := setUp(t)
+		client, _, _, tearDown := setUp(t)
 		defer tearDown(t)
 		must := &mustHelpers{t: t, c: client}
 
@@ -98,7 +98,7 @@ func TestComformsToManualPages(t *testing.T) {
 }
 
 func Test(t *testing.T) {
-	client, factory, tearDown := setUp(t)
+	client, treeStore, factory, tearDown := setUp(t)
 	defer tearDown(t)
 	t.Run("the root is a directory", func(t *testing.T) {
 		must := &mustHelpers{t: t, c: client}
@@ -184,6 +184,10 @@ func Test(t *testing.T) {
 		require.Nil(t, err)
 		require.Nil(t, donor.Release(donorMusic))
 		require.Nil(t, donor.Flush())
+		revision := tree.NewRevision("other", donorRoot.Key(), nil)
+		err = treeStore.StoreRevision(revision)
+		require.Nil(t, err)
+		donor.SetRevision(revision)
 		donorRevision, _ := donor.Root()
 
 		must := &mustHelpers{t: t, c: client}
@@ -284,7 +288,7 @@ func Test(t *testing.T) {
 // The tree factory is configured to write to the same storage as the musclefs process,
 // therefore it can be used to build fixture data that the musclefs process can use, e.g.,
 // for the graft command.
-func setUp(t *testing.T) (client *clnt.Clnt, factory *tree.Factory, tearDown func(*testing.T)) {
+func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Factory, tearDown func(*testing.T)) {
 	// dir will store what is usually in $HOME/lib/musclefs.
 	dir, err := ioutil.TempDir("", "musclefs")
 	if err != nil {
@@ -333,13 +337,13 @@ func setUp(t *testing.T) (client *clnt.Clnt, factory *tree.Factory, tearDown fun
 	// Of course this means that the cache directory will contain extraneous intermediate data,
 	// but it's fine for tests.
 	blobStore := storage.NewMartino(diskStore, diskStore)
-	store, err := tree.NewStore(blobStore, nil, rootFile, "remote.root.other", sharedKey)
+	store, err = tree.NewStore(blobStore, nil, rootFile, "remote.root.other", sharedKey)
 	require.Nil(t, err)
 	factory = tree.NewFactory(store)
 
 	// TODO: Should do the cleean up only if the test is successful, leave other wise
 	// process and temporary files around for debugging.
-	return client, factory, func(t *testing.T) {
+	return client, store, factory, func(t *testing.T) {
 		// Can't use command.Process.Kill() because that would kill go run, not its child.
 		//ng        9368  9353  0 18:52 ?        00:00:00 go run -race . -base ./config.test
 		//ng        9477  9368  0 18:52 ?        00:00:00 /tmp/go-build420765022/b001/exe/musclefs -base ./config.test

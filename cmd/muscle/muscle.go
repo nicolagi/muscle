@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/user"
+	"regexp"
 	"strings"
 
 	"github.com/nicolagi/muscle/config"
@@ -334,17 +335,16 @@ func main() {
 		return
 	}
 
-	revisionKey, err := treeStore.LocalRevisionKey()
-	// TODO use new errors.Is()
+	rootKey, err := treeStore.LocalRootKey()
 	if os.IsNotExist(err) {
-		revisionKey = storage.Null
+		rootKey = storage.Null
 		err = nil
 	}
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
 	treeFactory := tree.NewFactory(treeStore)
-	localTree, err := treeFactory.NewTree(revisionKey, true)
+	localTree, err := treeFactory.NewTreeFromRoot(rootKey, true)
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -424,17 +424,22 @@ func main() {
 
 	case "history":
 		cmdlog := log.WithField("op", cmd)
-		rev := mustParseRevision(cmdlog, treeStore, historyContext.rev)
+		rev := mustParseRevision(cmdlog, treeStore, cfg.Instance, historyContext.rev)
 		rr, err := treeStore.History(historyContext.count, rev)
 		if err != nil {
 			cmdlog.WithField("cause", err).Warn("History possibly truncated")
 		}
 		for i := 0; i < len(rr); i++ {
 			this := rr[i]
-			fmt.Println(this) // TODO rething output
+			fmt.Println(this)
 			if historyContext.diff && i < len(rr)-1 {
-				a, _ := treeFactory.NewTree(rr[i+1].Key(), true)
-				b, _ := treeFactory.NewTree(this.Key(), true)
+				var a, b *tree.Tree
+				a, _ = treeFactory.NewTree(rr[i+1].Key(), true)
+				if i == 0 && this.Key().IsNull() {
+					b, _ = treeFactory.NewTreeReadOnlyFromRevisionRoot(rev)
+				} else {
+					b, _ = treeFactory.NewTree(this.Key(), true)
+				}
 				tree.DiffTrees(a, b, tree.DiffTreesOutput(os.Stdout),
 					tree.DiffTreesInitialPath(historyContext.prefix),
 					tree.DiffTreesContext(historyContext.context),
@@ -468,11 +473,11 @@ func main() {
 		if mergeContext.tree == cfg.Instance {
 			log.Fatalf("Refusing to merge %q onto itself", mergeContext.tree)
 		}
-		localRevisionKey, err := treeStore.LocalRevisionKey()
+		localRootKey, err := treeStore.LocalRootKey()
 		if err != nil {
 			log.Fatal(err)
 		}
-		localTree, err := treeFactory.NewTree(localRevisionKey, true)
+		localTree, err := treeFactory.NewTreeFromRoot(localRootKey, true)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -486,19 +491,19 @@ func main() {
 	case "merge-base":
 		cmdlog := log.WithField("op", cmd)
 
-		rev1 := mustParseRevision(cmdlog, treeStore, mergeBaseContext.rev1)
-		rev2 := mustParseRevision(cmdlog, treeStore, mergeBaseContext.rev2)
+		rev1 := mustParseRevision(cmdlog, treeStore, cfg.Instance, mergeBaseContext.rev1)
+		rev2 := mustParseRevision(cmdlog, treeStore, cfg.Instance, mergeBaseContext.rev2)
 
 		// TODO it would be nice to have the distance too
 		mb, err := treeStore.MergeBase(rev1, rev2)
 		if err != nil {
 			log.WithFields(log.Fields{
-				"rev1":  rev1.Hex(),
-				"rev2":  rev2.Hex(),
+				"rev1":  rev1.Key(),
+				"rev2":  rev2.Key(),
 				"cause": err,
 			}).Fatal("could not find merge base")
 		}
-		fmt.Printf("%s:%s\n%s:%s\n%s\n", mergeBaseContext.rev1, rev1.Hex(), mergeBaseContext.rev2, rev2.Hex(), mb.Hex())
+		fmt.Printf("%s:%v\n%s:%v\n%s\n", mergeBaseContext.rev1, rev1.Key(), mergeBaseContext.rev2, rev2.Key(), mb.Hex())
 
 	case "reachable":
 		cmdlog := log.WithField("op", cmd) // TODO adopt pattern for all commands
@@ -527,19 +532,19 @@ func main() {
 
 	case "update-encoding":
 		cmdlog := log.WithField("op", cmd)
-		key, err := treeStore.LocalRevisionKey()
+		key, err := treeStore.LocalRootKey()
 		if err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not get the local revision key")
 		}
 		cmdlog = cmdlog.WithField("key", key.Hex())
-		t, err := treeFactory.NewTree(key, false)
+		t, err := treeFactory.NewTreeFromRoot(key, false)
 		if err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not load tree")
 		}
 		if err := t.UpdateEncoding(); err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not update encoding")
 		}
-		if err := t.CreateRevision(); err != nil {
+		if err := t.Flush(); err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not create new revision pointing to updated metadata")
 		}
 
@@ -551,24 +556,54 @@ func main() {
 	}
 }
 
-func parseRevision(store *tree.Store, r string) (storage.Pointer, error) {
-	if r == "local" {
-		return store.LocalRevisionKey()
+var hexRE = regexp.MustCompile("^[0-9a-f]+$")
+
+func parseRevision(store *tree.Store, localInstance string, descriptor string) (*tree.Revision, error) {
+	switch {
+	case descriptor == "local":
+		// The local revision is a fiction. It is a revision whose root is the current
+		// local root (according to the root key file) and whose only parent is
+		// the remote revision, if it exists.
+		rootKey, err := store.LocalRootKey()
+		if err != nil {
+			return nil, err
+		}
+		if rootKey == nil {
+			return nil, nil
+		}
+		var parents []storage.Pointer
+		remoteRevisionKey, err := store.RemoteRevisionKey(localInstance)
+		if err != nil && !errors.Is(err, storage.ErrNotFound) {
+			return nil, err
+		}
+		if remoteRevisionKey != nil {
+			parents = append(parents, remoteRevisionKey)
+		}
+		return tree.NewRevision(localInstance, rootKey, parents), nil
+	case hexRE.MatchString(descriptor):
+		revisionKey, err := storage.NewPointerFromHex(descriptor)
+		if err != nil {
+			return nil, err
+		}
+		return store.LoadRevisionByKey(revisionKey)
+	default:
+		revisionKey, err := store.RemoteRevisionKey(descriptor)
+		if err != nil {
+
+			return nil, err
+
+		}
+		return store.LoadRevisionByKey(revisionKey)
 	}
-	key, err := storage.NewPointerFromHex(r)
-	if errors.Is(err, storage.ErrNotHashPointer) {
-		return store.RemoteRevisionKey(r)
-	}
-	return key, err
 }
 
-func mustParseRevision(logger *log.Entry, store *tree.Store, r string) storage.Pointer {
-	key, err := parseRevision(store, r)
+func mustParseRevision(logger *log.Entry, store *tree.Store, localInstance string, descriptor string) *tree.Revision {
+	r, err := parseRevision(store, localInstance, descriptor)
 	if err != nil {
 		logger.WithFields(log.Fields{
-			"revision": r,
+			"revision": descriptor,
 			"cause":    err,
 		}).Fatal("could not parse revision")
 	}
-	return key
+	return r
 }

@@ -251,31 +251,26 @@ func runCommand(ops *ops, cmd string) error {
 			parents = append(parents, key)
 		}
 
-		// I. Flush.
+		// I. Dump from memory to staging area.
 		if err := ops.tree.Flush(); err != nil {
 			return fmt.Errorf("could not flush: %v", err)
 		}
 		_, _ = fmt.Fprintln(outputBuffer, "flushed")
 
 		// II. Make the parent the remote root (forgets intermediate local revisions).
-		ts := ops.treeStore
-		_, localRoot, err := ts.LocalRevision()
-		if err != nil {
-			return fmt.Errorf("could not get local revision: %v", err)
-		}
-		revisionKey, err := ts.RemoteRevisionKey("")
+		_, localRoot := ops.tree.Root()
+		remoteRevisionKey, err := ops.treeStore.RemoteRevisionKey("")
 		if err != nil && !errors.Is(err, storage.ErrNotFound) {
 			return fmt.Errorf("could not get remote revision: %v", err)
 		}
 		// DO NOT change order of revision keys or you'll break history.
 		// The history code assumes the parent to follow to reconstruct the history of an instance is the last one.
-		if revisionKey != nil {
-			parents = append(parents, revisionKey)
+		if remoteRevisionKey != nil {
+			parents = append(parents, remoteRevisionKey)
 		}
 		revision := tree.NewRevision(ops.instanceID, localRoot.Key(), parents)
-		// Need this or reachable keys below won't find the right things...
-		if e := ts.PushRevisionLocally(revision); e != nil {
-			return e
+		if err := ops.treeStore.StoreRevision(revision); err != nil {
+			return err
 		}
 		ops.tree.SetRevision(revision)
 
@@ -296,32 +291,9 @@ func runCommand(ops *ops, cmd string) error {
 		}
 
 		// Save remote root pointer.
-		if e := ts.PushRevisionRemotely(revision); e != nil {
+		if e := ops.treeStore.UpdateRemoteRevision(revision); e != nil {
 			return e
 		}
-
-		// At this point the revision.key has changed due to
-		// re-encryption.
-		//
-		// (r1,d1) -> (r0,d0) (local)
-		// (s1,d1) -> (r0,d0) (remote)
-		//
-		// If we don't do anything else here, when new revisions are
-		// published locally (e.g., flushing via the control file, or
-		// automatically every couple minutes), we'll end up with
-		//
-		// (rn,dn) -> ... -> (r1,d1) -> (r0,d0) (local)
-		// (s1,d1) -> (r0,d0) (remote)
-		//
-		// so the merge base of local and remote would be (r0,d0)
-		// rather than (s1,d1).
-		//
-		// Therefore we update the revision key in the tree to be the one
-		// just pushed remotely, which will be the parent for the next
-		// local revision. (Note though that only at the next flush will
-		// the local revision appear as a child of the remote revision.)
-		ops.tree.SetRevision(revision)
-
 	default:
 		return fmt.Errorf("command not recognized: %q", cmd)
 	}
@@ -517,12 +489,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	revisionKey, err := treeStore.LocalRevisionKey()
+	rootKey, err := treeStore.LocalRootKey()
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
 	factory := tree.NewFactory(treeStore)
-	tt, err := factory.NewTreeForInstance(cfg.Instance, revisionKey)
+	tt, err := factory.NewTreeForInstanceFromRoot(cfg.Instance, rootKey)
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -561,7 +533,7 @@ func main() {
 			time.Sleep(tree.SnapshotFrequency)
 			ops.mu.Lock()
 			// TODO handle all errors - add errcheck to precommit?
-			ops.tree.CreateRevision()
+			ops.tree.FlushIfNotDoneRecently()
 			ops.mu.Unlock()
 		}
 	}()
