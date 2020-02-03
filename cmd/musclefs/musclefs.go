@@ -59,7 +59,7 @@ func (ops *ops) Walk(r *srv.Req) {
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
 	if len(r.Tc.Wname) == 0 {
-		node.Ref("clone", reqfid(r.Newfid))
+		node.Ref("clone")
 		r.Newfid.Aux = node
 		r.RespondRwalk(nil)
 		return
@@ -89,7 +89,7 @@ func (ops *ops) Walk(r *srv.Req) {
 	if len(qids) == len(r.Tc.Wname) {
 		targetNode := nodes[len(nodes)-1]
 		r.Newfid.Aux = targetNode
-		targetNode.Ref("successful walk", reqfid(r.Newfid))
+		targetNode.Ref("successful walk")
 	}
 	r.RespondRwalk(qids)
 }
@@ -124,8 +124,8 @@ func (ops *ops) Create(r *srv.Req) {
 		r.RespondError(err)
 		return
 	}
-	node.Ref("create", reqfid(r.Fid))
-	parent.Unref("created child", reqfid(r.Fid))
+	node.Ref("create")
+	parent.Unref("created child")
 	r.Fid.Aux = node
 	r.RespondRcreate(&node.D.Qid, 0)
 }
@@ -355,7 +355,7 @@ func (ops *ops) Clunk(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
-	defer node.Unref("clunk", reqfid(r.Fid))
+	defer node.Unref("clunk")
 	if !node.IsDir() {
 		err := ops.tree.Release(node)
 		if err != nil {
@@ -370,18 +370,11 @@ func (ops *ops) Clunk(r *srv.Req) {
 	r.RespondRclunk()
 }
 
-// TODO I'm done debugging, I should remove this.
-func reqfid(*srv.Fid) uint32 {
-	return 0xffffffff
-	// This can be used when replacing go9p with ../go9p in go.mod
-	// return fid.F()
-}
-
 func (ops *ops) Remove(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
-	node.Unref("remove", reqfid(r.Fid))
+	node.Unref("remove")
 	if node.IsController() {
 		r.RespondError(srv.Eperm)
 		return
