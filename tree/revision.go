@@ -16,7 +16,7 @@ type Revision struct {
 
 	parents  []storage.Pointer
 	rootKey  storage.Pointer
-	instance  string
+	instance string
 	hostname string // From where the snapshot was taken.
 	when     int64  // When the snapshot was taken (in seconds).
 }
@@ -37,6 +37,8 @@ func NewRevision(instance string, rootKey storage.Pointer, parents []storage.Poi
 }
 
 func (r *Revision) Key() storage.Pointer { return r.key }
+
+func (r *Revision) RootKey() storage.Pointer { return r.rootKey }
 
 func (r *Revision) Time() time.Time {
 	return time.Unix(r.when, 0)

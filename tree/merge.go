@@ -73,11 +73,11 @@ func Merge(keepLocalFn KeepLocalFn, dst *Tree, srcInstance string, factory *Fact
 	if err != nil {
 		return fmt.Errorf("could not find ancestor for %q (destination, local) and %q (source, remote): %v", dst.revision.Hex(), remote.key.Hex(), err)
 	}
-	remoteTree, err := factory.NewTree(remote.key, true)
+	remoteTree, err := factory.NewTree(factory.WithRevisionKey(remote.key))
 	if err != nil {
 		return fmt.Errorf("could not build tree for %q (remote): %v", remote.key, err)
 	}
-	ancestorTree, err := factory.NewTree(ancestor, true)
+	ancestorTree, err := factory.NewTree(factory.WithRevisionKey(ancestor))
 	if err != nil {
 		return fmt.Errorf("could not build tree for %q (ancestor): %v", ancestor.Hex(), err)
 	}

@@ -188,8 +188,8 @@ func DiffTrees(a, b *Tree, options ...DiffTreesOption) error {
 	for _, opt := range options {
 		opt(&opts)
 	}
-	fmt.Fprintf(opts.output, "------ a revision %s root %s\n", a.revision.Hex(), a.root.pointer.Hex())
-	fmt.Fprintf(opts.output, "++++++ b revision %s root %s\n", b.revision.Hex(), b.root.pointer.Hex())
+	fmt.Fprintf(opts.output, "------ a root %s\n", a.root.pointer.Hex())
+	fmt.Fprintf(opts.output, "++++++ b root %s\n", b.root.pointer.Hex())
 	aInitial := a.root
 	bInitial := b.root
 	if opts.initialPath != "" {

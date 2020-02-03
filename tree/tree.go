@@ -27,48 +27,6 @@ type Tree struct {
 	lastFlushed time.Time
 }
 
-func newTree(
-	store *Store,
-	initialRevision storage.Pointer,
-	readOnly bool,
-) (*Tree, error) {
-	tree := &Tree{
-		store:    store,
-		readOnly: readOnly,
-	}
-	if initialRevision.IsNull() {
-		tree.root = &Node{
-			D: p.Dir{
-				Name: "root",
-				Mode: 0700 | p.DMDIR,
-				Qid: p.Qid{
-					Type: p.QTDIR,
-				},
-			},
-			dirty: true,
-		}
-		tree.Add(tree.root, "ctl", 0600)
-		return tree, nil
-	}
-	rev := &Revision{key: initialRevision}
-	err := tree.store.LoadRevision(rev)
-	if err != nil {
-		return nil, err
-	}
-	tree.instance = rev.instance
-	tree.revision = rev.key
-	tree.root = &Node{pointer: rev.rootKey}
-	err = tree.store.LoadNode(tree.root)
-	if err != nil {
-		return nil, err
-	}
-	// Fix mode for roots created before mode was used...
-	tree.root.D.Mode |= 0700 | p.DMDIR
-	// TODO when does it exit?
-	go tree.trimPeriodically()
-	return tree, err
-}
-
 func (tree *Tree) Attach() *Node {
 	return tree.root
 }

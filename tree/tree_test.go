@@ -78,7 +78,7 @@ func TestNodeWriting(t *testing.T) {
 	assert.Equal(t, "yyy345", string(node.blocks[2].contents))
 
 	t.Run("writing on block that is not loaded", func(t *testing.T) {
-		oak, err := newTree(nil, storage.Null, true)
+		oak, err := NewFactory(nil).NewTree()
 		assert.Nil(t, err)
 
 		// Pretend something was on the root node (which is a dir, here treating it like a file).
@@ -161,6 +161,6 @@ func scratchTree() (*Tree, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	tt, err := newTree(st, storage.Null, true)
+	tt, err := NewFactory(st).NewTree()
 	return tt, tdir, err
 }

@@ -169,7 +169,7 @@ func (isd *instanceSnapshotsDirectory) reload() error {
 			continue
 		}
 
-		revisionTree, err := treeFactory.NewTree(revision.Key(), true)
+		revisionTree, err := treeFactory.NewTree(treeFactory.WithRevisionKey(revision.Key()))
 		if err != nil {
 			log.Println(err)
 			continue
@@ -200,7 +200,7 @@ func (root *rootDir) Find(hex string) (*srv.File, error) {
 		log.WithField("key", hex).Info("Not a hash pointer")
 		return nil, nil
 	}
-	revisionTree, err := treeFactory.NewTree(revp, true)
+	revisionTree, err := treeFactory.NewTree(treeFactory.WithRevisionKey(revp))
 	if err != nil {
 		log.WithFields(log.Fields{
 			"key": hex,

@@ -177,7 +177,7 @@ func Test(t *testing.T) {
 	t.Run("graft /music while /music/song is open", func(t *testing.T) {
 		// Outside of the file server, we must create a "donor" tree that will "donate"
 		// a path that will be grafted onto the running tree.
-		donor, err := factory.NewTree(storage.Null, false)
+		donor, err := factory.NewTree(factory.Mutable())
 		require.Nil(t, err)
 		_, donorRoot := donor.Root()
 		donorMusic, err := donor.Add(donorRoot, "music", 0666)

@@ -1,6 +1,9 @@
 package tree
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/nicolagi/go9p/p"
 	"github.com/nicolagi/muscle/storage"
 )
@@ -20,61 +23,83 @@ func NewFactory(store *Store) *Factory {
 	}
 }
 
-// NewTree returns the *Tree corresponding to the given revision.
-// If read-only, some operations will be disabled or will return errors.
-func (f *Factory) NewTree(revisionKey storage.Pointer, readOnly bool) (*Tree, error) {
-	return newTree(f.store, revisionKey, readOnly)
-}
+type factoryOption func(*Tree) error
 
-func (f *Factory) NewTreeForInstance(instance string, revision storage.Pointer) (*Tree, error) {
-	t, err := f.NewTree(revision, false)
-	if err != nil {
-		return nil, err
-	}
-	t.instance = instance
-	return t, nil
-}
+var ErrOptionClash = errors.New("option clash")
 
-func (f *Factory) NewTreeForInstanceFromRoot(instance string, key storage.Pointer) (*Tree, error) {
-	t, err := f.NewTreeFromRoot(key, false)
-	if err != nil {
-		return nil, err
-	}
-	t.instance = instance
-	return t, nil
-}
-
-func (f *Factory) NewTreeReadOnlyFromRevisionRoot(r *Revision) (*Tree, error) {
-	return f.NewTreeFromRoot(r.rootKey, true)
-}
-
-func (f *Factory) NewTreeFromRoot(rootKey storage.Pointer, readOnly bool) (*Tree, error) {
-	tree := &Tree{
-		store:    f.store,
-		readOnly: readOnly,
-	}
-	if rootKey == nil {
-		tree.root = &Node{
-			D: p.Dir{
-				Name: "root",
-				Mode: 0700 | p.DMDIR,
-				Qid: p.Qid{
-					Type: p.QTDIR,
-				},
-			},
-			dirty: true,
+func (*Factory) WithInstance(value string) factoryOption {
+	return func(t *Tree) error {
+		if t.instance != "" {
+			return fmt.Errorf("instance: %w", ErrOptionClash)
 		}
-		tree.Add(tree.root, "ctl", 0600)
-		return tree, nil
+		t.instance = value
+		return nil
 	}
-	tree.root = &Node{pointer: rootKey}
-	err := tree.store.LoadNode(tree.root)
-	if err != nil {
-		return nil, err
+}
+
+func (*Factory) Mutable() factoryOption {
+	return func(t *Tree) error {
+		t.readOnly = false
+		return nil
+	}
+}
+
+func (f *Factory) WithRevisionKey(value storage.Pointer) factoryOption {
+	return func(t *Tree) error {
+		if t.instance != "" {
+			return fmt.Errorf("instance: %w", ErrOptionClash)
+		}
+		if !t.revision.IsNull() {
+			return fmt.Errorf("revision: %w", ErrOptionClash)
+		}
+		if t.root != nil {
+			return fmt.Errorf("root: %w", ErrOptionClash)
+		}
+		r := Revision{key: value}
+		if err := f.store.LoadRevision(&r); err != nil {
+			return err
+		}
+		t.instance = r.instance
+		t.revision = r.key
+		t.root = &Node{pointer: r.rootKey}
+		if err := f.store.LoadNode(t.root); err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+func (f *Factory) WithRootKey(value storage.Pointer) factoryOption {
+	return func(t *Tree) error {
+		if t.root != nil {
+			return fmt.Errorf("root: %w", ErrOptionClash)
+		}
+		if value.IsNull() {
+			return nil
+		}
+		t.root = &Node{pointer: value}
+		return f.store.LoadNode(t.root)
+	}
+}
+
+func (f *Factory) NewTree(options ...factoryOption) (*Tree, error) {
+	t := &Tree{store: f.store, readOnly: true}
+	for _, o := range options {
+		if err := o(t); err != nil {
+			return nil, err
+		}
+	}
+	if t.root == nil {
+		t.root = &Node{}
+		t.root.D.Name = "root"
+		t.root.D.Mode = 0700 | p.DMDIR
+		t.root.D.Qid.Type = p.QTDIR
+		t.root.dirty = true
+		t.Add(t.root, "ctl", 0600)
 	}
 	// Fix mode for roots created before mode was used...
-	tree.root.D.Mode |= 0700 | p.DMDIR
+	t.root.D.Mode |= 0700 | p.DMDIR
 	// TODO when does it exit?
-	go tree.trimPeriodically()
-	return tree, err
+	go t.trimPeriodically()
+	return t, nil
 }

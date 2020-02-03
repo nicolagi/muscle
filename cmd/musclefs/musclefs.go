@@ -200,7 +200,7 @@ func runCommand(ops *ops, cmd string) error {
 		if err != nil {
 			return fmt.Errorf("%q: %w", revision, err)
 		}
-		historicalTree, err := ops.factory.NewTree(key, true)
+		historicalTree, err := ops.factory.NewTree(ops.factory.WithRevisionKey(key))
 		if err != nil {
 			return fmt.Errorf("could not load tree %q: %v", revision, err)
 		}
@@ -494,7 +494,7 @@ func main() {
 		log.Fatalf("Could not load tree: %v", err)
 	}
 	factory := tree.NewFactory(treeStore)
-	tt, err := factory.NewTreeForInstanceFromRoot(cfg.Instance, rootKey)
+	tt, err := factory.NewTree(factory.WithInstance(cfg.Instance), factory.WithRootKey(rootKey), factory.Mutable())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}

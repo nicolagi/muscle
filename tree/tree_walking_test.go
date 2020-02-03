@@ -13,7 +13,7 @@ import (
 )
 
 func TestWalk(t *testing.T) {
-	oak, err := newTree(nil, storage.Null, true)
+	oak, err := NewFactory(nil).NewTree()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestWalk(t *testing.T) {
 }
 
 func TestGrow(t *testing.T) {
-	oak, err := newTree(nil, storage.Null, true)
+	oak, err := NewFactory(nil).NewTree()
 	if err != nil {
 		t.Fatal(err)
 	}
