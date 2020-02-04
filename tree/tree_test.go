@@ -150,9 +150,9 @@ func scratchTree() (*Tree, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	blobStore := storage.NewMartino(diskStore, paired)
 	st, err := NewStore(
-		blobStore,
+		diskStore,
+		paired,
 		nil,
 		rootFile,
 		"remote.root.darkstar",

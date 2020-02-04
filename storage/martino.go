@@ -1,8 +1,6 @@
 package storage
 
 import (
-	"errors"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -30,26 +28,6 @@ func NewMartino(staging Enumerable, store Store) *Martino {
 	m.staging = staging
 	m.store = store
 	return m
-}
-
-// Get fetches the data pointed to by the key. It will first try the
-// staging area, then the cache. If that also fails, the data is
-// fetched from the remote store and the local cache is populated so
-// it will satisfy the next request for the same key.
-func (m *Martino) Get(pointer Pointer) (contents []byte, err error) {
-	contents, err = m.staging.Get(pointer.Key())
-	if errors.Is(err, ErrNotFound) {
-		contents, err = m.store.Get(pointer.Key())
-	}
-	return
-}
-
-// Put saves the given data to the staging area and returns its key.
-// The key is a hash of the data.
-func (m *Martino) Put(contents []byte) (pointer Pointer, err error) {
-	pointer = PointerTo(contents)
-	err = m.staging.Put(pointer.Key(), contents)
-	return
 }
 
 // Commit uploads the blobs that should be persisted to the remote.
@@ -89,12 +67,4 @@ func (m *Martino) Commit(shouldPersist func(Key) bool) error {
 		}
 	}
 	return fatalErr
-}
-
-func (m *Martino) BelongsToStagingArea(k Pointer) (bool, error) {
-	return m.staging.Contains(k.Key())
-}
-
-func (m *Martino) PutWithKey(k Pointer, v []byte) error {
-	return m.staging.Put(k.Key(), v)
 }

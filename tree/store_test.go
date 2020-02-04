@@ -17,7 +17,8 @@ func TestStoreFork(t *testing.T) {
 	defer cleanup()
 	instance := "source"
 	store, err := tree.NewStore(
-		storage.NewMartino(remoteStore, remoteStore),
+		remoteStore,
+		remoteStore,
 		remoteStore,
 		"",
 		tree.RemoteRootKeyPrefix+instance,

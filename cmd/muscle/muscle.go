@@ -305,9 +305,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not start new paired store with log %q: %v", f.Name(), err)
 	}
-	// TODO martino is a terrible name. what does this store do? how does it differ from the paired store?
-	martino := storage.NewMartino(stagingStore, paired)
-	treeStore, err := tree.NewStore(martino, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
+	treeStore, err := tree.NewStore(stagingStore, paired, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}

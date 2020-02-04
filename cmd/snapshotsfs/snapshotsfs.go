@@ -261,8 +261,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not start new paired store with log %q: %v", cfg.PropagationLogFilePath(), err)
 	}
-	martino := storage.NewMartino(stagingStore, pairedStore)
-	treeStore, err = tree.NewStore(martino, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
+	treeStore, err = tree.NewStore(stagingStore, pairedStore, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}

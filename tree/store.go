@@ -1,18 +1,17 @@
 package tree
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"time"
 
-	"github.com/nicolagi/muscle/tree/mergebase"
-
-	log "github.com/sirupsen/logrus"
-
 	"github.com/nicolagi/go9p/p"
 	"github.com/nicolagi/muscle/storage"
+	"github.com/nicolagi/muscle/tree/mergebase"
+	log "github.com/sirupsen/logrus"
 )
 
 // Store is a high-level entity that takes care of loading and storing
@@ -22,15 +21,17 @@ import (
 type Store struct {
 	localRootKeyFile string
 	remoteRootKey    string
-	martino          *storage.Martino
-	remote           storage.Store
+	ephemeral        storage.Enumerable
+	permanent        storage.Store
+	pointers         storage.Store
 	cryptography     *cryptography
 	codec            Codec
 }
 
 func NewStore(
-	martino *storage.Martino,
-	remote storage.Store,
+	ephemeral storage.Enumerable,
+	permanent storage.Store,
+	pointers storage.Store,
 	localRootKeyFile string,
 	remoteRootKey string,
 	key []byte,
@@ -42,8 +43,9 @@ func NewStore(
 	return &Store{
 		localRootKeyFile: localRootKeyFile,
 		remoteRootKey:    remoteRootKey,
-		martino:          martino,
-		remote:           remote,
+		ephemeral:        ephemeral,
+		permanent:        permanent,
+		pointers:         pointers,
 		cryptography:     crp,
 		codec:            newStandardCodec(),
 	}, nil
@@ -54,7 +56,7 @@ func (s *Store) StoreBlock(block *Block) error {
 	block.pointer = storage.PointerTo(block.contents)
 	encrypted, err := s.cryptography.encrypt(block.contents)
 	if err == nil {
-		err = s.martino.PutWithKey(block.pointer, encrypted)
+		err = s.ephemeral.Put(block.pointer.Key(), encrypted)
 	}
 	return err
 }
@@ -73,7 +75,7 @@ func (s *Store) StoreNode(node *Node) error {
 		return err
 	}
 	node.pointer = storage.PointerTo(encoded)
-	err = s.martino.PutWithKey(node.pointer, encrypted)
+	err = s.ephemeral.Put(node.pointer.Key(), encrypted)
 	if err == nil {
 		entry.Debug("Clearing dirty flag")
 		node.dirty = false
@@ -84,7 +86,10 @@ func (s *Store) StoreNode(node *Node) error {
 
 // LoadBlock assumes block.key is current and loads the block contents from the store.
 func (s *Store) LoadBlock(dst *Block) error {
-	encrypted, err := s.martino.Get(dst.pointer)
+	encrypted, err := s.ephemeral.Get(dst.pointer.Key())
+	if errors.Is(err, storage.ErrNotFound) {
+		encrypted, err = s.permanent.Get(dst.pointer.Key())
+	}
 	if err == nil {
 		dst.contents = s.cryptography.decrypt(encrypted)
 	}
@@ -101,11 +106,14 @@ func (s *Store) StoreRevision(r *Revision) error {
 		return err
 	}
 	r.key = storage.PointerTo(encoded)
-	return s.martino.PutWithKey(r.key, encrypted)
+	return s.ephemeral.Put(r.key.Key(), encrypted)
 }
 
 func (s *Store) LoadRevision(dst *Revision) error {
-	encrypted, err := s.martino.Get(dst.key)
+	encrypted, err := s.ephemeral.Get(dst.key.Key())
+	if errors.Is(err, storage.ErrNotFound) {
+		encrypted, err = s.permanent.Get(dst.key.Key())
+	}
 	if err == nil {
 		err = s.codec.decodeRevision(s.cryptography.decrypt(encrypted), dst)
 	}
@@ -116,7 +124,10 @@ func (s *Store) LoadRevision(dst *Revision) error {
 // LoadNode assumes that dst.key is the destination node's key, and the parent pointer is also correct.
 // Loading will overwrite any other data.
 func (s *Store) LoadNode(dst *Node) error {
-	contents, err := s.martino.Get(dst.pointer)
+	contents, err := s.ephemeral.Get(dst.pointer.Key())
+	if errors.Is(err, storage.ErrNotFound) {
+		contents, err = s.permanent.Get(dst.pointer.Key())
+	}
 	if err == nil {
 		err = s.codec.decodeNode(s.cryptography.decrypt(contents), dst)
 	}
@@ -137,9 +148,7 @@ func (s *Store) updateLocalRootPointer(rootKey storage.Pointer) error {
 }
 
 func (s *Store) UpdateRemoteRevision(r *Revision) error {
-	// TODO These remote root keys are the only keys that aren't hashes of something,
-	// and it bothers me.
-	return s.remote.Put(storage.Key(s.remoteRootKey), []byte(r.key.Hex()))
+	return s.pointers.Put(storage.Key(s.remoteRootKey), []byte(r.key.Hex()))
 }
 
 func (s *Store) encryptEncodeRevision(r *Revision) ([]byte, error) {
@@ -174,7 +183,7 @@ func (s *Store) RemoteRevisionKey(instance string) (storage.Pointer, error) {
 	} else {
 		rootDescriptor = RemoteRootKeyPrefix + instance
 	}
-	rootContents, err := s.remote.Get(storage.Key(rootDescriptor))
+	rootContents, err := s.pointers.Get(storage.Key(rootDescriptor))
 	if err != nil {
 		return storage.Null, err
 	}
@@ -316,7 +325,7 @@ func (s *Store) MergeBase(arev, brev *Revision) (storage.Pointer, error) {
 
 // TODO I wish this method could be avoided.
 func (s *Store) IsStaging(k storage.Pointer) (bool, error) {
-	return s.martino.BelongsToStagingArea(k)
+	return s.ephemeral.Contains(k.Key())
 }
 
 // Fork writes the first revision for the target instance, using as root
@@ -336,13 +345,13 @@ func (s *Store) Fork(source, target string) error {
 		return err
 	}
 	trev.key = storage.PointerTo(data)
-	err = s.remote.Put(trev.key.Key(), data)
+	err = s.permanent.Put(trev.key.Key(), data)
 	if err != nil {
 		return err
 	}
 	k := storage.Key(RemoteRootKeyPrefix + target)
-	if _, err := s.remote.Get(k); err == nil {
+	if _, err := s.pointers.Get(k); err == nil {
 		return fmt.Errorf("target instance %q already exists", target)
 	}
-	return s.remote.Put(k, []byte(trev.key.Hex()))
+	return s.pointers.Put(k, []byte(trev.key.Hex()))
 }

@@ -336,8 +336,7 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Fa
 	// to populate the cache from the staging area, which makes the fixtures easier to set up.
 	// Of course this means that the cache directory will contain extraneous intermediate data,
 	// but it's fine for tests.
-	blobStore := storage.NewMartino(diskStore, diskStore)
-	store, err = tree.NewStore(blobStore, nil, rootFile, "remote.root.other", sharedKey)
+	store, err = tree.NewStore(diskStore, diskStore, nil, rootFile, "remote.root.other", sharedKey)
 	require.Nil(t, err)
 	factory = tree.NewFactory(store)
 

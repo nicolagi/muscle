@@ -225,9 +225,8 @@ func TestTreeNodeContent(t *testing.T) {
 
 		// Set up the tree with a store that will only return errors.
 		innerErr := errors.New("some error")
-		layeredStore := storage.NewMartino(brokenStore{err: innerErr}, nil)
 		var err error
-		a.t.store, err = NewStore(layeredStore, nil, "", "", storage.RandomPointer().Bytes())
+		a.t.store, err = NewStore(brokenStore{err: innerErr}, nil, nil, "", "", storage.RandomPointer().Bytes())
 		require.Nil(t, err)
 
 		// Pretend the node has some content to load from the store.

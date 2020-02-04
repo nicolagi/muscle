@@ -485,7 +485,7 @@ func main() {
 	pairedStore.EnsureBackgroundPuts()
 
 	martino := storage.NewMartino(stagingStore, pairedStore)
-	treeStore, err := tree.NewStore(martino, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
+	treeStore, err := tree.NewStore(stagingStore, pairedStore, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
