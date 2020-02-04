@@ -257,9 +257,9 @@ func main() {
 
 	stagingStore := storage.NullStore{}
 	cacheStore := storage.NewDiskStore(cfg.CacheDirectoryPath())
-	pairedStore, err := storage.NewPaired(cacheStore, remoteStore, os.DevNull)
+	pairedStore, err := storage.NewPaired(cacheStore, remoteStore, "")
 	if err != nil {
-		log.Fatalf("Could not start new paired store with log %q: %v", cfg.PropagationLogFilePath(), err)
+		log.Fatalf("Could not start new paired store: %v", err)
 	}
 	treeStore, err = tree.NewStore(stagingStore, pairedStore, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {

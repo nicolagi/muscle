@@ -141,13 +141,17 @@ type Paired struct {
 	log *propagationLog
 }
 
+// NewPaired creates a write-back cache from fast to slow.
+// If the log path is empty, the cache is read-only and puts will fail.
 func NewPaired(fast, slow Store, logPath string) (p *Paired, err error) {
 	p = new(Paired)
 	p.fast = fast
 	p.slow = slow
-	p.log, err = newLog(logPath)
-	if err != nil {
-		return
+	if logPath != "" {
+		p.log, err = newLog(logPath)
+		if err != nil {
+			return
+		}
 	}
 	return p, err
 }
@@ -168,6 +172,8 @@ func (p *Paired) Get(k Key) (v Value, err error) {
 	return
 }
 
+var ErrReadOnly = errors.New("read-only store")
+
 // Put writes an item to the fast store and enqueues it to be written
 // to the slow store asynchronously. Might block if the async write
 // queue is full. Since this operation is used by the code creating a
@@ -177,6 +183,9 @@ func (p *Paired) Get(k Key) (v Value, err error) {
 // filesystem as queue (e.g., hard or symbolic links) but that leads to
 // assuming a disk store implementation and I don't want to.
 func (p *Paired) Put(k Key, v Value) error {
+	if p.log == nil {
+		return ErrReadOnly
+	}
 	p.EnsureBackgroundPuts()
 	if err := p.fast.Put(k, v); err != nil {
 		return err
@@ -188,7 +197,11 @@ func (p *Paired) Put(k Key, v Value) error {
 }
 
 func (p *Paired) EnsureBackgroundPuts() {
-	p.once.Do(func() { go p.propagate() })
+	p.once.Do(func() {
+		if p.log != nil {
+			go p.propagate()
+		}
+	})
 }
 
 func (p *Paired) propagate() {
