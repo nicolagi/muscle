@@ -1,22 +1,33 @@
 package tree
 
 import (
-	"crypto/rand"
+	"bytes"
+	"fmt"
+	"math/rand"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
+	"testing/quick"
 )
 
-func TestRoundTrip(t *testing.T) {
-	key := make([]byte, 32)
-	rand.Read(key)
-	crypto, err := newCryptography(key)
-	if err != nil {
-		t.Fatal(err)
+func TestCipherRoundTrip(t *testing.T) {
+	for _, size := range []int{16, 24, 32} {
+		t.Run(fmt.Sprintf("decrypt is inverse to encrypt %d", size), func(t *testing.T) {
+			key := make([]byte, size)
+			rand.Read(key)
+			cipher, err := newCryptography(key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f := func(cleartext []byte) bool {
+				ciphertext, err := cipher.encrypt(cleartext)
+				if err != nil {
+					t.Error(err)
+					return false
+				}
+				return bytes.Equal(cipher.decrypt(ciphertext), cleartext)
+			}
+			if err := quick.Check(f, nil); err != nil {
+				t.Error(err)
+			}
+		})
 	}
-	cleartext := []byte("any string would do")
-	ciphertext, err := crypto.encrypt(cleartext)
-	assert.Nil(t, err)
-	assert.NotEqual(t, cleartext, ciphertext)
-	assert.Equal(t, cleartext, crypto.decrypt(ciphertext))
 }
