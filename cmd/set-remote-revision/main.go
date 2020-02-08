@@ -26,7 +26,7 @@ func main() {
 		log.Fatalf("Could not create remote store: %v", err)
 	}
 	remoteRootKey := tree.RemoteRootKeyPrefix + instance
-	if err := remoteBasicStore.Put(remoteRootKey, []byte(revision)); err != nil {
+	if err := remoteBasicStore.Put(storage.Key(remoteRootKey), []byte(revision)); err != nil {
 		log.Fatal(err)
 	}
 }
