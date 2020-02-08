@@ -185,23 +185,19 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 	// Prepare children maps and the names of children to merge (union of local and remote)
 	mergeNames := make(map[string]struct{})
 	var localChildren, baseChildren, remoteChildren map[string]*Node
-	if local != nil {
-		localTree.Grow(local)
-		localChildren = local.childrenMap()
-		for name := range localChildren {
-			mergeNames[name] = struct{}{}
-		}
+	localTree.Grow(local)
+	localChildren = local.childrenMap()
+	for name := range localChildren {
+		mergeNames[name] = struct{}{}
 	}
 	if base != nil && base.IsDir() {
 		baseTree.Grow(base)
 		baseChildren = base.childrenMap()
 	}
-	if remote != nil {
-		remoteTree.Grow(remote)
-		remoteChildren = remote.childrenMap()
-		for name := range remoteChildren {
-			mergeNames[name] = struct{}{}
-		}
+	remoteTree.Grow(remote)
+	remoteChildren = remote.childrenMap()
+	for name := range remoteChildren {
+		mergeNames[name] = struct{}{}
 	}
 
 	for name := range mergeNames {
