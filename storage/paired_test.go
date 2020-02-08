@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -85,17 +86,28 @@ func TestPropagationLogPreservesStateAcrossRestarts(t *testing.T) {
 
 func TestPaired(t *testing.T) {
 
-	t.Run("Successful put and get from fast store", func(t *testing.T) {
+	t.Run("Successful put and get from fast store regardless of slow store", func(t *testing.T) {
 		fast := NewInMemory()
 		logFilePath, cleanupLog := disposablePathName(t)
 		defer cleanupLog()
 		paired, err := NewPaired(fast, NullStore{}, logFilePath)
 		require.Nil(t, err)
-		k, v := RandomPair()
-		assert.Nil(t, paired.Put(k, v))
-		after, err := paired.Get(k)
-		assert.Nil(t, err)
-		assert.Equal(t, v, after)
+		f := func(key [32]byte, v []byte) bool {
+			k := Key(fmt.Sprintf("%x", key))
+			if err := paired.Put(k, v); err != nil {
+				t.Log(err)
+				return false
+			}
+			after, err := paired.Get(k)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+			return bytes.Equal(v, after)
+		}
+		if err := quick.Check(f, nil); err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("Get when fast store does not have key and slow store breaks", func(t *testing.T) {
@@ -111,53 +123,86 @@ func TestPaired(t *testing.T) {
 		store, err := NewPaired(fast, slow, pathname)
 		require.Nil(t, err)
 
-		after, err := store.Get(RandomKey())
+		k, _ := RandomKey(32)
+		after, err := store.Get(k)
 		assert.Nil(t, after)
 		assert.Equal(t, cannedErr, err)
 	})
 
 	t.Run("Get propagates from slow to fast", func(t *testing.T) {
+		pathname, cleanup := disposablePathName(t)
+		defer cleanup()
+
 		fast := NewInMemory()
 		slow := NewInMemory()
-
-		k, v := RandomPair()
-		assert.Nil(t, slow.Put(k, v))
-		pathname, cleanupLog := disposablePathName(t)
-		defer cleanupLog()
 		store, err := NewPaired(fast, slow, pathname)
-		require.Nil(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		after1, err1 := store.Get(k)
-		after2, err2 := fast.Get(k)
-		assert.Equal(t, v, after1)
-		assert.Equal(t, v, after2)
-		assert.Nil(t, err1)
-		assert.Nil(t, err2)
+		f := func(key [32]byte, v []byte) bool {
+			k := Key(fmt.Sprintf("%x", key))
+			if err := slow.Put(k, v); err != nil {
+				t.Log(err)
+				return false
+			}
+			after1, err := store.Get(k)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+			after2, err := fast.Get(k)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+			return bytes.Equal(v, after1) && bytes.Equal(v, after2)
+		}
+		if err := quick.Check(f, nil); err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("Get succeeds even if propagation to fast store fails", func(t *testing.T) {
+		pathname, cleanupLog := disposablePathName(t)
+		defer cleanupLog()
+
 		fast := new(StoreMock)
 		fast.On("Get", mock.Anything).Return(nil, ErrNotFound)
 		fast.On("Put", mock.Anything, mock.Anything).Return(errors.New("failed"))
 
 		slow := NewInMemory()
 
-		k, v := RandomPair()
-		assert.Nil(t, slow.Put(k, v))
-		pathname, cleanupLog := disposablePathName(t)
-		defer cleanupLog()
 		store, err := NewPaired(fast, slow, pathname)
 		require.Nil(t, err)
-		after, err := store.Get(k)
-		assert.Equal(t, v, after)
-		assert.Nil(t, err)
+
+		f := func(key [32]byte, v []byte) bool {
+			k := Key(fmt.Sprintf("%x", key))
+			if err := slow.Put(k, v); err != nil {
+				t.Log(err)
+				return false
+			}
+			if after, err := store.Get(k); err != nil {
+				t.Log(err)
+				return false
+			} else {
+				return bytes.Equal(v, after)
+			}
+		}
+		if err := quick.Check(f, nil); err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("Put propagates asynchronously from fast to slow", func(t *testing.T) {
 		fast := NewInMemory()
 		slow := NewInMemory()
 
-		k, v := RandomPair()
+		k, err := RandomKey(32)
+		require.Nil(t, err)
+		value, err := RandomKey(64)
+		require.Nil(t, err)
+		v := []byte(value)
 		pathname, cleanupLog := disposablePathName(t)
 		defer cleanupLog()
 		store, err := NewPaired(fast, slow, pathname)
@@ -173,7 +218,7 @@ func TestPaired(t *testing.T) {
 			for {
 				after, err := slow.Get(k)
 				if err == nil {
-					assert.Equal(t, v, after)
+					assert.EqualValues(t, v, after)
 					break
 				}
 				time.Sleep(50 * time.Millisecond)

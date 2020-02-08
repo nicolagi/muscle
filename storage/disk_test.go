@@ -1,9 +1,11 @@
 package storage // import "github.com/nicolagi/muscle/storage"
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
+	"testing/quick"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,15 +51,31 @@ func TestDiskStore_ForEach(t *testing.T) {
 func TestDiskStore_Contains(t *testing.T) {
 	store, clean := disposableDiskStore(t)
 	defer clean()
-	k := RandomPointer()
-	v := RandomValue()
-	contains, err := store.Contains(k.Key())
-	assert.Nil(t, err)
-	assert.False(t, contains)
-	require.Nil(t, store.Put(k.Key(), v))
-	contains, err = store.Contains(k.Key())
-	assert.Nil(t, err)
-	assert.True(t, contains)
+	f := func(key [32]byte, value Value) bool {
+		k := Key(fmt.Sprintf("%x", key))
+		contains, err := store.Contains(k)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
+		if contains {
+			return false
+		}
+		err = store.Put(k, value)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
+		contains, err = store.Contains(k)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
+		return contains
+	}
+	if err := quick.Check(f, nil); err != nil {
+		t.Error(err)
+	}
 }
 
 // Using PBT to catch a %02x vs %x bug.

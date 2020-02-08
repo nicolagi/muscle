@@ -1,31 +1,40 @@
 package storage
 
 import (
-	"math/rand"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
+	"testing/quick"
 )
 
-func RandomKey() Key {
-	return RandomPointer().Key()
-}
-
-func RandomValue() []byte {
-	size := rand.Intn(500)
-	value := make([]byte, size)
-	rand.Read(value)
-	return value
-}
-
-func RandomPair() (Key, Value) {
-	return RandomKey(), RandomValue()
-}
-
 func TestRandomKey(t *testing.T) {
-	a := RandomPointer()
-	b := RandomPointer()
-	assert.Equal(t, a.Len(), uint8(32))
-	assert.Equal(t, b.Len(), uint8(32))
-	assert.NotEqual(t, a, b)
+	t.Run("random keys are distinct", func(t *testing.T) {
+		f := func() bool {
+			k1, err := RandomKey(16)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+			k2, err := RandomKey(16)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+			return k1 != k2
+		}
+		if err := quick.Check(f, nil); err != nil {
+			t.Error(err)
+		}
+	})
+	t.Run("random keys are of the required size", func(t *testing.T) {
+		f := func(size uint8) bool {
+			key, err := RandomKey(size)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+			return len(key) == 2*int(size)
+		}
+		if err := quick.Check(f, nil); err != nil {
+			t.Error(err)
+		}
+	})
 }
