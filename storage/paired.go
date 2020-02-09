@@ -132,6 +132,8 @@ func (pl *propagationLog) close() {
 // store. It reads from the fast store if possible. If not, reads from the slow store and copies content to the fast
 // store for next time. It deletes from the slow store first and then from the fast store.
 type Paired struct {
+	retryInterval time.Duration
+
 	fast Store
 	slow Store
 
@@ -145,6 +147,7 @@ type Paired struct {
 // If the log path is empty, the cache is read-only and puts will fail.
 func NewPaired(fast, slow Store, logPath string) (p *Paired, err error) {
 	p = new(Paired)
+	p.retryInterval = 5 * time.Second
 	p.fast = fast
 	p.slow = slow
 	if logPath != "" {
@@ -220,11 +223,11 @@ func (p *Paired) propagate() {
 			continue
 		}
 		for {
-			if err = p.slow.Put(key, value); err != nil {
-				log.Warnf("failure to put %q to slow store (will retry): %v", key, err)
-				time.Sleep(5 * time.Second)
+			if err = p.slow.Put(key, value); err == nil {
+				break
 			}
-			break
+			log.Warnf("failure to put %q to slow store (will retry): %v", key, err)
+			time.Sleep(p.retryInterval)
 		}
 		p.log.mark(itemDone)
 	}

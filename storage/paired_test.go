@@ -87,7 +87,7 @@ func TestPropagationLogPreservesStateAcrossRestarts(t *testing.T) {
 func TestPaired(t *testing.T) {
 
 	t.Run("Successful put and get from fast store regardless of slow store", func(t *testing.T) {
-		fast := NewInMemory()
+		fast := NewInMemory(0)
 		logFilePath, cleanupLog := disposablePathName(t)
 		defer cleanupLog()
 		paired, err := NewPaired(fast, NullStore{}, logFilePath)
@@ -111,7 +111,7 @@ func TestPaired(t *testing.T) {
 	})
 
 	t.Run("Get when fast store does not have key and slow store breaks", func(t *testing.T) {
-		fast := NewInMemory()
+		fast := NewInMemory(0)
 
 		pathname, cleanupLog := disposablePathName(t)
 		defer cleanupLog()
@@ -133,8 +133,8 @@ func TestPaired(t *testing.T) {
 		pathname, cleanup := disposablePathName(t)
 		defer cleanup()
 
-		fast := NewInMemory()
-		slow := NewInMemory()
+		fast := NewInMemory(0)
+		slow := NewInMemory(0)
 		store, err := NewPaired(fast, slow, pathname)
 		if err != nil {
 			t.Fatal(err)
@@ -171,7 +171,7 @@ func TestPaired(t *testing.T) {
 		fast.On("Get", mock.Anything).Return(nil, ErrNotFound)
 		fast.On("Put", mock.Anything, mock.Anything).Return(errors.New("failed"))
 
-		slow := NewInMemory()
+		slow := NewInMemory(0)
 
 		store, err := NewPaired(fast, slow, pathname)
 		require.Nil(t, err)
@@ -194,9 +194,9 @@ func TestPaired(t *testing.T) {
 		}
 	})
 
-	t.Run("Put propagates asynchronously from fast to slow", func(t *testing.T) {
-		fast := NewInMemory()
-		slow := NewInMemory()
+	t.Run("Put propagates asynchronously from fast to slow, retrying as necessary", func(t *testing.T) {
+		fast := NewInMemory(0)
+		slow := NewInMemory(5)
 
 		k, err := RandomKey(32)
 		require.Nil(t, err)
@@ -207,6 +207,7 @@ func TestPaired(t *testing.T) {
 		defer cleanupLog()
 		store, err := NewPaired(fast, slow, pathname)
 		require.Nil(t, err)
+		store.retryInterval = time.Millisecond
 		store.log.pollInterval = 5 * time.Millisecond
 		_ = store.Put(k, v)
 		contents, err := fast.Get(k)
