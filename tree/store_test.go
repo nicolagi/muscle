@@ -51,7 +51,7 @@ func TestStoreFork(t *testing.T) {
 		require.Nil(t, err)
 		trevs, err := store.History(3, rev)
 		require.Nil(t, err)
-		assert.Len(t, trevs, 2)
+		require.Len(t, trevs, 2)
 		assert.Equal(t, trevs[1], srevs[0])
 
 		t.Run("target instance already exists", func(t *testing.T) {

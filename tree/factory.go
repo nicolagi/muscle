@@ -55,8 +55,8 @@ func (f *Factory) WithRevisionKey(value storage.Pointer) factoryOption {
 		if t.root != nil {
 			return fmt.Errorf("root: %w", ErrOptionClash)
 		}
-		r := Revision{key: value}
-		if err := f.store.LoadRevision(&r); err != nil {
+		r, err := f.store.LoadRevisionByKey(value)
+		if err != nil {
 			return err
 		}
 		t.instance = r.instance

@@ -109,18 +109,6 @@ func (s *Store) StoreRevision(r *Revision) error {
 	return s.ephemeral.Put(r.key.Key(), encrypted)
 }
 
-func (s *Store) LoadRevision(dst *Revision) error {
-	encrypted, err := s.ephemeral.Get(dst.key.Key())
-	if errors.Is(err, storage.ErrNotFound) {
-		encrypted, err = s.permanent.Get(dst.key.Key())
-	}
-	if err == nil {
-		err = s.codec.decodeRevision(s.cryptography.decrypt(encrypted), dst)
-	}
-	log.WithField("key", dst.key.Hex()).Info("Loaded revision")
-	return err
-}
-
 // LoadNode assumes that dst.key is the destination node's key, and the parent pointer is also correct.
 // Loading will overwrite any other data.
 func (s *Store) LoadNode(dst *Node) error {
@@ -201,14 +189,22 @@ func (s *Store) RemoteRevision(instance string) (rev *Revision, root *Node, err 
 }
 
 func (s *Store) LoadRevisionByKey(key storage.Pointer) (*Revision, error) {
-	revision := &Revision{key: key}
-	err := s.LoadRevision(revision)
-	return revision, err
+	b, err := s.ephemeral.Get(key.Key())
+	if errors.Is(err, storage.ErrNotFound) {
+		b, err = s.permanent.Get(key.Key())
+	}
+	if err != nil {
+		return nil, err
+	}
+	b = s.cryptography.decrypt(b)
+	r := &Revision{key: key}
+	err = s.codec.decodeRevision(b, r)
+	return r, err
 }
 
 func (s *Store) loadRevisionAndRoot(key storage.Pointer) (*Revision, *Node, error) {
-	revision := &Revision{key: key}
-	if err := s.LoadRevision(revision); err != nil {
+	revision, err := s.LoadRevisionByKey(key)
+	if err != nil {
 		return nil, nil, err
 	}
 	root := &Node{
@@ -259,8 +255,7 @@ func (s *Store) history(r *Revision, maxRevisions int) (rr []*Revision, err erro
 		if pk.IsNull() {
 			break
 		}
-		r = &Revision{key: pk}
-		err = s.LoadRevision(r)
+		r, err = s.LoadRevisionByKey(pk)
 		if err != nil {
 			break
 		}
@@ -273,8 +268,7 @@ func (s *Store) MergeBase(arev, brev *Revision) (storage.Pointer, error) {
 	prefetched := make(map[string]*Revision)
 
 	fetch := func(rp storage.Pointer) (*Revision, error) {
-		r := &Revision{key: rp}
-		err := s.LoadRevision(r)
+		r, err := s.LoadRevisionByKey(rp)
 		if err == nil {
 			prefetched[rp.Hex()] = r
 		}
