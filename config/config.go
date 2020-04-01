@@ -30,7 +30,7 @@ var (
 func init() {
 	u, err := user.Current()
 	if err != nil {
-		log.Fatalf("Could not get current user: %w", err)
+		log.Fatalf("Could not get current user: %v", err)
 	}
 	DefaultBaseDirectoryPath = os.Getenv("MUSCLE_BASE")
 	if DefaultBaseDirectoryPath == "" {

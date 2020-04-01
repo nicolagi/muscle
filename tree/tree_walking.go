@@ -1,12 +1,13 @@
 package tree
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/nicolagi/muscle/storage"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 var ErrNotFound = errors.New("node not found")
@@ -50,66 +51,55 @@ func (tree *Tree) Grow(parent *Node) error {
 	return tree.grow(parent, tree.store.LoadNode)
 }
 
-func (tree *Tree) grow(parent *Node, loadFn func(*Node) error) error {
-	seen := make(map[string]struct{})
-	inflight := 0
-	childc := make(chan *Node)
-	errc := make(chan error)
+// TODO: load should take a context for cancellation.
+func (tree *Tree) grow(parent *Node, load func(*Node) error) error {
+	g, _ := errgroup.WithContext(context.Background())
 	for _, child := range parent.children {
 		if child.isLoaded() {
-			seen[child.D.Name] = struct{}{}
 			continue
 		}
-		inflight++
-		go load(errc, childc, loadFn, parent, child)
-	}
-	// Do not bother starting a goroutine if we already know there's nothing to wait for.
-	if inflight == 0 {
-		return nil
-	}
-	var firsterr error
-	for inflight > 0 {
-		select {
-		case err := <-errc:
-			if firsterr == nil {
-				firsterr = err
+		child := child
+		g.Go(func() error {
+			if err := load(child); err != nil {
+				if errors.Is(err, storage.ErrNotFound) {
+					log.WithField("key", child.pointer.Hex()).Error("Child not found in storage")
+					child.D.Name = "vanished"
+					child.markDirty()
+				} else if errors.Is(err, errNoCodec) {
+					child.D.Name = "nocodec"
+					child.markDirty()
+				} else {
+					return fmt.Errorf("tree.Tree.grow: parent %q child %q: %w", parent.D.Name, child.D.Name, err)
+				}
 			}
-		case c := <-childc:
-			if _, ok := seen[c.D.Name]; ok {
-				randomRename(c)
-				c.markDirty()
-			} else {
-				seen[c.D.Name] = struct{}{}
+			return nil
+		})
+	}
+	defer makeChildNamesUnique(parent)
+	return g.Wait()
+}
+
+func makeChildNamesUnique(parent *Node) {
+	names := make(map[string]struct{})
+	var dupes []*Node
+	for _, child := range parent.children {
+		if _, nameTaken := names[child.D.Name]; nameTaken {
+			dupes = append(dupes, child)
+		} else {
+			names[child.D.Name] = struct{}{}
+		}
+	}
+	for _, child := range dupes {
+		// Expensive in case of multiple duplicates.
+		// In any realistic scenario that I can conceive, it won't be a problem.
+		for i := 0; ; i++ {
+			newName := fmt.Sprintf("%s.dupe%d", child.D.Name, i)
+			if _, newNameTaken := names[newName]; !newNameTaken {
+				child.D.Name = newName
+				child.markDirty()
+				break
 			}
 		}
-		inflight--
+		names[child.D.Name] = struct{}{}
 	}
-
-	return firsterr
-}
-
-func load(errc chan error, childc chan *Node, loadFn func(*Node) error, parent, child *Node) {
-	if err := loadFn(child); errors.Is(err, storage.ErrNotFound) {
-		log.WithFields(log.Fields{
-			"key": child.pointer.Hex(),
-		}).Error("Child not found in storage")
-		child.D.Name = "vanished"
-		randomRename(child)
-		child.markDirty()
-		childc <- child
-	} else if err == errNoCodec {
-		child.D.Name = "nocodec"
-		randomRename(child)
-		child.markDirty()
-		childc <- child
-	} else if err != nil {
-		errc <- fmt.Errorf("interrupted growth of node %q at child %q: %v",
-			parent.D.Name, child.D.Name, err)
-	} else {
-		childc <- child
-	}
-}
-
-func randomRename(node *Node) {
-	node.D.Name += "." + uuid.New().String()
 }

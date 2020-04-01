@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/fortytw2/leaktest"
+	"github.com/google/go-cmp/cmp"
 	"github.com/nicolagi/go9p/p"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
@@ -138,7 +139,7 @@ func TestGrow(t *testing.T) {
 		assert.Nil(t, oak.grow(&a, func(node *Node) error {
 			return storage.ErrNotFound
 		}))
-		assert.Regexp(t, "vanished\\.[0-9a-f-]{36}", a.children[0].D.Name)
+		assert.Regexp(t, "vanished", a.children[0].D.Name)
 		assert.True(t, a.children[0].dirty)
 		assert.True(t, a.dirty)
 	})
@@ -152,7 +153,7 @@ func TestGrow(t *testing.T) {
 		}))
 		sort.Sort(NodeSlice(a.children))
 		assert.Equal(t, "usr", a.children[0].D.Name)
-		assert.Regexp(t, "usr\\.[0-9a-f-]{36}", a.children[1].D.Name)
+		assert.Regexp(t, "usr\\.dupe[0-9]+", a.children[1].D.Name)
 		assert.False(t, a.children[0].dirty)
 		assert.True(t, a.children[1].dirty)
 		assert.True(t, a.dirty)
@@ -201,10 +202,58 @@ func TestGrow(t *testing.T) {
 			return nil
 		}))
 		assert.Equal(t, "home", a.children[0].D.Name)
-		assert.Regexp(t, "home\\.[0-9a-f-]{36}", a.children[1].D.Name)
+		assert.Regexp(t, "home\\.dupe[0-9]+", a.children[1].D.Name)
 		assert.False(t, a.children[0].dirty)
 		assert.True(t, a.children[1].dirty)
 		assert.True(t, a.dirty)
 		assert.Equal(t, 1, callCount)
 	})
+}
+
+func TestChildNamesAreMadeUnique(t *testing.T) {
+	newTestNode := func(names []string) *Node {
+		parent := &Node{}
+		for _, name := range names {
+			child := &Node{}
+			child.D.Name = name
+			parent.children = append(parent.children, child)
+		}
+		return parent
+	}
+	extractChildNames := func(parent *Node) (all []string, dirty []string) {
+		for _, child := range parent.children {
+			all = append(all, child.D.Name)
+			if child.dirty {
+				dirty = append(dirty, child.D.Name)
+			}
+		}
+		return
+	}
+	testCases := []struct {
+		input  []string
+		output []string
+		dirty  []string // Children that should be marked dirty.
+	}{
+		{input: []string{}},
+		{input: []string{"one"}, output: []string{"one"}},
+		{input: []string{"one", "one"}, output: []string{"one", "one.dupe0"}, dirty: []string{"one.dupe0"}},
+		{input: []string{"one", "one", "one"}, output: []string{"one", "one.dupe0", "one.dupe1"}, dirty: []string{"one.dupe0", "one.dupe1"}},
+		{input: []string{"one", "two"}, output: []string{"one", "two"}},
+		{input: []string{"one", "two", "one", "two"}, output: []string{"one", "two", "one.dupe0", "two.dupe0"}, dirty: []string{"one.dupe0", "two.dupe0"}},
+		{input: []string{"one", "one.dupe1"}, output: []string{"one", "one.dupe1"}},
+		{input: []string{"one", "one", "one.dupe0"}, output: []string{"one", "one.dupe1", "one.dupe0"}, dirty: []string{"one.dupe1"}},
+	}
+	for _, tc := range testCases {
+		t.Run("", func(t *testing.T) {
+			parent := newTestNode(tc.input)
+			makeChildNamesUnique(parent)
+			all, dirty := extractChildNames(parent)
+			if diff := cmp.Diff(all, tc.output); diff != "" {
+				t.Errorf("Unexpected child names difference: %s", diff)
+			}
+			if diff := cmp.Diff(dirty, tc.dirty); diff != "" {
+				t.Errorf("Unexpected dirty child names difference: %s", diff)
+			}
+		})
+	}
 }

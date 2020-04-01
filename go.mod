@@ -7,7 +7,6 @@ require (
 	github.com/go-ini/ini v1.37.0 // indirect
 	github.com/google/go-cmp v0.3.1
 	github.com/google/gops v0.3.5
-	github.com/google/uuid v1.0.0
 	github.com/gopherjs/gopherjs v0.0.0-20180628210949-0892b62f0d9f // indirect
 	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af // indirect
 	github.com/jtolds/gls v0.0.0-20170503224851-77f18212c9c7 // indirect
@@ -19,6 +18,7 @@ require (
 	github.com/smartystreets/goconvey v0.0.0-20180222194500-ef6db91d284a // indirect
 	github.com/stretchr/testify v1.3.0
 	golang.org/x/net v0.0.0-20190628185345-da137c7871d7 // indirect
+	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 	golang.org/x/sys v0.0.0-20190606165138-5da285871e9c // indirect
 	golang.org/x/text v0.3.2 // indirect
 	gopkg.in/ini.v1 v1.37.0 // indirect
