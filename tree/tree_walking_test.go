@@ -5,6 +5,7 @@ import (
 	"sort"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/google/go-cmp/cmp"
@@ -257,5 +258,23 @@ func TestChildNamesAreMadeUnique(t *testing.T) {
 				t.Errorf("Unexpected dirty child names difference: %s", diff)
 			}
 		})
+	}
+}
+
+func TestGrowParallelizationLimit(t *testing.T) {
+	tree := &Tree{}
+	parent := &Node{}
+	for i := 0; i < 64; i++ { // One more than the limit.
+		parent.children = append(parent.children, &Node{})
+	}
+	start := time.Now()
+	tree.grow(parent, func(*Node) error {
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	})
+	elapsed := time.Since(start)
+	lb := 75 * time.Millisecond
+	if elapsed < lb {
+		t.Errorf("got %v, want at least %v", elapsed, lb)
 	}
 }

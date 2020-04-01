@@ -53,6 +53,7 @@ func (tree *Tree) Grow(parent *Node) error {
 
 // TODO: load should take a context for cancellation.
 func (tree *Tree) grow(parent *Node, load func(*Node) error) error {
+	semc := make(chan struct{}, 32)
 	g, _ := errgroup.WithContext(context.Background())
 	for _, child := range parent.children {
 		if child.isLoaded() {
@@ -60,6 +61,8 @@ func (tree *Tree) grow(parent *Node, load func(*Node) error) error {
 		}
 		child := child
 		g.Go(func() error {
+			semc <- struct{}{}
+			defer func() { <-semc }()
 			if err := load(child); err != nil {
 				if errors.Is(err, storage.ErrNotFound) {
 					log.WithField("key", child.pointer.Hex()).Error("Child not found in storage")
