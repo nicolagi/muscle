@@ -242,6 +242,8 @@ func TestChildNamesAreMadeUnique(t *testing.T) {
 		{input: []string{"one", "two", "one", "two"}, output: []string{"one", "two", "one.dupe0", "two.dupe0"}, dirty: []string{"one.dupe0", "two.dupe0"}},
 		{input: []string{"one", "one.dupe1"}, output: []string{"one", "one.dupe1"}},
 		{input: []string{"one", "one", "one.dupe0"}, output: []string{"one", "one.dupe1", "one.dupe0"}, dirty: []string{"one.dupe1"}},
+		// Empty name is a sentinel value for nodes that have yet to be loaded:
+		{input: []string{"", ""}, output: []string{"", ""}},
 	}
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {

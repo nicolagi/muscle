@@ -83,6 +83,9 @@ func makeChildNamesUnique(parent *Node) {
 	names := make(map[string]struct{})
 	var dupes []*Node
 	for _, child := range parent.children {
+		if child.D.Name == "" {
+			continue
+		}
 		if _, nameTaken := names[child.D.Name]; nameTaken {
 			dupes = append(dupes, child)
 		} else {
