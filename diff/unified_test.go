@@ -27,20 +27,32 @@ type nodeSameAsAny struct {
 	brokenNode
 }
 
-func (n nodeSameAsAny) SameAs(diff.Node) bool {
-	return true
+func (n nodeSameAsAny) SameAs(diff.Node) (bool, error) {
+	return true, nil
 }
 
 type contentErrorNode struct {
 	err error
 }
 
-func (contentErrorNode) SameAs(diff.Node) bool {
-	return false
+func (contentErrorNode) SameAs(diff.Node) (bool, error) {
+	return false, nil
 }
 
 func (node contentErrorNode) Content() (string, error) {
 	return "", node.err
+}
+
+type sameAsErrorNode struct {
+	err error
+}
+
+func (node sameAsErrorNode) SameAs(diff.Node) (bool, error) {
+	return false, node.err
+}
+
+func (sameAsErrorNode) Content() (string, error) {
+	panic("not implemented")
 }
 
 func TestUnifiedIfNodesSameNoDiff(t *testing.T) {
@@ -50,6 +62,20 @@ func TestUnifiedIfNodesSameNoDiff(t *testing.T) {
 		assert.Empty(t, diffOutput)
 		assert.Nil(t, err)
 	}
+}
+
+func TestUnified(t *testing.T) {
+	t.Run("when SameAs returns an error, Unified fails in turn", func(t *testing.T) {
+		a := sameAsErrorNode{err: fmt.Errorf("an error")}
+		b := nodeSameAsAny{}
+		out, err := diff.Unified(a, b, 5)
+		if got, want := out, ""; got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+		if err == nil {
+			t.Errorf("got nil, want non-nil error")
+		}
+	})
 }
 
 func TestUnifiedPassesContentError(t *testing.T) {

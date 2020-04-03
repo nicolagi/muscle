@@ -10,7 +10,7 @@ type Node interface {
 	// contain hashes of their contents. You'd quickly compare the
 	// hashes before comparing contents. If no shortcuts are
 	// possible, one should return false.
-	SameAs(Node) bool
+	SameAs(Node) (bool, error)
 
 	// Content returns the content of the node.
 	Content() (string, error)
@@ -18,12 +18,12 @@ type Node interface {
 
 type ByteNode []byte
 
-func (b ByteNode) SameAs(node Node) bool {
+func (b ByteNode) SameAs(node Node) (bool, error) {
 	other, ok := node.(ByteNode)
 	if !ok {
-		return false
+		return false, nil
 	}
-	return bytes.Equal(b, other)
+	return bytes.Equal(b, other), nil
 }
 
 func (b ByteNode) Content() (string, error) {
@@ -32,12 +32,12 @@ func (b ByteNode) Content() (string, error) {
 
 type StringNode string
 
-func (s StringNode) SameAs(node Node) bool {
+func (s StringNode) SameAs(node Node) (bool, error) {
 	other, ok := node.(StringNode)
 	if !ok {
-		return false
+		return false, nil
 	}
-	return string(s) == string(other)
+	return string(s) == string(other), nil
 }
 
 func (s StringNode) Content() (string, error) {

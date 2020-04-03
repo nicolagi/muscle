@@ -28,7 +28,11 @@ func Unified(a, b Node, contextLines int) (string, error) {
 // trees, as it happens when looking at inter-revision diffs, muscle can take
 // advantage of the Merkle tree structure to avoid diffing entire subtrees.)
 func UnifiedTo(w io.Writer, a, b Node, contextLines int) error {
-	if a.SameAs(b) {
+	same, err := a.SameAs(b)
+	if err != nil {
+		return fmt.Errorf("diff.UnifiedTo: %w", err)
+	}
+	if same {
 		return nil
 	}
 	aContent, aErr := a.Content()

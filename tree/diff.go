@@ -31,18 +31,18 @@ type nodeMeta struct {
 	n *Node
 }
 
-func (node nodeMeta) SameAs(otherNode diff.Node) bool {
+func (node nodeMeta) SameAs(otherNode diff.Node) (bool, error) {
 	other, ok := otherNode.(nodeMeta)
 	if !ok {
-		return false
+		return false, nil
 	}
 	if node.n == nil && other.n == nil {
-		return true
+		return true, nil
 	}
 	if node.n == nil || other.n == nil {
-		return false
+		return false, nil
 	}
-	return node.n.pointer.Equals(other.n.pointer)
+	return node.n.pointer.Equals(other.n.pointer), nil
 }
 
 func (node nodeMeta) Content() (string, error) {
@@ -98,18 +98,18 @@ type treeNode struct {
 	maxSize int
 }
 
-func (node treeNode) SameAs(otherNode diff.Node) bool {
+func (node treeNode) SameAs(otherNode diff.Node) (bool, error) {
 	other, ok := otherNode.(treeNode)
 	if !ok {
-		return false
+		return false, nil
 	}
 	if node.n == nil && other.n == nil {
-		return true
+		return true, nil
 	}
 	if node.n == nil || other.n == nil {
-		return false
+		return false, nil
 	}
-	return node.n.hasEqualBlocks(other.n)
+	return node.n.hasEqualBlocks(other.n), nil
 }
 
 func (node treeNode) Content() (string, error) {

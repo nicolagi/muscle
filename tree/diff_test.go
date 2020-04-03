@@ -35,21 +35,34 @@ func (b brokenStore) ForEach(func(storage.Key) error) error {
 }
 
 func assertSame(t *testing.T, a, b diff.Node) {
-	assert.True(t, a.SameAs(b))
-	assert.True(t, b.SameAs(a))
+	t.Helper()
+	assertComparison(t, a, b, true)
+	assertComparison(t, b, a, true)
 }
 
 func assertNotSame(t *testing.T, a, b diff.Node) {
-	assert.False(t, a.SameAs(b))
-	assert.False(t, b.SameAs(a))
+	t.Helper()
+	assertComparison(t, a, b, false)
+	assertComparison(t, b, a, false)
+}
+
+func assertComparison(t *testing.T, a, b diff.Node, want bool) {
+	t.Helper()
+	got, err := a.SameAs(b)
+	if err != nil {
+		t.Error(err)
+	}
+	if got != want {
+		t.Errorf("got %t, want %t", got, want)
+	}
 }
 
 func TestNodeMetaSameAs(t *testing.T) {
 	t.Run("meta node never equals a nil node", func(t *testing.T) {
 		var a nodeMeta
-		assert.False(t, a.SameAs((*nodeMeta)(nil)))
-		assert.False(t, a.SameAs((*diff.StringNode)(nil)))
-		assert.False(t, a.SameAs(nil))
+		assertComparison(t, a, (*nodeMeta)(nil), false)
+		assertComparison(t, a, (*diff.StringNode)(nil), false)
+		assertComparison(t, a, nil, false)
 	})
 	t.Run("meta node with inner nil node only equals a meta node with inner nil node", func(t *testing.T) {
 		a := nodeMeta{}
@@ -63,8 +76,8 @@ func TestNodeMetaSameAs(t *testing.T) {
 		a := nodeMeta{n: &Node{pointer: common}}
 		b := nodeMeta{n: &Node{pointer: common}}
 		assertSame(t, a, b)
-		assert.True(t, a.SameAs(a))
-		assert.True(t, b.SameAs(b))
+		assertSame(t, a, a)
+		assertSame(t, b, b)
 	})
 	t.Run("comparison based on nodes with different checksum", func(t *testing.T) {
 		ap := storage.RandomPointer()
@@ -72,8 +85,8 @@ func TestNodeMetaSameAs(t *testing.T) {
 		a := nodeMeta{n: &Node{pointer: ap}}
 		b := nodeMeta{n: &Node{pointer: bp}}
 		assertNotSame(t, a, b)
-		assert.True(t, a.SameAs(a))
-		assert.True(t, b.SameAs(b))
+		assertSame(t, a, a)
+		assertSame(t, b, b)
 	})
 }
 
@@ -153,9 +166,9 @@ blocks:
 func TestTreeNodeSameAs(t *testing.T) {
 	t.Run("tree node never equals a nil node", func(t *testing.T) {
 		var a treeNode
-		assert.False(t, a.SameAs((*treeNode)(nil)))
-		assert.False(t, a.SameAs((*diff.StringNode)(nil)))
-		assert.False(t, a.SameAs(nil))
+		assertComparison(t, a, (*treeNode)(nil), false)
+		assertComparison(t, a, (*diff.StringNode)(nil), false)
+		assertComparison(t, a, nil, false)
 	})
 	t.Run("tree node with inner nil node only equals a tree node with inner nil node", func(t *testing.T) {
 		a := treeNode{}
@@ -174,8 +187,8 @@ func TestTreeNodeSameAs(t *testing.T) {
 		a := treeNode{n: &Node{blocks: common}}
 		b := treeNode{n: &Node{blocks: common}}
 		assertSame(t, a, b)
-		assert.True(t, a.SameAs(a))
-		assert.True(t, b.SameAs(b))
+		assertSame(t, a, a)
+		assertSame(t, b, b)
 	})
 	t.Run("comparison based on nodes with different checksum", func(t *testing.T) {
 		ablock := Block{pointer: storage.RandomPointer()}
@@ -183,8 +196,8 @@ func TestTreeNodeSameAs(t *testing.T) {
 		a := treeNode{n: &Node{blocks: []*Block{&ablock}}}
 		b := treeNode{n: &Node{blocks: []*Block{&bblock}}}
 		assertNotSame(t, a, b)
-		assert.True(t, a.SameAs(a))
-		assert.True(t, b.SameAs(b))
+		assertSame(t, a, a)
+		assertSame(t, b, b)
 	})
 }
 
