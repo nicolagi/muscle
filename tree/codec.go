@@ -101,5 +101,6 @@ func (mc *multiCodec) codecFor(version byte) Codec {
 func newStandardCodec() *multiCodec {
 	codec := newMultiCodec()
 	codec.register(13, &codecV13{})
+	codec.register(14, &codecV14{})
 	return codec
 }

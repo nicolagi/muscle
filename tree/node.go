@@ -65,6 +65,7 @@ type Node struct {
 	refs int
 
 	flags nodeFlags
+	bsize uint32 // Block size, for future extension.
 
 	// Pointer to the parent node. For the root node (and only for the root
 	// node) this will be nil.

@@ -1,114 +1,105 @@
 package tree
 
 import (
-	"math/rand"
 	"testing"
-	"time"
+	"testing/quick"
 
 	"github.com/nicolagi/go9p/p"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-var c *multiCodec
-
-func init() {
-	c = newMultiCodec()
+func TestLatestCodecForNodes(t *testing.T) {
+	c := newMultiCodec()
 	c.register(13, &codecV13{})
-}
+	c.register(14, &codecV14{})
+	t.Run("for nodes", func(t *testing.T) {
+		f := func(
+			name string,
+			flags uint8,
+			bsize uint32,
+			mode uint32,
+			mtime uint32,
+			length uint64,
+			children [][]byte,
+			blocks [][]byte,
+		) bool {
+			input := &Node{}
+			input.flags = nodeFlags(flags) & ^(loaded | dirty)
+			input.bsize = bsize
+			input.D.Name = name
+			input.D.Mode = mode
+			input.D.Mtime = mtime
+			input.D.Length = length
+			for _, b := range children {
+				input.children = append(input.children, &Node{
+					pointer: storage.NewPointer(b),
+				})
+			}
+			for _, b := range blocks {
+				input.blocks = append(input.blocks, &Block{
+					pointer: storage.NewPointer(b),
+				})
+			}
 
-func TestEncodeThenDecodeNode(t *testing.T) {
-	rand.Seed(time.Now().Unix())
-	testCases := []struct {
-		name  string
-		input Node
-	}{
-		{
-			name: "random",
-			input: Node{
-				D: p.Dir{
-					Name:   "file", // TODO randomize
-					Atime:  uint32(time.Now().Unix()),
-					Mtime:  uint32(time.Now().Unix()),
-					Length: rand.Uint64(),
-					Mode:   rand.Uint32(),
-				},
-				children: []*Node{&Node{pointer: storage.RandomPointer()}},
-				blocks: []*Block{
-					&Block{pointer: storage.RandomPointer()},
-					&Block{pointer: storage.RandomPointer()},
-				},
-			},
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			for _, c := range tc.input.children {
-				c.parent = &tc.input
+			// Normalize
+			input.D.Atime = mtime
+			for _, c := range input.children {
+				c.parent = input
 			}
-			if tc.input.D.Mode&p.DMDIR != 0 {
-				tc.input.D.Qid.Type = p.QTDIR
-				tc.input.D.Length = 0
+			if input.D.Mode&p.DMDIR != 0 {
+				input.D.Qid.Type = p.QTDIR
+				input.D.Length = 0
 			}
-			b, err := c.encodeNode(&tc.input)
-			require.Nil(t, err)
+
+			b, err := c.encodeNode(input)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
 			var output Node
-			assert.Nil(t, c.decodeNode(b, &output))
-			assert.Equal(t, tc.input, output)
-		})
-	}
-}
-
-func TestEncodeThenDecodeRevision(t *testing.T) {
-	rand.Seed(time.Now().Unix())
-	testCases := []struct {
-		name  string
-		input Revision
-	}{
-		{"empty", Revision{}},
-		{"with root key", Revision{
-			rootKey: storage.RandomPointer(),
-		}},
-		{"with a null parent", Revision{
-			parents: []storage.Pointer{
-				storage.Null,
-			},
-		}},
-		{"with one parent", Revision{
-			parents: []storage.Pointer{
-				storage.RandomPointer(),
-			},
-		}},
-		{"with two parents", Revision{
-			parents: []storage.Pointer{
-				storage.RandomPointer(),
-				storage.RandomPointer(),
-			},
-		}},
-		{"with timestamp", Revision{when: rand.Int63()}},
-		{"with hostname", Revision{hostname: "hostname"}}, // TODO randomize
-		{"with comment", Revision{instance: "darkstar"}},  // TODO randomize
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			testIdempotent(t, tc.input)
-		})
-	}
-	var in Revision
-	in.parents = []storage.Pointer{
-		storage.RandomPointer(),
-	}
-	testIdempotent(t, in)
-	in.parents = nil
-	testIdempotent(t, in)
-}
-
-func testIdempotent(t *testing.T, input Revision) {
-	var output Revision
-	b, err := c.encodeRevision(&input)
-	require.Nil(t, err)
-	err = c.decodeRevision(b, &output)
-	assert.Nil(t, err)
-	assert.Equal(t, input, output)
+			if err := c.decodeNode(b, &output); err != nil {
+				t.Log(err)
+				return false
+			}
+			// TODO Write comparison function to avoid assert.Equal.
+			return assert.Equal(t, *input, output)
+		}
+		if err := quick.Check(f, nil); err != nil {
+			t.Error(err)
+		}
+	})
+	t.Run("for revisions", func(t *testing.T) {
+		f := func(
+			rootKey []byte,
+			parents [][]byte,
+			when int64,
+			hostname string,
+			instance string,
+		) bool {
+			input := &Revision{}
+			input.rootKey = storage.NewPointer(rootKey)
+			for _, b := range parents {
+				input.parents = append(input.parents, storage.NewPointer(b))
+			}
+			input.when = when
+			input.hostname = hostname
+			input.instance = instance
+			b, err := c.encodeRevision(input)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+			var output Revision
+			if err := c.decodeRevision(b, &output); err != nil {
+				t.Log(err)
+				return false
+			}
+			// TODO Write comparison function to avoid assert.Equal.
+			return assert.Equal(t, *input, output)
+		}
+		if err := quick.Check(f, nil); err != nil {
+			t.Error(err)
+		}
+	})
 }
