@@ -36,7 +36,7 @@ func (tree *Tree) SetRevision(r *Revision) {
 }
 
 func (tree *Tree) depthFirstSave(node *Node) error {
-	if !node.dirty {
+	if node.flags&dirty == 0 {
 		return nil
 	}
 	for _, child := range node.children {
@@ -76,12 +76,12 @@ func (node *Node) markDirty() {
 		"op":   "markDirty",
 		"node": node.String(),
 	})
-	if node == nil || node.dirty {
+	if node == nil || node.flags&dirty != 0 {
 		entry.Debug("Already dirty")
 		return
 	}
 	entry.Debug("Setting dirty and recursing")
-	node.dirty = true
+	node.flags |= dirty
 	if node.pointer.IsNull() {
 		node.pointer = storage.RandomPointer()
 	}

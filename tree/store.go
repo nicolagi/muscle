@@ -78,7 +78,7 @@ func (s *Store) StoreNode(node *Node) error {
 	err = s.ephemeral.Put(node.pointer.Key(), encrypted)
 	if err == nil {
 		entry.Debug("Clearing dirty flag")
-		node.dirty = false
+		node.flags &^= dirty
 		node.recomputeQID()
 	}
 	return err

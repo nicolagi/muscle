@@ -14,7 +14,7 @@ func TestMarkDirty(t *testing.T) {
 	t.Run("node with no parent", func(t *testing.T) {
 		a := new(Node)
 		a.markDirty()
-		assert.True(t, a.dirty)
+		assert.Equal(t, dirty, a.flags&dirty)
 		assert.False(t, a.pointer.IsNull())
 	})
 	t.Run("node with parent", func(t *testing.T) {
@@ -22,8 +22,8 @@ func TestMarkDirty(t *testing.T) {
 		outer := new(Node)
 		outer.add(inner)
 		inner.markDirty()
-		assert.True(t, inner.dirty)
-		assert.True(t, outer.dirty)
+		assert.Equal(t, dirty, inner.flags&dirty)
+		assert.Equal(t, dirty, outer.flags&dirty)
 		assert.False(t, inner.pointer.IsNull())
 		assert.False(t, outer.pointer.IsNull())
 	})
@@ -32,7 +32,7 @@ func TestMarkDirty(t *testing.T) {
 		a := new(Node)
 		a.pointer = expected
 		a.markDirty()
-		assert.True(t, a.dirty)
+		assert.Equal(t, dirty, a.flags&dirty)
 		assert.Equal(t, expected, a.pointer)
 	})
 }

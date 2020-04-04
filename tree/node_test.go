@@ -6,6 +6,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNodeFlagsString(t *testing.T) {
+	testCases := []struct {
+		input  nodeFlags
+		output string
+	}{
+		{0, "none"},
+		{loaded, "loaded"},
+		{dirty, "dirty"},
+		{sealed, "sealed"},
+		{loaded | dirty, "loaded,dirty"},
+		{42, "dirty,extraneous"},
+	}
+	for _, tc := range testCases {
+		if got, want := tc.input.String(), tc.output; got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	}
+}
+
 func TestNodePath(t *testing.T) {
 	a := new(Node)
 	b := new(Node)

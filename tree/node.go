@@ -1,6 +1,7 @@
 package tree
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"fmt"
 	"path"
@@ -11,6 +12,42 @@ import (
 
 	"github.com/nicolagi/muscle/storage"
 )
+
+type nodeFlags uint8
+
+const (
+	// TODO This is unused. Use it instead of relying on the empty-name convention.
+	loaded nodeFlags = 1 << 0
+	// A dirty node is one that has mutated since it was loaded from
+	// storage; it should be persisted before exiting and before unloading
+	// the node, at the very least.
+	dirty nodeFlags = 1 << 1
+	// This will be used in a later CL.
+	sealed nodeFlags = 1 << 2
+	// If you add flags here, add them to nodeFlags.String as well.
+)
+
+// String implements fmt.Stringer for debugging purposes.
+func (ff nodeFlags) String() string {
+	if ff == 0 {
+		return "none"
+	}
+	var buf bytes.Buffer
+	if ff&loaded != 0 {
+		buf.WriteString("loaded,")
+	}
+	if ff&dirty != 0 {
+		buf.WriteString("dirty,")
+	}
+	if ff&sealed != 0 {
+		buf.WriteString("sealed,")
+	}
+	if ff & ^(loaded|dirty|sealed) != 0 {
+		buf.WriteString("extraneous,")
+	}
+	buf.Truncate(buf.Len() - 1)
+	return buf.String()
+}
 
 // TODO This is a terribly temporary (that's probably a lie.) kludge to enable snapshotsfs
 func (node *Node) Children() []*Node {
@@ -27,10 +64,7 @@ type Node struct {
 	// is not loaded.
 	refs int
 
-	// A dirty node is one that has mutated since it was loaded from
-	// storage; it should be persisted before exiting and before unloading
-	// the node, at the very least.
-	dirty bool
+	flags nodeFlags
 
 	// Pointer to the parent node. For the root node (and only for the root
 	// node) this will be nil.
@@ -257,10 +291,10 @@ func (node *Node) Trim() {
 			"key":   node.pointer.Hex(),
 			"age":   age,
 			"refs":  node.refs,
-			"dirty": node.dirty,
+			"flags": node.flags,
 		})
 
-		if node.IsRoot() || node.dirty || node.refs != 0 || age < minAge {
+		if node.IsRoot() || node.flags&dirty != 0 || node.refs != 0 || age < minAge {
 			le.Debug("Not trimming")
 			return
 		}

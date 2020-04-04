@@ -141,8 +141,8 @@ func TestGrow(t *testing.T) {
 			return storage.ErrNotFound
 		}))
 		assert.Regexp(t, "vanished", a.children[0].D.Name)
-		assert.True(t, a.children[0].dirty)
-		assert.True(t, a.dirty)
+		assert.Equal(t, dirty, a.children[0].flags&dirty)
+		assert.Equal(t, dirty, a.flags&dirty)
 	})
 	t.Run("growing a node with two children with same name once loaded", func(t *testing.T) {
 		a := new(Node)
@@ -155,9 +155,9 @@ func TestGrow(t *testing.T) {
 		sort.Sort(NodeSlice(a.children))
 		assert.Equal(t, "usr", a.children[0].D.Name)
 		assert.Regexp(t, "usr\\.dupe[0-9]+", a.children[1].D.Name)
-		assert.False(t, a.children[0].dirty)
-		assert.True(t, a.children[1].dirty)
-		assert.True(t, a.dirty)
+		assert.EqualValues(t, 0, a.children[0].flags&dirty)
+		assert.Equal(t, dirty, a.children[1].flags&dirty)
+		assert.Equal(t, dirty, a.flags&dirty)
 	})
 	t.Run("growing a node with three children and error for the second", func(t *testing.T) {
 		defer leaktest.Check(t)()
@@ -204,9 +204,9 @@ func TestGrow(t *testing.T) {
 		}))
 		assert.Equal(t, "home", a.children[0].D.Name)
 		assert.Regexp(t, "home\\.dupe[0-9]+", a.children[1].D.Name)
-		assert.False(t, a.children[0].dirty)
-		assert.True(t, a.children[1].dirty)
-		assert.True(t, a.dirty)
+		assert.EqualValues(t, 0, a.children[0].flags&dirty)
+		assert.Equal(t, dirty, a.children[1].flags&dirty)
+		assert.Equal(t, dirty, a.flags&dirty)
 		assert.Equal(t, 1, callCount)
 	})
 }
@@ -221,11 +221,11 @@ func TestChildNamesAreMadeUnique(t *testing.T) {
 		}
 		return parent
 	}
-	extractChildNames := func(parent *Node) (all []string, dirty []string) {
+	extractChildNames := func(parent *Node) (allChildren []string, dirtyChildren []string) {
 		for _, child := range parent.children {
-			all = append(all, child.D.Name)
-			if child.dirty {
-				dirty = append(dirty, child.D.Name)
+			allChildren = append(allChildren, child.D.Name)
+			if child.flags&dirty != 0 {
+				dirtyChildren = append(dirtyChildren, child.D.Name)
 			}
 		}
 		return
