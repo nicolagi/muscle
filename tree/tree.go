@@ -46,6 +46,7 @@ func (tree *Tree) Root() (storage.Pointer, *Node) { return tree.revision, tree.r
 
 func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	child := &Node{
+		flags:  loaded | dirty,
 		parent: node,
 		D: p.Dir{
 			Name: name,

@@ -116,12 +116,17 @@ func (s *Store) LoadNode(dst *Node) error {
 	if errors.Is(err, storage.ErrNotFound) {
 		contents, err = s.permanent.Get(dst.pointer.Key())
 	}
-	if err == nil {
-		err = s.codec.decodeNode(s.cryptography.decrypt(contents), dst)
+	if err != nil {
+		return fmt.Errorf("tree.Store.LoadNode: %w", err)
+	}
+	err = s.codec.decodeNode(s.cryptography.decrypt(contents), dst)
+	if err != nil {
+		return fmt.Errorf("tree.Store.LoadNode: %w", err)
 	}
 	dst.D.Uid = nodeUID
 	dst.D.Gid = nodeGID
 	dst.recomputeQID()
+	dst.flags |= loaded
 	return err
 }
 

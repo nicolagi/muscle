@@ -20,7 +20,7 @@ func (tree *Tree) dumpNodesFrom(node *Node, absolutePrefix, pathPrefix string) {
 		"node":   node,
 	}).Info("Node dump")
 	for _, c := range node.children {
-		if c.D.Name != "" {
+		if c.flags&loaded != 0 {
 			tree.dumpNodesFrom(c, absolutePrefix, p)
 		}
 	}

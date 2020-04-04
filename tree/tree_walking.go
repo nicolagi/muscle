@@ -56,7 +56,7 @@ func (tree *Tree) grow(parent *Node, load func(*Node) error) error {
 	semc := make(chan struct{}, 32)
 	g, _ := errgroup.WithContext(context.Background())
 	for _, child := range parent.children {
-		if child.isLoaded() {
+		if child.flags&loaded != 0 {
 			continue
 		}
 		child := child
@@ -86,7 +86,7 @@ func makeChildNamesUnique(parent *Node) {
 	names := make(map[string]struct{})
 	var dupes []*Node
 	for _, child := range parent.children {
-		if child.D.Name == "" {
+		if child.flags&loaded == 0 {
 			continue
 		}
 		if _, nameTaken := names[child.D.Name]; nameTaken {

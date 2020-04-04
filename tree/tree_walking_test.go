@@ -129,7 +129,7 @@ func TestGrow(t *testing.T) {
 	})
 	t.Run("growing a node with only one child, loaded", func(t *testing.T) {
 		a := Node{
-			children: []*Node{{D: p.Dir{Name: "boot"}}},
+			children: []*Node{{flags: loaded, D: p.Dir{Name: "boot"}}},
 		}
 		assert.Nil(t, oak.grow(&a, nil))
 		assert.Equal(t, "boot", a.children[0].D.Name)
@@ -150,6 +150,7 @@ func TestGrow(t *testing.T) {
 		a.add(new(Node))
 		assert.Nil(t, oak.grow(a, func(node *Node) error {
 			node.D.Name = "usr"
+			node.flags |= loaded
 			return nil
 		}))
 		sort.Sort(NodeSlice(a.children))
@@ -194,11 +195,12 @@ func TestGrow(t *testing.T) {
 	})
 	t.Run("duplicate arising when first node is loaded and second is not", func(t *testing.T) {
 		a := new(Node)
-		a.add(&Node{D: p.Dir{Name: "home"}})
+		a.add(&Node{flags: loaded, D: p.Dir{Name: "home"}})
 		a.add(new(Node))
 		callCount := 0
 		assert.Nil(t, oak.grow(a, func(node *Node) error {
 			node.D.Name = "home"
+			node.flags |= loaded
 			callCount++
 			return nil
 		}))
@@ -216,6 +218,7 @@ func TestChildNamesAreMadeUnique(t *testing.T) {
 		parent := &Node{}
 		for _, name := range names {
 			child := &Node{}
+			child.flags = loaded
 			child.D.Name = name
 			parent.children = append(parent.children, child)
 		}
@@ -243,8 +246,6 @@ func TestChildNamesAreMadeUnique(t *testing.T) {
 		{input: []string{"one", "two", "one", "two"}, output: []string{"one", "two", "one.dupe0", "two.dupe0"}, dirty: []string{"one.dupe0", "two.dupe0"}},
 		{input: []string{"one", "one.dupe1"}, output: []string{"one", "one.dupe1"}},
 		{input: []string{"one", "one", "one.dupe0"}, output: []string{"one", "one.dupe1", "one.dupe0"}, dirty: []string{"one.dupe1"}},
-		// Empty name is a sentinel value for nodes that have yet to be loaded:
-		{input: []string{"", ""}, output: []string{"", ""}},
 	}
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
@@ -259,6 +260,20 @@ func TestChildNamesAreMadeUnique(t *testing.T) {
 			}
 		})
 	}
+	t.Run("does not touch nodes that were never loaded", func(t *testing.T) {
+		parent := newTestNode([]string{"", ""})
+		for _, c := range parent.children {
+			c.flags &^= loaded
+		}
+		makeChildNamesUnique(parent)
+		all, dirty := extractChildNames(parent)
+		if diff := cmp.Diff(all, []string{"", ""}); diff != "" {
+			t.Errorf("Unexpected child names difference: %s", diff)
+		}
+		if diff := cmp.Diff(dirty, []string(nil)); diff != "" {
+			t.Errorf("Unexpected dirty child names difference: %s", diff)
+		}
+	})
 }
 
 func TestGrowParallelizationLimit(t *testing.T) {

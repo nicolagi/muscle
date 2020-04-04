@@ -91,10 +91,6 @@ type Node struct {
 	blocks   []*Block
 }
 
-func (node *Node) isLoaded() bool {
-	return node.D.Name != ""
-}
-
 func (node *Node) followBranch(name string) (*Node, bool) {
 	if name == "" {
 		panic("should not be looking for a child with no name")
@@ -117,7 +113,7 @@ func (node *Node) followBranch(name string) (*Node, bool) {
 // Returns whether the child was added. If it is already present, it does not
 // get added.
 func (node *Node) add(newChild *Node) bool {
-	if newChild.D.Name != "" {
+	if newChild.flags&loaded != 0 {
 		if _, ok := node.followBranch(newChild.D.Name); ok {
 			return false
 		}
@@ -277,9 +273,8 @@ func (node *Node) Trim() {
 	var trim func(node *Node)
 
 	trim = func(node *Node) {
-		// If the name is empty, the node was never loaded.
 		for _, child := range node.children {
-			if child.D.Name != "" {
+			if child.flags&loaded != 0 {
 				trim(child)
 			}
 		}
@@ -300,6 +295,7 @@ func (node *Node) Trim() {
 		}
 
 		le.Debug("Trimming")
+		node.flags &^= loaded
 		node.D.Name = ""
 		node.blocks = nil
 		node.children = nil

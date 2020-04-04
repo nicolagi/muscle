@@ -94,7 +94,7 @@ func (f *Factory) NewTree(options ...factoryOption) (*Tree, error) {
 		t.root.D.Name = "root"
 		t.root.D.Mode = 0700 | p.DMDIR
 		t.root.D.Qid.Type = p.QTDIR
-		t.root.flags |= dirty
+		t.root.flags |= loaded | dirty
 		t.Add(t.root, "ctl", 0600)
 	}
 	// Fix mode for roots created before mode was used...
