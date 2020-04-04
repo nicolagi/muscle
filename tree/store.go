@@ -10,6 +10,7 @@ import (
 
 	"9fans.net/go/plumb"
 	"github.com/nicolagi/go9p/p"
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree/mergebase"
 	log "github.com/sirupsen/logrus"
@@ -22,6 +23,7 @@ import (
 type Store struct {
 	localRootKeyFile string
 	remoteRootKey    string
+	blockFactory     *block.Factory
 	ephemeral        storage.Enumerable
 	permanent        storage.Store
 	pointers         storage.Store
@@ -30,6 +32,7 @@ type Store struct {
 }
 
 func NewStore(
+	blockFactory *block.Factory,
 	ephemeral storage.Enumerable,
 	permanent storage.Store,
 	pointers storage.Store,
@@ -42,6 +45,7 @@ func NewStore(
 		return nil, err
 	}
 	return &Store{
+		blockFactory:     blockFactory,
 		localRootKeyFile: localRootKeyFile,
 		remoteRootKey:    remoteRootKey,
 		ephemeral:        ephemeral,
@@ -50,16 +54,6 @@ func NewStore(
 		cryptography:     crp,
 		codec:            newStandardCodec(),
 	}, nil
-}
-
-// StoreBlock saves the block to the local store and updates its key to be the hash of the contents before encryption.
-func (s *Store) StoreBlock(block *Block) error {
-	block.pointer = storage.PointerTo(block.contents)
-	encrypted, err := s.cryptography.encrypt(block.contents)
-	if err == nil {
-		err = s.ephemeral.Put(block.pointer.Key(), encrypted)
-	}
-	return err
 }
 
 func (s *Store) StoreNode(node *Node) error {
@@ -85,18 +79,6 @@ func (s *Store) StoreNode(node *Node) error {
 	return err
 }
 
-// LoadBlock assumes block.key is current and loads the block contents from the store.
-func (s *Store) LoadBlock(dst *Block) error {
-	encrypted, err := s.ephemeral.Get(dst.pointer.Key())
-	if errors.Is(err, storage.ErrNotFound) {
-		encrypted, err = s.permanent.Get(dst.pointer.Key())
-	}
-	if err == nil {
-		dst.contents = s.cryptography.decrypt(encrypted)
-	}
-	return err
-}
-
 func (s *Store) StoreRevision(r *Revision) error {
 	encoded, err := s.codec.encodeRevision(r)
 	if err != nil {
@@ -113,6 +95,7 @@ func (s *Store) StoreRevision(r *Revision) error {
 // LoadNode assumes that dst.key is the destination node's key, and the parent pointer is also correct.
 // Loading will overwrite any other data.
 func (s *Store) LoadNode(dst *Node) error {
+	dst.blockFactory = s.blockFactory
 	contents, err := s.ephemeral.Get(dst.pointer.Key())
 	if errors.Is(err, storage.ErrNotFound) {
 		contents, err = s.permanent.Get(dst.pointer.Key())

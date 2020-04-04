@@ -1,11 +1,62 @@
 package tree
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/nicolagi/muscle/storage"
 	log "github.com/sirupsen/logrus"
 )
+
+func (tree *Tree) Seal() error {
+	if tree.readOnly {
+		return ErrReadOnly
+	}
+	if err := tree.seal(tree.root); err != nil {
+		return err
+	}
+	return tree.store.updateLocalRootPointer(tree.root.Key())
+}
+
+func (tree *Tree) seal(node *Node) error {
+	// Might've been loaded but then trimmed; in that case we still now whether it's sealed or not.
+	if node.flags&sealed != 0 {
+		log.Printf("Already sealed: %v", node)
+		return nil
+	}
+
+	if node.flags&loaded == 0 {
+		log.Printf("Loading node: %v", node)
+		if err := tree.store.LoadNode(node); err != nil {
+			// Contrary to tree.Tree.Grow(), we won't handle the case where the node is
+			// not found or the codec necessary to decode it is not found. If we did,
+			// we'd also have to load all siblings and ensure sibling names are unique.
+			return fmt.Errorf("tree.Tree.Seal: %v: %w", node, err)
+		}
+	}
+	// After loading, we may find it was sealed in fact, e.g., when the node was never loaded.
+	if node.flags&sealed != 0 {
+		log.Printf("Already sealed (after loading): %v", node)
+		return nil
+	}
+	for _, child := range node.children {
+		if err := tree.seal(child); err != nil {
+			return err
+		}
+	}
+	for _, b := range node.blocks {
+		if _, err := b.Seal(); err != nil {
+			return err
+		}
+	}
+	log.Printf("Marking node as sealed: %v", node)
+	node.flags |= sealed
+	if err := tree.store.StoreNode(node); err != nil {
+		return err
+	}
+	log.Printf("Stored: %v", node)
+	return nil
+}
 
 // FlushIfNotDoneRecently dumps the in-memory changes to the staging area if not done recently (according to the snapshot frequency constant).
 func (tree *Tree) FlushIfNotDoneRecently() error {
@@ -48,12 +99,10 @@ func (tree *Tree) depthFirstSave(node *Node) error {
 		"path": node.Path(),
 		"key":  node.pointer.Hex(),
 	}).Debug("Persisting node")
-	for _, block := range node.blocks {
-		if block.state == blockDirty {
-			if err := tree.store.StoreBlock(block); err != nil {
-				return err
-			}
-			block.state = blockClean
+	for _, b := range node.blocks {
+		_, err := b.Flush()
+		if err != nil {
+			return err
 		}
 	}
 	return tree.store.StoreNode(node)
@@ -70,7 +119,7 @@ func (tree *Tree) depthFirstSave(node *Node) error {
 // parent chain (the node's key is said to be packed in this case, and the parent
 // with the pack is called a fat node). So we need to remove the key-value pair
 // from such pack (or packs would keep growing). (This mechanism makes for
-// bigger node metadata blobs but fewer overall node metadata blobs.)
+// bigger node metadata blocks but fewer overall node metadata blocks.)
 func (node *Node) markDirty() {
 	entry := log.WithFields(log.Fields{
 		"op":   "markDirty",
@@ -82,6 +131,7 @@ func (node *Node) markDirty() {
 	}
 	entry.Debug("Setting dirty and recursing")
 	node.flags |= dirty
+	node.flags &= ^sealed
 	if node.pointer.IsNull() {
 		node.pointer = storage.RandomPointer()
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/nicolagi/go9p/p"
 	"github.com/nicolagi/go9p/p/clnt"
 	"github.com/nicolagi/muscle/config"
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/netutil"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
@@ -180,9 +181,8 @@ func Test(t *testing.T) {
 		donor, err := factory.NewTree(factory.Mutable())
 		require.Nil(t, err)
 		_, donorRoot := donor.Root()
-		donorMusic, err := donor.Add(donorRoot, "music", 0666)
+		_, err = donor.Add(donorRoot, "music", 0666)
 		require.Nil(t, err)
-		require.Nil(t, donor.Release(donorMusic))
 		require.Nil(t, donor.Flush())
 		revision := tree.NewRevision("other", donorRoot.Key(), nil)
 		err = treeStore.StoreRevision(revision)
@@ -336,9 +336,11 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Fa
 	// to populate the cache from the staging area, which makes the fixtures easier to set up.
 	// Of course this means that the cache directory will contain extraneous intermediate data,
 	// but it's fine for tests.
-	store, err = tree.NewStore(diskStore, diskStore, nil, rootFile, "remote.root.other", sharedKey)
+	blockFactory, err := block.NewFactory(diskStore, diskStore, sharedKey, tree.DefaultBlockCapacity)
 	require.Nil(t, err)
-	factory = tree.NewFactory(store)
+	store, err = tree.NewStore(blockFactory, diskStore, diskStore, nil, rootFile, "remote.root.other", sharedKey)
+	require.Nil(t, err)
+	factory = tree.NewFactory(blockFactory, store)
 
 	// TODO: Should do the cleean up only if the test is successful, leave other wise
 	// process and temporary files around for debugging.

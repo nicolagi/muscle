@@ -46,8 +46,9 @@ func (tree *Tree) Root() (storage.Pointer, *Node) { return tree.revision, tree.r
 
 func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	child := &Node{
-		flags:  loaded | dirty,
-		parent: node,
+		flags:        loaded | dirty,
+		blockFactory: node.blockFactory,
+		parent:       node,
 		D: p.Dir{
 			Name: name,
 			Mode: perm,
@@ -108,33 +109,6 @@ func (tree *Tree) RemoveForMerge(node *Node) error {
 	return nil
 }
 
-func (tree *Tree) Release(node *Node) (err error) {
-	dirty := 0
-	var length uint64
-	for _, block := range node.blocks {
-		length += uint64(len(block.contents))
-		if block.state == blockDirty {
-			dirty++
-		}
-	}
-	if dirty == 0 {
-		return nil
-	}
-	// This is hopefully just a sanity check and will be removed after a few weeks of operation.
-	// This should not happen, because truncate and write keep the length up to date.
-	if node.D.Length != length {
-		log.WithFields(log.Fields{
-			"op":        "release",
-			"path":      node.Path(),
-			"length":    node.D.Length,
-			"newLength": length,
-		}).Warning("Size mismatch")
-		//node.D.Length = length
-	}
-	node.markDirty()
-	return nil
-}
-
 func (tree *Tree) ReachableKeysInTheStagingArea() (map[string]struct{}, error) {
 	accumulator := make(map[string]struct{})
 	isStaging, err := tree.store.IsStaging(tree.revision)
@@ -169,15 +143,6 @@ func (tree *Tree) reachableKeysInTheStagingArea(node *Node, accumulator map[stri
 	if isStaging {
 		accumulator[key.Hex()] = struct{}{}
 	}
-	for _, block := range node.blocks {
-		isStaging, err := tree.store.IsStaging(block.pointer)
-		if err != nil {
-			return err
-		}
-		if isStaging {
-			accumulator[block.pointer.Hex()] = struct{}{}
-		}
-	}
 	if err := tree.Grow(node); err != nil {
 		return err
 	}
@@ -204,8 +169,8 @@ func (tree *Tree) reachableKeys(node *Node, accumulator map[string]struct{}) err
 	}
 	key := node.Key()
 	accumulator[key.Hex()] = struct{}{}
-	for _, block := range node.blocks {
-		accumulator[block.pointer.Hex()] = struct{}{}
+	for _, b := range node.blocks {
+		accumulator[string(b.Ref().Key())] = struct{}{}
 	}
 	if err := tree.Grow(node); err != nil {
 		return err

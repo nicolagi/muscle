@@ -16,6 +16,7 @@ import (
 	"github.com/nicolagi/go9p/p"
 	"github.com/nicolagi/go9p/p/srv"
 	"github.com/nicolagi/muscle/config"
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
 	log "github.com/sirupsen/logrus"
@@ -107,7 +108,7 @@ func (ops *ops) Open(r *srv.Req) {
 		node.PrepareForReads()
 	default:
 		if r.Tc.Mode&p.OTRUNC != 0 {
-			ops.tree.Truncate(node, 0)
+			node.Truncate(0)
 		}
 	}
 	r.RespondRopen(&node.D.Qid, 0)
@@ -142,7 +143,7 @@ func (ops *ops) Read(r *srv.Req) {
 	} else if node.IsController() {
 		count = ops.c.read(r.Rc.Data[:r.Tc.Count], int(r.Tc.Offset))
 	} else {
-		count, err = ops.tree.ReadAt(node, r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
+		count, err = node.ReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
 	}
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -257,6 +258,12 @@ func runCommand(ops *ops, cmd string) error {
 		}
 		_, _ = fmt.Fprintln(outputBuffer, "flushed")
 
+		// Ibis. Seal the data blocks.
+		if err := ops.tree.Seal(); err != nil {
+			return fmt.Errorf("could not seal: %v", err)
+		}
+		_, _ = fmt.Fprintln(outputBuffer, "sealed")
+
 		// II. Make the parent the remote root (forgets intermediate local revisions).
 		_, localRoot := ops.tree.Root()
 		remoteRevisionKey, err := ops.treeStore.RemoteRevisionKey("")
@@ -316,7 +323,7 @@ func (ops *ops) Write(r *srv.Req) {
 		r.RespondRwrite(uint32(len(r.Tc.Data)))
 		return
 	}
-	if err := ops.tree.WriteAt(node, r.Tc.Data, int64(r.Tc.Offset)); err != nil {
+	if err := node.WriteAt(r.Tc.Data, int64(r.Tc.Offset)); err != nil {
 		r.RespondError(err)
 		return
 	}
@@ -328,17 +335,6 @@ func (ops *ops) Clunk(r *srv.Req) {
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
 	defer node.Unref("clunk")
-	if !node.IsDir() {
-		err := ops.tree.Release(node)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"path":  node.Path(),
-				"cause": err.Error(),
-			}).Error("Could not save")
-			r.RespondError(srv.Eperm)
-			return
-		}
-	}
 	r.RespondRclunk()
 }
 
@@ -380,7 +376,7 @@ func (ops *ops) Wstat(r *srv.Req) {
 			r.RespondError(srv.Eperm)
 			return
 		}
-		if err := ops.tree.Truncate(node, dir.Length); err != nil {
+		if err := node.Truncate(dir.Length); err != nil {
 			log.WithFields(log.Fields{
 				"cause": err,
 			}).Error("Could not truncate")
@@ -474,18 +470,22 @@ func main() {
 		log.Fatalf("Could not start new paired store with log %q: %v", cfg.PropagationLogFilePath(), err)
 	}
 
-	// The paired store starts propagation of blobs from the local to
+	// The paired store starts propagation of blocks from the local to
 	// the remote store on the first put operation.  which happens when
 	// taking a snapshot (at that time, data moves from the staging area
 	// to the paired store, which then propagates from local to remote
-	// asynchronously). Since there may be still blobs to propagate
-	// from a previous run (i.e., musclefs was killed before all blobs
+	// asynchronously). Since there may be still blocks to propagate
+	// from a previous run (i.e., musclefs was killed before all blocks
 	// were copied to the remote store) we need to start the background
 	// propagation immediately.
 	pairedStore.EnsureBackgroundPuts()
 
 	martino := storage.NewMartino(stagingStore, pairedStore)
-	treeStore, err := tree.NewStore(stagingStore, pairedStore, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
+	blockFactory, err := block.NewFactory(stagingStore, pairedStore, cfg.EncryptionKeyBytes(), tree.DefaultBlockCapacity)
+	if err != nil {
+		log.Fatalf("Could not build block factory: %v", err)
+	}
+	treeStore, err := tree.NewStore(blockFactory, stagingStore, pairedStore, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -493,7 +493,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	factory := tree.NewFactory(treeStore)
+	factory := tree.NewFactory(blockFactory, treeStore)
 	tt, err := factory.NewTree(factory.WithInstance(cfg.Instance), factory.WithRootKey(rootKey), factory.Mutable())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)

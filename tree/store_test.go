@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,11 @@ func TestStoreFork(t *testing.T) {
 	remoteStore, cleanup := newDisposableStore(t)
 	defer cleanup()
 	instance := "source"
+	key := storage.RandomPointer().Bytes()
+	blockFactory, err := block.NewFactory(remoteStore, remoteStore, key, tree.DefaultBlockCapacity)
+	require.Nil(t, err)
 	store, err := tree.NewStore(
+		blockFactory,
 		remoteStore,
 		remoteStore,
 		remoteStore,

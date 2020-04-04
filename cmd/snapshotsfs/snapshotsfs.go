@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/nicolagi/go9p/p"
 	"github.com/nicolagi/go9p/p/srv"
 	"github.com/nicolagi/muscle/config"
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -41,7 +41,7 @@ func newMuscleFile(node *tree.Node, tree *tree.Tree) (*muscleFile, error) {
 
 // Read implements srv.FReadOp.
 func (mf *muscleFile) Read(fid *srv.FFid, b []byte, off uint64) (int, error) {
-	n, err := mf.tree.ReadAt(mf.node, b, int64(off))
+	n, err := mf.node.ReadAt(b, int64(off))
 	log.WithFields(log.Fields{
 		"requested": len(b),
 		"returned":  n,
@@ -261,11 +261,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not start new paired store: %v", err)
 	}
-	treeStore, err = tree.NewStore(stagingStore, pairedStore, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
+	blockFactory, err := block.NewFactory(stagingStore, pairedStore, cfg.EncryptionKeyBytes(), tree.DefaultBlockCapacity)
+	if err != nil {
+		log.Fatalf("Could not build block factory: %v", err)
+	}
+	treeStore, err = tree.NewStore(blockFactory, stagingStore, pairedStore, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	treeFactory = tree.NewFactory(treeStore)
+	treeFactory = tree.NewFactory(blockFactory, treeStore)
 
 	var root rootDir
 	root.Add(nil, "/", owner, group, p.DMDIR|0700, &root)

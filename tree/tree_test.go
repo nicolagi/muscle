@@ -7,89 +7,10 @@ import (
 	"path"
 	"testing"
 
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestBlockWriting(t *testing.T) {
-	block := &Block{}
-
-	// Appends
-	block.write([]byte("foo"), 0)
-	assert.Equal(t, "foo", string(block.contents))
-
-	// Overwrites
-	block.write([]byte("bar"), 0)
-	assert.Equal(t, "bar", string(block.contents))
-
-	// Overwrites and appends
-	block.write([]byte("foobar"), 0)
-	assert.Equal(t, "foobar", string(block.contents))
-
-	// Overwrites and appends, with offset
-	block.write([]byte("lishness"), 3)
-	assert.Equal(t, "foolishness", string(block.contents))
-}
-
-func readAll(node *Node) string {
-	sz := 0
-	for _, block := range node.blocks {
-		sz += len(block.contents)
-	}
-	b := make([]byte, sz)
-	node.read(b, 0)
-	return string(b)
-}
-
-func TestNodeWriting(t *testing.T) {
-	pbs := blockSizeBytes
-	blockSizeBytes = 6
-	defer func() {
-		blockSizeBytes = pbs
-	}()
-	node := &Node{}
-	tree := Tree{root: node}
-
-	// Append first block and to first block.
-	tree.WriteAt(node, []byte("foo"), 0)
-	assert.Equal(t, "foo", readAll(node))
-	assert.Len(t, node.blocks, 1)
-
-	// Cross blocks
-	s := "012345012345012345"
-	tree.WriteAt(node, []byte(s), 0)
-	assert.Equal(t, s, readAll(node))
-	assert.Len(t, node.blocks, 3)
-	for _, b := range node.blocks {
-		assert.Equal(t, "012345", string(b.contents))
-	}
-
-	// Overwrite one block.
-	tree.WriteAt(node, []byte("xxxxxx"), 6)
-	assert.Equal(t, "012345xxxxxx012345", readAll(node))
-	assert.Len(t, node.blocks, 3)
-
-	// Cross-block overwrite.
-	tree.WriteAt(node, []byte("yyyyyy"), 9)
-	assert.Equal(t, "012345xxxyyyyyy345", readAll(node))
-	assert.Len(t, node.blocks, 3)
-	assert.Equal(t, "012345", string(node.blocks[0].contents))
-	assert.Equal(t, "xxxyyy", string(node.blocks[1].contents))
-	assert.Equal(t, "yyy345", string(node.blocks[2].contents))
-
-	t.Run("writing on block that is not loaded", func(t *testing.T) {
-		oak, err := NewFactory(nil).NewTree()
-		assert.Nil(t, err)
-
-		// Pretend something was on the root node (which is a dir, here treating it like a file).
-		oak.root.blocks = append(oak.root.blocks, &Block{pointer: storage.RandomPointer()})
-
-		loader := &dummyBlockLoader{}
-		loader.cannedContents = []byte("whiteboard")
-		assert.Nil(t, oak.root.writeAt(loader, []byte("black"), 0))
-		assert.Equal(t, "blackboard", string(oak.root.blocks[0].contents))
-	})
-}
 
 func TestTreeWalking(t *testing.T) {
 	tree, tempDir, err := scratchTree()
@@ -150,7 +71,12 @@ func scratchTree() (*Tree, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	bf, err := block.NewFactory(diskStore, paired, []byte("ciaociaociaociao"), 8192)
+	if err != nil {
+		return nil, "", err
+	}
 	st, err := NewStore(
+		bf,
 		diskStore,
 		paired,
 		nil,
@@ -161,6 +87,6 @@ func scratchTree() (*Tree, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	tt, err := NewFactory(st).NewTree()
+	tt, err := NewFactory(bf, st).NewTree()
 	return tt, tdir, err
 }

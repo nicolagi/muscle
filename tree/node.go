@@ -3,20 +3,20 @@ package tree
 import (
 	"bytes"
 	"crypto/sha1"
+	"errors"
 	"fmt"
 	"path"
 	"time"
 
 	"github.com/nicolagi/go9p/p"
-	log "github.com/sirupsen/logrus"
-
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
+	log "github.com/sirupsen/logrus"
 )
 
 type nodeFlags uint8
 
 const (
-	// TODO This is unused. Use it instead of relying on the empty-name convention.
 	loaded nodeFlags = 1 << 0
 	// A dirty node is one that has mutated since it was loaded from
 	// storage; it should be persisted before exiting and before unloading
@@ -49,6 +49,11 @@ func (ff nodeFlags) String() string {
 	return buf.String()
 }
 
+// TODO This de-facto constant is a very big problem, because it can't ever be changed.
+// The constant is used to calculate offsets etc. because there's no explicit size for
+// stored blocks. The size should be stored per node or per block.
+var DefaultBlockCapacity = 1024 * 1024
+
 // TODO This is a terribly temporary (that's probably a lie.) kludge to enable snapshotsfs
 func (node *Node) Children() []*Node {
 	return node.children
@@ -56,6 +61,8 @@ func (node *Node) Children() []*Node {
 
 // Node describes a node in the filesystem tree.
 type Node struct {
+	blockFactory *block.Factory
+
 	// Number of 9P fids that refer to this node.  A node that has no
 	// references can be unloaded unless it has changed and needs to be
 	// saved to the staging area first (see flag below).  Unloading the
@@ -89,7 +96,7 @@ type Node struct {
 	// children field is relevant for directories, the blocks field is
 	// relevant for regular files.
 	children []*Node
-	blocks   []*Block
+	blocks   []*block.Block
 }
 
 func (node *Node) followBranch(name string) (*Node, bool) {
@@ -211,22 +218,26 @@ func (node *Node) childrenMap() map[string]*Node {
 	return m
 }
 
-func (node *Node) hasEqualBlocks(other *Node) bool {
+func (node *Node) hasEqualBlocks(other *Node) (bool, error) {
 	if node == nil && other == nil {
-		return true
+		return true, nil
 	}
 	if node == nil || other == nil {
-		return false
+		return false, nil
 	}
 	if len(node.blocks) != len(other.blocks) {
-		return false
+		return false, nil
 	}
 	for i, b := range node.blocks {
-		if b.pointer.Hex() != other.blocks[i].pointer.Hex() {
-			return false
+		same, err := b.SameValue(other.blocks[i])
+		if err != nil {
+			return false, err
+		}
+		if !same {
+			return false, nil
 		}
 	}
-	return true
+	return true, nil
 }
 
 // Ref increments the node's ref count, and that of all its ancestors.
@@ -387,4 +398,153 @@ func (ns NodeSlice) Less(i, j int) bool {
 
 func (ns NodeSlice) Swap(i, j int) {
 	ns[i], ns[j] = ns[j], ns[i]
+}
+
+func (node *Node) Truncate(requestedSize uint64) error {
+	if node.IsDir() {
+		return errors.New("impossible to truncate a directory")
+	}
+	var err error
+	if requestedSize == node.D.Length {
+		return nil
+	} else if requestedSize > node.D.Length {
+		err = node.grow(requestedSize)
+	} else {
+		err = node.shrink(requestedSize)
+	}
+	if err != nil {
+		return err
+	}
+	node.D.Length = requestedSize
+	node.updateMTime()
+	return nil
+}
+
+func (node *Node) grow(requestedSize uint64) (err error) {
+	add := func(size int) error {
+		b, err := node.blockFactory.New(nil)
+		if err != nil {
+			return err
+		}
+		if err = b.Truncate(size); err != nil {
+			return err
+		}
+		node.blocks = append(node.blocks, b)
+		return nil
+	}
+	blockSize := uint64(DefaultBlockCapacity)
+	q, r := node.D.Length/blockSize, int(node.D.Length%blockSize)
+	nextq, nextr := requestedSize/blockSize, int(requestedSize%blockSize)
+	if q < nextq && r > 0 {
+		if err := node.blocks[q].Truncate(DefaultBlockCapacity); err != nil {
+			return err
+		}
+		q, r = q+1, 0
+	}
+	for ; q < nextq; q++ {
+		if err := add(DefaultBlockCapacity); err != nil {
+			return err
+		}
+	}
+	if nextr > 0 {
+		if r > 0 {
+			err = node.blocks[q].Truncate(nextr)
+		} else {
+			err = add(nextr)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (node *Node) shrink(requestedSize uint64) error {
+	// The requested size requires q full blocks and one block with only r bytes.
+	q := int(requestedSize / uint64(DefaultBlockCapacity))
+	r := int(requestedSize % uint64(DefaultBlockCapacity))
+	if r > 0 {
+		if err := node.blocks[q].Truncate(r); err != nil {
+			return err
+		}
+		q++
+	}
+	l := len(node.blocks)
+	for i := q; i < l; i++ {
+		node.blocks[i].Discard()
+	}
+	node.blocks = node.blocks[:q]
+	return nil
+}
+
+func (node *Node) WriteAt(p []byte, off int64) error {
+	if err := node.ensureBlocksForWriting(off + int64(len(p))); err != nil {
+		return err
+	}
+	err := node.write(p, off)
+	if err != nil {
+		return err
+	}
+	node.updateMTime()
+	return nil
+}
+
+func (node *Node) write(p []byte, off int64) error {
+	if len(p) == 0 {
+		return nil
+	}
+	bs := int64(DefaultBlockCapacity)
+	written, delta, err := node.getBlock(off).Write(p, int(off%bs))
+	if err != nil {
+		return err
+	}
+	off -= off % bs
+	off += bs
+	node.D.Length += uint64(delta)
+	return node.write(p[written:], off)
+}
+
+// This adds blocks so that looking them up by offset does not panic,
+// but does not zero-pad them. In other words, don't use grow().
+//  If you do, you have to update node.D.Length as well.
+// And that's cheating, because that's for Write to do.
+func (node *Node) ensureBlocksForWriting(requiredBytes int64) error {
+	bs := int64(DefaultBlockCapacity)
+	q := int(requiredBytes / bs)
+	if requiredBytes%bs != 0 {
+		q++
+	}
+	for len(node.blocks) < q {
+		b, err := node.blockFactory.New(nil)
+		if err != nil {
+			return err
+		}
+		node.blocks = append(node.blocks, b)
+	}
+	return nil
+}
+
+func (node *Node) getBlock(off int64) *block.Block {
+	index := int(off / int64(DefaultBlockCapacity))
+	if index >= len(node.blocks) {
+		return nil
+	}
+	return node.blocks[index]
+}
+
+func (node *Node) ReadAt(p []byte, off int64) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	block := node.getBlock(off)
+	if block == nil {
+		return 0, nil
+	}
+	o := int(off % int64(DefaultBlockCapacity))
+	n, err := block.Read(p, o)
+	if n == 0 || err != nil {
+		return n, err
+	}
+	m, err := node.ReadAt(p[n:], off+int64(n))
+	return n + m, err
 }

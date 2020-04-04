@@ -2,9 +2,11 @@ package tree
 
 import (
 	"errors"
+	"math/rand"
 	"testing"
 
 	"github.com/nicolagi/muscle/diff"
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,11 +93,12 @@ func TestNodeMetaSameAs(t *testing.T) {
 }
 
 func TestNodeMetaContent(t *testing.T) {
+	bf := blockFactory(t, nil)
 	t.Run("meta node with zero node", func(t *testing.T) {
 		a := nodeMeta{n: &Node{}}
 		content, err := a.Content()
 		assert.Nil(t, err)
-		assert.Equal(t, `Key 
+		assert.Equal(t, `Key ""
 Dir.Size 0
 Dir.Type 0
 Dir.Dev 0
@@ -130,12 +133,14 @@ blocks:
 		a.n.D.Uid = "perkins"
 		a.n.D.Gid = "eddie"
 		a.n.D.Muid = "cochran"
-		b1, _ := storage.NewPointerFromHex("deadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00d")
-		b2, _ := storage.NewPointerFromHex("8badf00ddeadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00ddeadbeef")
-		a.n.blocks = append(a.n.blocks, &Block{pointer: b1}, &Block{pointer: b2})
+		ref1, _ := block.NewRef([]byte{222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13})
+		ref2, _ := block.NewRef([]byte{139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239})
+		b1 := newBlock(t, bf, ref1)
+		b2 := newBlock(t, bf, ref2)
+		a.n.blocks = append(a.n.blocks, b1, b2)
 		content, err := a.Content()
 		assert.Nil(t, err)
-		assert.Equal(t, `Key f00df00df00df00df00df00df00df00df00df00df00df00df00df00df00df00d
+		assert.Equal(t, `Key "f00df00df00df00df00df00df00df00df00df00df00df00df00df00df00df00d"
 Dir.Size 1
 Dir.Type 2
 Dir.Dev 3
@@ -164,6 +169,7 @@ blocks:
 }
 
 func TestTreeNodeSameAs(t *testing.T) {
+	bf := blockFactory(t, nil)
 	t.Run("tree node never equals a nil node", func(t *testing.T) {
 		var a treeNode
 		assertComparison(t, a, (*treeNode)(nil), false)
@@ -178,23 +184,18 @@ func TestTreeNodeSameAs(t *testing.T) {
 		assertNotSame(t, a, c)
 	})
 	t.Run("comparisons based on nodes with same checksum", func(t *testing.T) {
-		common := []*Block{
-			{
-				pointer: storage.RandomPointer(),
-				state:   blockNotLoaded,
-			},
-		}
-		a := treeNode{n: &Node{blocks: common}}
-		b := treeNode{n: &Node{blocks: common}}
+		common := dirtyBlock(t, bf, "some content")
+		a := treeNode{n: &Node{blocks: []*block.Block{common}}}
+		b := treeNode{n: &Node{blocks: []*block.Block{common}}}
 		assertSame(t, a, b)
 		assertSame(t, a, a)
 		assertSame(t, b, b)
 	})
 	t.Run("comparison based on nodes with different checksum", func(t *testing.T) {
-		ablock := Block{pointer: storage.RandomPointer()}
-		bblock := Block{pointer: storage.RandomPointer()}
-		a := treeNode{n: &Node{blocks: []*Block{&ablock}}}
-		b := treeNode{n: &Node{blocks: []*Block{&bblock}}}
+		ab := dirtyBlock(t, bf, "some content")
+		bb := dirtyBlock(t, bf, "some other content")
+		a := treeNode{n: &Node{blocks: []*block.Block{ab}}}
+		b := treeNode{n: &Node{blocks: []*block.Block{bb}}}
 		assertNotSame(t, a, b)
 		assertSame(t, a, a)
 		assertSame(t, b, b)
@@ -202,6 +203,8 @@ func TestTreeNodeSameAs(t *testing.T) {
 }
 
 func TestTreeNodeContent(t *testing.T) {
+	innerErr := errors.New("some error")
+	bf := blockFactory(t, innerErr)
 	t.Run("get contents for nil node", func(t *testing.T) {
 		a := &treeNode{}
 		content, err := a.Content()
@@ -209,8 +212,10 @@ func TestTreeNodeContent(t *testing.T) {
 		assert.Nil(t, err)
 	})
 	t.Run("get contents for small node", func(t *testing.T) {
-		a := &treeNode{t: &Tree{}, n: &Node{}, maxSize: 1024}
-		require.Nil(t, a.t.WriteAt(a.n, []byte("some text"), 0))
+		a := &treeNode{t: &Tree{}, n: &Node{
+			blockFactory: bf,
+		}, maxSize: 1024}
+		require.Nil(t, a.n.WriteAt([]byte("some text"), 0))
 		content, err := a.Content()
 		assert.Equal(t, "some text", content)
 		assert.Nil(t, err)
@@ -226,7 +231,7 @@ func TestTreeNodeContent(t *testing.T) {
 		assert.True(t, errors.Is(err, errTreeNodeTruncated))
 	})
 	t.Run("get contents for too large a node", func(t *testing.T) {
-		a := &treeNode{n: &Node{}, maxSize: 1024}
+		a := &treeNode{n: &Node{blockFactory: bf}, maxSize: 1024}
 		a.n.D.Length = 1025
 		content, err := a.Content()
 		assert.Equal(t, "", content)
@@ -234,21 +239,16 @@ func TestTreeNodeContent(t *testing.T) {
 		assert.True(t, errors.Is(err, errTreeNodeLarge))
 	})
 	t.Run("read error bubbles up", func(t *testing.T) {
-		a := &treeNode{t: &Tree{}, n: &Node{}, maxSize: 1024}
-
-		// Set up the tree with a store that will only return errors.
-		innerErr := errors.New("some error")
-		var err error
-		a.t.store, err = NewStore(brokenStore{err: innerErr}, nil, nil, "", "", storage.RandomPointer().Bytes())
-		require.Nil(t, err)
+		a := &treeNode{t: &Tree{}, n: &Node{blockFactory: bf}, maxSize: 1024}
 
 		// Pretend the node has some content to load from the store.
 		a.n.D.Length = 1
-		a.n.blocks = append(a.n.blocks, &Block{
-			pointer:  storage.RandomPointer(),
-			contents: nil,
-			state:    blockNotLoaded,
-		})
+		ref, err := block.NewRef(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b := newBlock(t, bf, ref)
+		a.n.blocks = append(a.n.blocks, b)
 
 		// Now we expect a failure to read (ultimately because of the store errors.
 		content, err := a.Content()
@@ -256,4 +256,45 @@ func TestTreeNodeContent(t *testing.T) {
 		assert.NotNil(t, err)
 		assert.True(t, errors.Is(err, innerErr))
 	})
+}
+
+func blockFactory(t *testing.T, storeErr error) *block.Factory {
+	t.Helper()
+	key := make([]byte, 16)
+	rand.Read(key)
+	index := brokenStore{err: storeErr}
+	repository := brokenStore{err: storeErr}
+	f, err := block.NewFactory(index, repository, key, DefaultBlockCapacity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+func dirtyBlock(t *testing.T, f *block.Factory, content string) *block.Block {
+	t.Helper()
+	b, err := f.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, increase, err := b.Write([]byte(content), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != len(content) {
+		t.Fatalf("got %d, want %d written bytes", n, len(content))
+	}
+	if increase != len(content) {
+		t.Fatalf("got %d, want %d written bytes", increase, len(content))
+	}
+	return b
+}
+
+func newBlock(t *testing.T, f *block.Factory, ref block.Ref) *block.Block {
+	t.Helper()
+	b, err := f.New(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }

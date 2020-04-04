@@ -1,0 +1,4 @@
+all:V: block.png
+
+%.png: %.dot
+	dot -Tpng <$stem.dot >$stem.png

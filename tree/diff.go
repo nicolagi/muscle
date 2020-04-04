@@ -15,7 +15,7 @@ import (
 	"github.com/nicolagi/muscle/diff"
 )
 
-const defaultMaxBlobSizeForDiff = 256 * 1024 // 256 kB
+const defaultMaxBlockSizeForDiff = 256 * 1024 // 256 kB
 
 var (
 	errTreeNodeLarge = errors.New("tree node too large")
@@ -52,7 +52,7 @@ func (node nodeMeta) Content() (string, error) {
 	var output bytes.Buffer
 	_, _ = fmt.Fprintf(
 		&output,
-		`Key %s
+		`Key %q
 Dir.Size %d
 Dir.Type %d
 Dir.Dev %d
@@ -86,7 +86,7 @@ Dir.Muid %q
 	)
 	_, _ = fmt.Fprintf(&output, "blocks:\n")
 	for _, b := range node.n.blocks {
-		_, _ = fmt.Fprintf(&output, "\t%s\n", b.pointer.Hex())
+		_, _ = fmt.Fprintf(&output, "\t%v\n", b.Ref())
 	}
 	return output.String(), nil
 }
@@ -109,7 +109,7 @@ func (node treeNode) SameAs(otherNode diff.Node) (bool, error) {
 	if node.n == nil || other.n == nil {
 		return false, nil
 	}
-	return node.n.hasEqualBlocks(other.n), nil
+	return node.n.hasEqualBlocks(other.n)
 }
 
 func (node treeNode) Content() (string, error) {
@@ -120,7 +120,7 @@ func (node treeNode) Content() (string, error) {
 		return "", fmt.Errorf("%d: %w", node.n.D.Length, errTreeNodeLarge)
 	}
 	content := make([]byte, node.n.D.Length)
-	n, err := node.t.ReadAt(node.n, content, 0)
+	n, err := node.n.ReadAt(content, 0)
 	if err != nil {
 		return "", err
 	}
@@ -183,7 +183,7 @@ func DiffTrees(a, b *Tree, options ...DiffTreesOption) error {
 	opts := diffTreesOptions{
 		contextLines: 3,
 		output:       ioutil.Discard,
-		maxSize:      defaultMaxBlobSizeForDiff,
+		maxSize:      defaultMaxBlockSizeForDiff,
 	}
 	for _, opt := range options {
 		opt(&opts)

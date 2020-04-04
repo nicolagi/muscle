@@ -5,21 +5,24 @@ import (
 	"fmt"
 
 	"github.com/nicolagi/go9p/p"
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 )
 
 // Factory creates trees that share an underlying store.
 type Factory struct {
-	store *Store
+	blockFactory *block.Factory
+	store        *Store
 }
 
 // NewFactory returns a *Factory that creates trees that share the
 // given store. For instance, you could get the tree representing
 // the local filesystem and one representing the remote one; or many
 // trees representing a number of past snapshots of the filesystem.
-func NewFactory(store *Store) *Factory {
+func NewFactory(blockFactory *block.Factory, store *Store) *Factory {
 	return &Factory{
-		store: store,
+		blockFactory: blockFactory,
+		store:        store,
 	}
 }
 
@@ -91,6 +94,7 @@ func (f *Factory) NewTree(options ...factoryOption) (*Tree, error) {
 	}
 	if t.root == nil {
 		t.root = &Node{}
+		t.root.blockFactory = f.blockFactory
 		t.root.D.Name = "root"
 		t.root.D.Mode = 0700 | p.DMDIR
 		t.root.D.Qid.Type = p.QTDIR

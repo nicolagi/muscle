@@ -2,6 +2,7 @@ package tree
 
 import (
 	"errors"
+	"math/rand"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -10,15 +11,29 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/google/go-cmp/cmp"
 	"github.com/nicolagi/go9p/p"
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWalk(t *testing.T) {
-	oak, err := NewFactory(nil).NewTree()
+func setup(t *testing.T) (*block.Factory, *Tree) {
+	t.Helper()
+	store := storage.NewInMemory(0)
+	key := make([]byte, 16)
+	rand.Read(key)
+	bf, err := block.NewFactory(store, store, key, DefaultBlockCapacity)
 	if err != nil {
 		t.Fatal(err)
 	}
+	oak, err := NewFactory(bf, nil).NewTree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bf, oak
+}
+
+func TestWalk(t *testing.T) {
+	_, oak := setup(t)
 	t.Run("walking from nil node is an error", func(t *testing.T) {
 		visited, err := oak.Walk(nil)
 		assert.Nil(t, visited)
@@ -104,10 +119,7 @@ func TestWalk(t *testing.T) {
 }
 
 func TestGrow(t *testing.T) {
-	oak, err := NewFactory(nil).NewTree()
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, oak := setup(t)
 	t.Run("growing nil is an error", func(t *testing.T) {
 		assert.NotNil(t, oak.Grow(nil))
 	})

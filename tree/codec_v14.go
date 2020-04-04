@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/nicolagi/go9p/p"
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 )
 
@@ -17,8 +18,8 @@ func (codecV14) encodeNode(node *Node) ([]byte, error) {
 	for _, ptr := range node.children {
 		size += int(ptr.pointer.Len())
 	}
-	for _, ptr := range node.blocks {
-		size += int(ptr.pointer.Len())
+	for _, b := range node.blocks {
+		size += int(b.Ref().Len())
 	}
 	buf := make([]byte, size)
 	ptr := buf
@@ -37,8 +38,8 @@ func (codecV14) encodeNode(node *Node) ([]byte, error) {
 	}
 	ptr = pint32(uint32(len(node.blocks)), ptr)
 	for _, b := range node.blocks {
-		ptr = pint8(b.pointer.Len(), ptr)
-		ptr = pbytes(b.pointer.Bytes(), ptr)
+		ptr = pint8(uint8(b.Ref().Len()), ptr)
+		ptr = pbytes(b.Ref().Bytes(), ptr)
 	}
 	if len(ptr) != 0 {
 		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
@@ -81,9 +82,17 @@ func (codecV14) decodeNode(data []byte, dest *Node) error {
 	u32, ptr = gint32(ptr)
 	for i := uint32(0); i < u32; i++ {
 		u8, ptr = gint8(ptr)
-		dest.blocks = append(dest.blocks, &Block{
-			pointer: storage.NewPointer(ptr[:u8]),
-		})
+		// TODO Direct dependency on internal/block, instead of dest.blockFactory.*.
+		// May not be extensible enough.
+		r, err := block.NewRef(ptr[:u8])
+		if err != nil {
+			return err
+		}
+		b, err := dest.blockFactory.New(r)
+		if err != nil {
+			return err
+		}
+		dest.blocks = append(dest.blocks, b)
 		ptr = ptr[u8:]
 	}
 

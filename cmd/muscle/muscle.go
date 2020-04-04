@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/nicolagi/muscle/config"
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
 	log "github.com/sirupsen/logrus"
@@ -305,7 +306,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not start new paired store with log %q: %v", f.Name(), err)
 	}
-	treeStore, err := tree.NewStore(stagingStore, paired, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
+	blockFactory, err := block.NewFactory(stagingStore, paired, cfg.EncryptionKeyBytes(), tree.DefaultBlockCapacity)
+	if err != nil {
+		log.Fatalf("Could not build block factory: %v", err)
+	}
+	treeStore, err := tree.NewStore(blockFactory, stagingStore, paired, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -331,7 +336,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	treeFactory := tree.NewFactory(treeStore)
+	treeFactory := tree.NewFactory(blockFactory, treeStore)
 	localTree, err := treeFactory.NewTree(treeFactory.WithRootKey(rootKey))
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)

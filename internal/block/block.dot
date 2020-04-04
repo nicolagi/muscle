@@ -1,0 +1,24 @@
+digraph {
+	"primed:index" [color="#00cc00"];
+	"primed:repository" [color="#00cc00"];
+	"dirty:index" [color="#00cc00"];
+
+	"dirty:index" -> "clean:index" [label=flush];
+
+	"clean:index" -> "primed:index" [label=forget];
+	"clean:repository" -> "primed:repository" [label=forget];
+
+	"primed:index" -> "clean:index" [label=load];
+	"primed:repository" -> "clean:repository" [label=load];
+
+	"clean:index" -> "clean:index" [label="r*"];
+	"clean:repository" -> "clean:repository" [label="r*"];
+	"dirty:index" -> "dirty:index" [label="r*"];
+
+	"clean:index" -> "clean:repository" [label="seal"];
+	"dirty:index" -> "clean:repository" [label=seal];
+
+	"clean:index" -> "dirty:index" [label="w*"];
+	"clean:repository" -> "dirty:index" [label="w*"];
+	"dirty:index" -> "dirty:index" [label="w*"];
+}

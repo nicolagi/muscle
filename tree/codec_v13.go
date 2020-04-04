@@ -4,47 +4,18 @@ import (
 	"fmt"
 
 	"github.com/nicolagi/go9p/p"
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 )
 
-type codecV13 struct{}
-
-func (codecV13) encodeNode(node *Node) ([]byte, error) {
-	size := 31
-	size += len(node.D.Name)
-	size += len(node.children)
-	size += len(node.blocks)
-	for _, ptr := range node.children {
-		size += int(ptr.pointer.Len())
-	}
-	for _, ptr := range node.blocks {
-		size += int(ptr.pointer.Len())
-	}
-	buf := make([]byte, size)
-	ptr := buf
-	ptr = pint8(13, ptr)
-	ptr = pstr(node.D.Name, ptr)
-	ptr = pint32(node.D.Mode, ptr)
-	ptr = pint64(node.D.Length, ptr)
-	ptr = pint32(node.D.Mtime, ptr)
-	ptr = pint32(0, ptr)
-	ptr = pint32(uint32(len(node.children)), ptr)
-	for _, c := range node.children {
-		ptr = pint8(c.pointer.Len(), ptr)
-		ptr = pbytes(c.pointer.Bytes(), ptr)
-	}
-	ptr = pint32(uint32(len(node.blocks)), ptr)
-	for _, b := range node.blocks {
-		ptr = pint8(b.pointer.Len(), ptr)
-		ptr = pbytes(b.pointer.Bytes(), ptr)
-	}
-	if len(ptr) != 0 {
-		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
-	}
-	return buf, nil
+type codecV13 struct {
 }
 
-func (codecV13) decodeNode(data []byte, dest *Node) error {
+func (codecV13) encodeNode(node *Node) ([]byte, error) {
+	panic("decommissioned")
+}
+
+func (codec codecV13) decodeNode(data []byte, dest *Node) error {
 	ptr := data
 
 	var u8 uint8
@@ -78,11 +49,23 @@ func (codecV13) decodeNode(data []byte, dest *Node) error {
 	u32, ptr = gint32(ptr)
 	for i := uint32(0); i < u32; i++ {
 		u8, ptr = gint8(ptr)
-		dest.blocks = append(dest.blocks, &Block{
-			pointer: storage.NewPointer(ptr[:u8]),
-		})
+		// TODO Direct dependency on internal/block, instead of dest.blockFactory.*.
+		// May not be extensible enough.
+		r, err := block.NewRef(ptr[:u8])
+		if err != nil {
+			return err
+		}
+		b, err := dest.blockFactory.New(r)
+		if err != nil {
+			return err
+		}
+		dest.blocks = append(dest.blocks, b)
 		ptr = ptr[u8:]
 	}
+
+	// Properties added in V14.
+	dest.flags = sealed
+	dest.bsize = 1024 * 1024
 
 	if len(ptr) != 0 {
 		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
@@ -92,30 +75,7 @@ func (codecV13) decodeNode(data []byte, dest *Node) error {
 }
 
 func (codecV13) encodeRevision(rev *Revision) ([]byte, error) {
-	size := 46 + len(rev.hostname) + len(rev.instance) + 32*len(rev.parents)
-	buf := make([]byte, size)
-	ptr := buf
-	ptr = pint8(13, ptr)
-	if !rev.rootKey.IsNull() {
-		ptr = pbytes(rev.rootKey.Bytes(), ptr)
-	} else {
-		ptr = ptr[32:]
-	}
-	ptr = pint8(uint8(len(rev.parents)), ptr)
-	for _, k := range rev.parents {
-		if !k.IsNull() {
-			ptr = pbytes(k.Bytes(), ptr)
-		} else {
-			ptr = ptr[32:]
-		}
-	}
-	ptr = pint64(uint64(rev.when), ptr)
-	ptr = pstr(rev.hostname, ptr)
-	ptr = pstr(rev.instance, ptr)
-	if len(ptr) != 0 {
-		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
-	}
-	return buf, nil
+	panic("decommissioned")
 }
 
 func (codecV13) decodeRevision(data []byte, rev *Revision) error {

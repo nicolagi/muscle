@@ -5,6 +5,7 @@ import (
 	"testing/quick"
 
 	"github.com/nicolagi/go9p/p"
+	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
 )
@@ -13,6 +14,11 @@ func TestLatestCodecForNodes(t *testing.T) {
 	c := newMultiCodec()
 	c.register(13, &codecV13{})
 	c.register(14, &codecV14{})
+	key := make([]byte, 16)
+	factory, err := block.NewFactory(nil, nil, key, 8192)
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Run("for nodes", func(t *testing.T) {
 		f := func(
 			name string,
@@ -22,7 +28,8 @@ func TestLatestCodecForNodes(t *testing.T) {
 			mtime uint32,
 			length uint64,
 			children [][]byte,
-			blocks [][]byte,
+			indexBlocks [][16]byte,
+			repositoryBlocks [][32]byte,
 		) bool {
 			input := &Node{}
 			input.flags = nodeFlags(flags) & ^(loaded | dirty)
@@ -36,10 +43,31 @@ func TestLatestCodecForNodes(t *testing.T) {
 					pointer: storage.NewPointer(b),
 				})
 			}
-			for _, b := range blocks {
-				input.blocks = append(input.blocks, &Block{
-					pointer: storage.NewPointer(b),
-				})
+			for _, ref := range indexBlocks {
+				r, err := block.NewRef(ref[:])
+				if err != nil {
+					t.Log(err)
+					return false
+				}
+				b, err := factory.New(r)
+				if err != nil {
+					t.Log(err)
+					return false
+				}
+				input.blocks = append(input.blocks, b)
+			}
+			for _, ref := range repositoryBlocks {
+				r, err := block.NewRef(ref[:])
+				if err != nil {
+					t.Log(err)
+					return false
+				}
+				b, err := factory.New(r)
+				if err != nil {
+					t.Log(err)
+					return false
+				}
+				input.blocks = append(input.blocks, b)
 			}
 
 			// Normalize
@@ -51,13 +79,15 @@ func TestLatestCodecForNodes(t *testing.T) {
 				input.D.Qid.Type = p.QTDIR
 				input.D.Length = 0
 			}
+			// This would only be needed on the output node, but adding it here as well for comparison.
+			input.blockFactory = factory
 
 			b, err := c.encodeNode(input)
 			if err != nil {
 				t.Log(err)
 				return false
 			}
-			var output Node
+			output := Node{blockFactory: factory}
 			if err := c.decodeNode(b, &output); err != nil {
 				t.Log(err)
 				return false

@@ -103,8 +103,10 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 		return nil
 	}
 
-	if sameContents(local, remote) {
-		// Ignore metadata differences
+	if same, err := sameContents(local, remote); err != nil {
+		return err
+	} else if same {
+		// Ignore metadata differences if contents match.
 		return nil
 	}
 
@@ -209,9 +211,9 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 	return nil
 }
 
-func sameContents(a *Node, b *Node) bool {
+func sameContents(a *Node, b *Node) (bool, error) {
 	if a == nil || b == nil || a.IsDir() || b.IsDir() {
-		return false
+		return false, nil
 	}
 	return a.hasEqualBlocks(b)
 }
