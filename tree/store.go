@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"time"
 
+	"9fans.net/go/plumb"
 	"github.com/nicolagi/go9p/p"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree/mergebase"
@@ -305,15 +306,26 @@ func (s *Store) MergeBase(arev, brev *Revision) (storage.Pointer, error) {
 	}
 
 	// Best effort for my personal use - might expose it someday.
-	output, err := ioutil.TempFile("", "*.dot")
+	output, err := ioutil.TempFile("", "muscle*.dot")
 	if err == nil {
 		_, _ = fmt.Fprintln(output, graph)
 		_ = output.Close()
 		defer func() {
-			if err := exec.Command("dot", "-O", "-Tsvg", output.Name()).Run(); err == nil {
-				// A hack for myself, because I don't even want for this to be an option.
-				if os.Getenv("MUSCLE_AUTO_OPEN_SVG") != "" {
-					_ = exec.Command("firefox", output.Name()+".svg").Start()
+			if err := exec.Command("dot", "-O", "-Tpng", output.Name()).Run(); err == nil {
+				fid, err := plumb.Open("send", p.OWRITE)
+				if err != nil {
+					log.Printf("Could not open plumb port %q for writing: %v", "send", err)
+					return
+				}
+				msg := plumb.Message{
+					Type: "text",
+					Data: []byte(output.Name() + ".png"),
+				}
+				if err := msg.Send(fid); err != nil {
+					log.Printf("Could not send %v: %v", &msg, err)
+				}
+				if err := fid.Close(); err != nil {
+					log.Printf("Could not close %v: %v", fid, err)
 				}
 			}
 		}()
