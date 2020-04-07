@@ -10,6 +10,7 @@ import (
 
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/storage"
+	log "github.com/sirupsen/logrus"
 )
 
 type KeepLocalFn func(string, string) bool
@@ -99,20 +100,21 @@ func sameKeyOrBothNil(a, b *Node) bool {
 // TODO Some commands are output in comments so one can't just pipe to rc. (One shouldn't without checking, anyway...)
 func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, local, base, remote *Node, baseRev, remoteRev string, cfg *config.C) error {
 	if sameKeyOrBothNil(local, remote) {
-		// Local is equal to remote, nothing to do
+		log.Printf("Same key (or both nil): %v", local)
 		return nil
 	}
 
 	if same, err := sameContents(local, remote); err != nil {
 		return err
 	} else if same {
-		// Ignore metadata differences if contents match.
+		log.Printf("Same contents (ignoring metadata differences): %v", local)
 		return nil
 	}
 
 	if sameKeyOrBothNil(remote, base) {
 		// The remote has not changed since the common point in history.
 		// We keep the local changes.
+		log.Printf("Only locally changed, remote is equal to common ancestor: %v", local)
 		return nil
 	}
 

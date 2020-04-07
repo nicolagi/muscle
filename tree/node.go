@@ -226,6 +226,7 @@ func (node *Node) hasEqualBlocks(other *Node) (bool, error) {
 		return false, nil
 	}
 	if len(node.blocks) != len(other.blocks) {
+		log.Printf("Different number of blocks: %v %v", node, other)
 		return false, nil
 	}
 	for i, b := range node.blocks {
@@ -234,6 +235,7 @@ func (node *Node) hasEqualBlocks(other *Node) (bool, error) {
 			return false, err
 		}
 		if !same {
+			log.Printf("Difference at block %d: %v %v", i, node, other)
 			return false, nil
 		}
 	}
