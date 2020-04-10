@@ -481,7 +481,7 @@ func main() {
 	pairedStore.EnsureBackgroundPuts()
 
 	martino := storage.NewMartino(stagingStore, pairedStore)
-	blockFactory, err := block.NewFactory(stagingStore, pairedStore, cfg.EncryptionKeyBytes(), tree.DefaultBlockCapacity)
+	blockFactory, err := block.NewFactory(stagingStore, pairedStore, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not build block factory: %v", err)
 	}

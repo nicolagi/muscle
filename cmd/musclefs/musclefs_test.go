@@ -336,7 +336,7 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Fa
 	// to populate the cache from the staging area, which makes the fixtures easier to set up.
 	// Of course this means that the cache directory will contain extraneous intermediate data,
 	// but it's fine for tests.
-	blockFactory, err := block.NewFactory(diskStore, diskStore, sharedKey, tree.DefaultBlockCapacity)
+	blockFactory, err := block.NewFactory(diskStore, diskStore, sharedKey)
 	require.Nil(t, err)
 	store, err = tree.NewStore(blockFactory, diskStore, diskStore, nil, rootFile, "remote.root.other", sharedKey)
 	require.Nil(t, err)

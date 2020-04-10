@@ -264,7 +264,7 @@ func blockFactory(t *testing.T, storeErr error) *block.Factory {
 	rand.Read(key)
 	index := brokenStore{err: storeErr}
 	repository := brokenStore{err: storeErr}
-	f, err := block.NewFactory(index, repository, key, DefaultBlockCapacity)
+	f, err := block.NewFactory(index, repository, key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func blockFactory(t *testing.T, storeErr error) *block.Factory {
 
 func dirtyBlock(t *testing.T, f *block.Factory, content string) *block.Block {
 	t.Helper()
-	b, err := f.New(nil)
+	b, err := f.New(nil, DefaultBlockCapacity)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +292,7 @@ func dirtyBlock(t *testing.T, f *block.Factory, content string) *block.Block {
 
 func newBlock(t *testing.T, f *block.Factory, ref block.Ref) *block.Block {
 	t.Helper()
-	b, err := f.New(ref)
+	b, err := f.New(ref, DefaultBlockCapacity)
 	if err != nil {
 		t.Fatal(err)
 	}

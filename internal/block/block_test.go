@@ -12,14 +12,15 @@ import (
 func TestBlockTruncate(t *testing.T) {
 	key := make([]byte, 16)
 	rand.Read(key)
-	factory, err := NewFactory(nil, nil, key, 8192)
+	factory, err := NewFactory(nil, nil, key)
 	if err != nil {
 		t.Fatal(err)
 	}
+	bsize := 8192
 	t.Run("extend or shrink happy path", func(t *testing.T) {
 		f := func(initial []byte, finalSize uint8) bool {
 			size := int(finalSize)
-			b, err := factory.New(nil)
+			b, err := factory.New(nil, bsize)
 			if err != nil {
 				t.Log(err)
 				return false
@@ -59,8 +60,8 @@ func TestBlockTruncate(t *testing.T) {
 	})
 	t.Run("request more than block capacity leaves block unchanged and returns error", func(t *testing.T) {
 		f := func(initial []byte, finalSizeInExcess uint8) bool {
-			size := factory.capacity + int(finalSizeInExcess) + 1
-			b, err := factory.New(nil)
+			size := bsize + int(finalSizeInExcess) + 1
+			b, err := factory.New(nil, bsize)
 			if err != nil {
 				t.Log(err)
 				return false
@@ -87,11 +88,12 @@ func TestBlockTruncate(t *testing.T) {
 
 func TestBlockWriting(t *testing.T) {
 	key := make([]byte, 16)
-	factory, err := NewFactory(nil, nil, key, 8192)
+	factory, err := NewFactory(nil, nil, key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	block, err := factory.New(nil)
+	bsize := 8192
+	block, err := factory.New(nil, bsize)
 	if err != nil {
 		t.Fatal(err)
 	}

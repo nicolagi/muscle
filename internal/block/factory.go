@@ -10,14 +10,11 @@ type Factory struct {
 	cipher     blockCipher
 	index      storage.Store
 	repository storage.Store
-
-	// Capacity in bytes of each block this factory makes.
-	capacity int
 }
 
 // NewFactory creates a factory that creates blocks sharing the given cipher,
-// index, repository, and all of the given capacity.
-func NewFactory(index storage.Store, repository storage.Store, key []byte, capacity int) (*Factory, error) {
+// index, and repository.
+func NewFactory(index storage.Store, repository storage.Store, key []byte) (*Factory, error) {
 	cipher, err := newBlockCipher(key)
 	if err != nil {
 		return nil, err
@@ -26,13 +23,12 @@ func NewFactory(index storage.Store, repository storage.Store, key []byte, capac
 		cipher:     cipher,
 		index:      index,
 		repository: repository,
-		capacity:   capacity,
 	}, nil
 }
 
-func (factory *Factory) New(ref Ref) (*Block, error) {
+func (factory *Factory) New(ref Ref, capacity int) (*Block, error) {
 	block := &Block{
-		capacity:   factory.capacity,
+		capacity:   capacity,
 		cipher:     factory.cipher,
 		index:      factory.index,
 		repository: factory.repository,

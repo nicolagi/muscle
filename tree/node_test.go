@@ -104,7 +104,7 @@ func TestNodeWriting(t *testing.T) {
 	t.Run("writing on block that is not loaded", func(t *testing.T) {
 		key := make([]byte, 16)
 		rand.Read(key)
-		bf, err := block.NewFactory(storage.NewInMemory(0), storage.NewInMemory(0), key, DefaultBlockCapacity)
+		bf, err := block.NewFactory(storage.NewInMemory(0), storage.NewInMemory(0), key)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -137,12 +137,12 @@ func TestNodeWriting(t *testing.T) {
 			pointer:      storage.RandomPointer(),
 		}
 		node.D.Length = 10 // This would have been serialized...
-		block, err := bf.New(ref1)
+		block, err := bf.New(ref1, DefaultBlockCapacity)
 		if err != nil {
 			t.Fatal(err)
 		}
 		node.blocks = append(node.blocks, block)
-		block, err = bf.New(ref2)
+		block, err = bf.New(ref2, DefaultBlockCapacity)
 		if err != nil {
 			t.Fatal(err)
 		}

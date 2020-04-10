@@ -21,7 +21,7 @@ func setup(t *testing.T) (*block.Factory, *Tree) {
 	store := storage.NewInMemory(0)
 	key := make([]byte, 16)
 	rand.Read(key)
-	bf, err := block.NewFactory(store, store, key, DefaultBlockCapacity)
+	bf, err := block.NewFactory(store, store, key)
 	if err != nil {
 		t.Fatal(err)
 	}

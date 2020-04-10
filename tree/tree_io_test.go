@@ -60,12 +60,12 @@ func TestNodeRead(t *testing.T) {
 	const testBlockSizeBytes = 5
 	key := make([]byte, 16)
 	rand.Read(key)
-	blockFactory, err := block.NewFactory(nil, nil, key, testBlockSizeBytes)
+	blockFactory, err := block.NewFactory(nil, nil, key)
 	if err != nil {
 		t.Fatal(err)
 	}
 	newAlphabetBlock := func() *block.Block {
-		block, err := blockFactory.New(nil)
+		block, err := blockFactory.New(nil, testBlockSizeBytes)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -8,6 +8,8 @@ import (
 	"github.com/nicolagi/muscle/storage"
 )
 
+const v13BlockCapacity = 1024 * 1024
+
 type codecV13 struct {
 }
 
@@ -36,7 +38,6 @@ func (codec codecV13) decodeNode(data []byte, dest *Node) error {
 
 	u32, ptr = gint32(ptr)
 	if u32 > 0 {
-		//dest.pack = storage.NewPack(p[:u32])
 		ptr = ptr[u32:]
 	}
 
@@ -55,7 +56,7 @@ func (codec codecV13) decodeNode(data []byte, dest *Node) error {
 		if err != nil {
 			return err
 		}
-		b, err := dest.blockFactory.New(r)
+		b, err := dest.blockFactory.New(r, v13BlockCapacity)
 		if err != nil {
 			return err
 		}
@@ -65,7 +66,7 @@ func (codec codecV13) decodeNode(data []byte, dest *Node) error {
 
 	// Properties added in V14.
 	dest.flags = sealed
-	dest.bsize = 1024 * 1024
+	dest.bsize = v13BlockCapacity
 
 	if len(ptr) != 0 {
 		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))

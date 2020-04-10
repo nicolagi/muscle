@@ -15,7 +15,7 @@ func TestLatestCodecForNodes(t *testing.T) {
 	c.register(13, &codecV13{})
 	c.register(14, &codecV14{})
 	key := make([]byte, 16)
-	factory, err := block.NewFactory(nil, nil, key, 8192)
+	factory, err := block.NewFactory(nil, nil, key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestLatestCodecForNodes(t *testing.T) {
 					t.Log(err)
 					return false
 				}
-				b, err := factory.New(r)
+				b, err := factory.New(r, DefaultBlockCapacity)
 				if err != nil {
 					t.Log(err)
 					return false
@@ -62,7 +62,7 @@ func TestLatestCodecForNodes(t *testing.T) {
 					t.Log(err)
 					return false
 				}
-				b, err := factory.New(r)
+				b, err := factory.New(r, DefaultBlockCapacity)
 				if err != nil {
 					t.Log(err)
 					return false

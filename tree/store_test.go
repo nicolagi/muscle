@@ -18,7 +18,7 @@ func TestStoreFork(t *testing.T) {
 	defer cleanup()
 	instance := "source"
 	key := storage.RandomPointer().Bytes()
-	blockFactory, err := block.NewFactory(remoteStore, remoteStore, key, tree.DefaultBlockCapacity)
+	blockFactory, err := block.NewFactory(remoteStore, remoteStore, key)
 	require.Nil(t, err)
 	store, err := tree.NewStore(
 		blockFactory,

@@ -71,7 +71,7 @@ func scratchTree() (*Tree, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	bf, err := block.NewFactory(diskStore, paired, []byte("ciaociaociaociao"), 8192)
+	bf, err := block.NewFactory(diskStore, paired, []byte("ciaociaociaociao"))
 	if err != nil {
 		return nil, "", err
 	}

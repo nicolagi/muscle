@@ -88,7 +88,8 @@ func (codecV14) decodeNode(data []byte, dest *Node) error {
 		if err != nil {
 			return err
 		}
-		b, err := dest.blockFactory.New(r)
+		// Block size isn't configurable yet.
+		b, err := dest.blockFactory.New(r, DefaultBlockCapacity)
 		if err != nil {
 			return err
 		}

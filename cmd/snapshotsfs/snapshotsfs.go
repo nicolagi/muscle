@@ -261,7 +261,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not start new paired store: %v", err)
 	}
-	blockFactory, err := block.NewFactory(stagingStore, pairedStore, cfg.EncryptionKeyBytes(), tree.DefaultBlockCapacity)
+	blockFactory, err := block.NewFactory(stagingStore, pairedStore, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not build block factory: %v", err)
 	}

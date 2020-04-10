@@ -424,7 +424,7 @@ func (node *Node) Truncate(requestedSize uint64) error {
 
 func (node *Node) grow(requestedSize uint64) (err error) {
 	add := func(size int) error {
-		b, err := node.blockFactory.New(nil)
+		b, err := node.blockFactory.New(nil, DefaultBlockCapacity)
 		if err != nil {
 			return err
 		}
@@ -517,7 +517,7 @@ func (node *Node) ensureBlocksForWriting(requiredBytes int64) error {
 		q++
 	}
 	for len(node.blocks) < q {
-		b, err := node.blockFactory.New(nil)
+		b, err := node.blockFactory.New(nil, DefaultBlockCapacity)
 		if err != nil {
 			return err
 		}
