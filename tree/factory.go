@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/nicolagi/go9p/p"
+	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 )
@@ -13,16 +14,18 @@ import (
 type Factory struct {
 	blockFactory *block.Factory
 	store        *Store
+	blockSize    uint32
 }
 
 // NewFactory returns a *Factory that creates trees that share the
 // given store. For instance, you could get the tree representing
 // the local filesystem and one representing the remote one; or many
 // trees representing a number of past snapshots of the filesystem.
-func NewFactory(blockFactory *block.Factory, store *Store) *Factory {
+func NewFactory(blockFactory *block.Factory, store *Store, c *config.C) *Factory {
 	return &Factory{
 		blockFactory: blockFactory,
 		store:        store,
+		blockSize:    c.BlockSize,
 	}
 }
 
@@ -103,6 +106,9 @@ func (f *Factory) NewTree(options ...factoryOption) (*Tree, error) {
 	}
 	// Fix mode for roots created before mode was used...
 	t.root.D.Mode |= 0700 | p.DMDIR
+	if !t.readOnly {
+		t.blockSize = f.blockSize
+	}
 	// TODO when does it exit?
 	go t.trimPeriodically()
 	return t, nil

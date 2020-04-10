@@ -340,7 +340,9 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Fa
 	require.Nil(t, err)
 	store, err = tree.NewStore(blockFactory, diskStore, diskStore, nil, rootFile, "remote.root.other", sharedKey)
 	require.Nil(t, err)
-	factory = tree.NewFactory(blockFactory, store)
+	factory = tree.NewFactory(blockFactory, store, &config.C{
+		BlockSize: 8192,
+	})
 
 	// TODO: Should do the cleean up only if the test is successful, leave other wise
 	// process and temporary files around for debugging.

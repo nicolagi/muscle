@@ -25,6 +25,8 @@ var (
 	// It defaults to $MUSCLE_BASE if it is set, otherwise it defaults to $HOME/lib/muscle.
 	// Commands override this via the -base flag.
 	DefaultBaseDirectoryPath string
+
+	defaultBlockSize uint32 = 1024 * 1024
 )
 
 func init() {
@@ -45,6 +47,11 @@ func init() {
 }
 
 type C struct {
+	// BlockSize is the capacity for blocks of new nodes. Existing nodes
+	// have their block size encoded within them (which is the value of this
+	// variable at the time the nodes were created).
+	BlockSize uint32 `json:"block-size"`
+
 	// Listen on localhost or a local-only network, e.g., one for
 	// containers hosted on your computer.  There is no
 	// authentication so the file server must not be exposed on a
@@ -117,6 +124,9 @@ func Load(base string) (*C, error) {
 	}
 	if c.DiskStoreDir != "" && !filepath.IsAbs(c.DiskStoreDir) {
 		c.DiskStoreDir = filepath.Clean(filepath.Join(c.base, c.DiskStoreDir))
+	}
+	if c.BlockSize == 0 {
+		c.BlockSize = defaultBlockSize
 	}
 	return c, err
 }
@@ -197,6 +207,7 @@ func Initialize(baseDir string) error {
 		return fmt.Errorf("%q: could not determine if it exists: %w", path, err)
 	}
 	var c C
+	c.BlockSize = defaultBlockSize
 	c.ListenIP = "127.0.0.1"
 	c.SnapshotsFSListenIP = "127.0.0.1"
 	mathrand.Seed(time.Now().UnixNano())

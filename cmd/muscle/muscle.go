@@ -336,7 +336,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	treeFactory := tree.NewFactory(blockFactory, treeStore)
+	treeFactory := tree.NewFactory(blockFactory, treeStore, cfg)
 	localTree, err := treeFactory.NewTree(treeFactory.WithRootKey(rootKey))
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)

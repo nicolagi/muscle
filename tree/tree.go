@@ -18,9 +18,10 @@ var ErrInUse = errors.New("in use")
 type Tree struct {
 	store *Store
 
-	revision storage.Pointer
-	root     *Node
-	instance string
+	revision  storage.Pointer
+	root      *Node
+	instance  string
+	blockSize uint32 // For new nodes.
 
 	readOnly bool
 
@@ -48,7 +49,7 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	child := &Node{
 		flags:        loaded | dirty,
 		blockFactory: node.blockFactory,
-		bsize:        uint32(DefaultBlockCapacity),
+		bsize:        uint32(tree.blockSize),
 		parent:       node,
 		D: p.Dir{
 			Name: name,

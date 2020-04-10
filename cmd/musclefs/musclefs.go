@@ -493,7 +493,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	factory := tree.NewFactory(blockFactory, treeStore)
+	factory := tree.NewFactory(blockFactory, treeStore, cfg)
 	tt, err := factory.NewTree(factory.WithInstance(cfg.Instance), factory.WithRootKey(rootKey), factory.Mutable())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)

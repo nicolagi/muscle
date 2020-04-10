@@ -7,6 +7,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
@@ -87,6 +88,8 @@ func scratchTree() (*Tree, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	tt, err := NewFactory(bf, st).NewTree()
+	tt, err := NewFactory(bf, st, &config.C{
+		BlockSize: 8192,
+	}).NewTree()
 	return tt, tdir, err
 }

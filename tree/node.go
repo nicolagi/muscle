@@ -49,11 +49,6 @@ func (ff nodeFlags) String() string {
 	return buf.String()
 }
 
-// DefaultBlockCapacity is the capacity for blocks of new nodes. Existing nodes
-// have their block size encoded within them (which is the value of this
-// variable at the time the nodes were created).
-var DefaultBlockCapacity = 1024 * 1024
-
 // TODO This is a terribly temporary (that's probably a lie.) kludge to enable snapshotsfs
 func (node *Node) Children() []*Node {
 	return node.children

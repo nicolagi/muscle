@@ -11,6 +11,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/google/go-cmp/cmp"
 	"github.com/nicolagi/go9p/p"
+	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,9 @@ func setup(t *testing.T) (*block.Factory, *Tree) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oak, err := NewFactory(bf, nil).NewTree()
+	oak, err := NewFactory(bf, nil, &config.C{
+		BlockSize: 8192,
+	}).NewTree()
 	if err != nil {
 		t.Fatal(err)
 	}

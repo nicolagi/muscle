@@ -269,7 +269,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	treeFactory = tree.NewFactory(blockFactory, treeStore)
+	treeFactory = tree.NewFactory(blockFactory, treeStore, cfg)
 
 	var root rootDir
 	root.Add(nil, "/", owner, group, p.DMDIR|0700, &root)
