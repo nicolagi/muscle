@@ -48,6 +48,7 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	child := &Node{
 		flags:        loaded | dirty,
 		blockFactory: node.blockFactory,
+		bsize:        uint32(DefaultBlockCapacity),
 		parent:       node,
 		D: p.Dir{
 			Name: name,

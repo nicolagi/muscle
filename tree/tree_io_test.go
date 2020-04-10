@@ -13,9 +13,10 @@ import (
 )
 
 func TestEnsureBlocksForWriting(t *testing.T) {
+	bsize := uint32(8192)
 	bf := blockFactory(t, nil)
 	t.Run("no blocks required", func(t *testing.T) {
-		n := &Node{}
+		n := &Node{bsize: bsize}
 		err := n.ensureBlocksForWriting(0)
 		if err != nil {
 			t.Error(err)
@@ -25,7 +26,7 @@ func TestEnsureBlocksForWriting(t *testing.T) {
 		}
 	})
 	t.Run("one partial block required", func(t *testing.T) {
-		n := &Node{blockFactory: bf}
+		n := &Node{blockFactory: bf, bsize: bsize}
 		err := n.ensureBlocksForWriting(1)
 		if err != nil {
 			t.Error(err)
@@ -35,8 +36,8 @@ func TestEnsureBlocksForWriting(t *testing.T) {
 		}
 	})
 	t.Run("one full block required", func(t *testing.T) {
-		n := &Node{blockFactory: bf}
-		err := n.ensureBlocksForWriting(int64(DefaultBlockCapacity))
+		n := &Node{blockFactory: bf, bsize: bsize}
+		err := n.ensureBlocksForWriting(int64(bsize))
 		if err != nil {
 			t.Error(err)
 		}
@@ -45,8 +46,8 @@ func TestEnsureBlocksForWriting(t *testing.T) {
 		}
 	})
 	t.Run("one full block and a byte required", func(t *testing.T) {
-		n := &Node{blockFactory: bf}
-		err := n.ensureBlocksForWriting(int64(DefaultBlockCapacity + 1))
+		n := &Node{blockFactory: bf, bsize: bsize}
+		err := n.ensureBlocksForWriting(int64(bsize + 1))
 		if err != nil {
 			t.Error(err)
 		}
@@ -90,7 +91,7 @@ func TestNodeRead(t *testing.T) {
 		return string(p[:n])
 	}
 	t.Run("from empty node", func(t *testing.T) {
-		node := new(Node)
+		node := &Node{bsize: testBlockSizeBytes}
 		p := make([]byte, 5)
 		for i := int64(0); i < 10; i++ {
 			n, err := node.ReadAt(p, i)
@@ -106,8 +107,7 @@ func TestNodeRead(t *testing.T) {
 		}
 	})
 	t.Run("a part of first block", func(t *testing.T) {
-		defer overrideBlockSize(testBlockSizeBytes)()
-		n := new(Node)
+		n := &Node{bsize: testBlockSizeBytes}
 		n.blocks = append(n.blocks, newAlphabetBlock())
 		assert.Equal(t, "abc", readString(n, 0, 3))
 		assert.Equal(t, "bcd", readString(n, 1, 3))
@@ -117,8 +117,7 @@ func TestNodeRead(t *testing.T) {
 		assert.Equal(t, "", readString(n, 5, 3))
 	})
 	t.Run("a part of first block and a part of second block", func(t *testing.T) {
-		defer overrideBlockSize(testBlockSizeBytes)()
-		n := new(Node)
+		n := &Node{bsize: testBlockSizeBytes}
 		n.blocks = append(n.blocks, newAlphabetBlock(), newAlphabetBlock())
 		assert.Equal(t, "deabc", readString(n, 3, 5))
 		assert.Equal(t, "eabcd", readString(n, 4, 5))
@@ -126,11 +125,12 @@ func TestNodeRead(t *testing.T) {
 		assert.Equal(t, "bcde", readString(n, 6, 5))
 	})
 	t.Run("reading past a block that is not full", func(t *testing.T) {
-		defer overrideBlockSize(testBlockSizeBytes)()
-		n := new(Node)
-		block := newAlphabetBlock()
-		block.Truncate(2)
-		n.blocks = append(n.blocks, block)
+		n := &Node{bsize: testBlockSizeBytes}
+		b := newAlphabetBlock()
+		if err := b.Truncate(2); err != nil {
+			t.Fatal(err)
+		}
+		n.blocks = append(n.blocks, b)
 		assert.Equal(t, "", readString(n, 2, 3))
 		assert.Equal(t, "", readString(n, 3, 3))
 	})
@@ -143,8 +143,9 @@ func TestTruncateDirPrevented(t *testing.T) {
 }
 
 func TestTruncateExtendEmptyNode(t *testing.T) {
+	bsize := uint32(8192)
 	bf := blockFactory(t, nil)
-	n := &Node{blockFactory: bf}
+	n := &Node{blockFactory: bf, bsize: bsize}
 	require.Nil(t, n.Truncate(42))
 	assert.Equal(t, uint64(42), n.D.Length)
 	assert.Len(t, n.blocks, 1)
@@ -168,14 +169,13 @@ func TestTruncateExtends(t *testing.T) {
 			rand.Read(initialContent)
 			// Always extend with zeros for this test.
 			requestedLength := len(initialContent) + rand.Intn(len(initialContent)+1)
-			defer overrideBlockSize(blockSize)()
 			t.Logf("The block size is %d and the content size is %d, and we extend it to %d.",
 				blockSize, len(initialContent), requestedLength)
 
 			// Load the initial content into a new node, with a nil loader, because no blocks will need to be loaded at this
 			// stage. Will also randomize each block state - the fake loader will simply set the state to clean or return an
 			// error. This is just to prepare the node for the truncate operation.
-			node := newNodeWithInitialContent(t, initialContent)
+			node := newNodeWithInitialContent(t, initialContent, uint32(blockSize))
 
 			// Exercise the system under test.
 			require.Nil(t, node.Truncate(uint64(requestedLength)))
@@ -218,14 +218,13 @@ func TestTruncateProperties(t *testing.T) {
 			rand.Read(initialContent)
 			// Always proper truncation for this test.
 			requestedLength := rand.Intn(len(initialContent) + 1)
-			defer overrideBlockSize(blockSize)()
 			t.Logf("The block size is %d and the content size is %d, and we truncate it to %d.",
 				blockSize, len(initialContent), requestedLength)
 
 			// Load the initial content into a new node, with a nil loader, because no blocks will need to be loaded at this
 			// stage. Will also randomize each block state - the fake loader will simply set the state to clean or return an
 			// error. This is just to prepare the node for the truncate operation.
-			node := newNodeWithInitialContent(t, initialContent)
+			node := newNodeWithInitialContent(t, initialContent, uint32(blockSize))
 
 			// Exercise the system under test.
 			require.Nil(t, node.Truncate(uint64(requestedLength)))
@@ -252,11 +251,12 @@ func TestTruncateProperties(t *testing.T) {
 	}
 }
 
-func newNodeWithInitialContent(t *testing.T, p []byte) *Node {
+func newNodeWithInitialContent(t *testing.T, p []byte, bsize uint32) *Node {
 	t.Helper()
 	bf := blockFactory(t, nil)
 	node := &Node{
 		blockFactory: bf,
+		bsize:        bsize,
 	}
 	require.Nil(t, node.WriteAt(p, 0))
 	return node
@@ -280,12 +280,4 @@ func assertComputedSizeEquals(t *testing.T, node *Node, nodeBlockSize int, reque
 		computedSize += size
 	}
 	assert.Equal(t, requestedLength, computedSize)
-}
-
-func overrideBlockSize(size int) (restore func()) {
-	prev := DefaultBlockCapacity
-	DefaultBlockCapacity = size
-	return func() {
-		DefaultBlockCapacity = prev
-	}
 }

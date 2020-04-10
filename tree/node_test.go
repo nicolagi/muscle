@@ -63,29 +63,39 @@ func blockReadAll(t *testing.T, b *block.Block) string {
 }
 
 func TestNodeWriting(t *testing.T) {
-	pbs := DefaultBlockCapacity
-	DefaultBlockCapacity = 6
-	defer func() {
-		DefaultBlockCapacity = pbs
-	}()
-	bf := blockFactory(t, nil)
+	blockCapacity := uint32(6)
 	node := &Node{
-		blockFactory: bf,
+		blockFactory: blockFactory(t, nil),
 		pointer:      storage.RandomPointer(),
+		bsize:        blockCapacity,
 	}
 
 	// Append first block and to first block.
-	node.WriteAt([]byte("foo"), 0)
-	assert.Equal(t, "foo", nodeReadAll(node))
-	assert.Len(t, node.blocks, 1)
+	if err := node.WriteAt([]byte("foo"), 0); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := nodeReadAll(node), "foo"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if got, want := len(node.blocks), 1; got != want {
+		t.Fatalf("got %d, want %d blocks", got, want)
+	}
 
 	// Cross blocks
 	s := "012345012345012345"
-	node.WriteAt([]byte(s), 0)
-	assert.Equal(t, s, nodeReadAll(node))
-	assert.Len(t, node.blocks, 3)
-	for _, b := range node.blocks {
-		assert.Equal(t, "012345", blockReadAll(t, b))
+	if err := node.WriteAt([]byte(s), 0); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := nodeReadAll(node), s; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if got, want := len(node.blocks), 3; got != want {
+		t.Fatalf("got %d, want %d blocks", got, want)
+	}
+	for i, b := range node.blocks {
+		if got, want := blockReadAll(t, b), "012345"; got != want {
+			t.Fatalf("got %q, want %q at block %d", got, want, i)
+		}
 	}
 
 	// Overwrite one block.
@@ -112,6 +122,7 @@ func TestNodeWriting(t *testing.T) {
 		node := &Node{
 			blockFactory: bf,
 			pointer:      storage.RandomPointer(),
+			bsize:        blockCapacity,
 		}
 		node.WriteAt([]byte("whiteboard"), 0)
 		flushed, err := node.blocks[0].Flush()
@@ -135,18 +146,19 @@ func TestNodeWriting(t *testing.T) {
 		node = &Node{
 			blockFactory: bf,
 			pointer:      storage.RandomPointer(),
+			bsize:        blockCapacity,
 		}
 		node.D.Length = 10 // This would have been serialized...
-		block, err := bf.New(ref1, DefaultBlockCapacity)
+		b, err := bf.New(ref1, int(blockCapacity))
 		if err != nil {
 			t.Fatal(err)
 		}
-		node.blocks = append(node.blocks, block)
-		block, err = bf.New(ref2, DefaultBlockCapacity)
+		node.blocks = append(node.blocks, b)
+		b, err = bf.New(ref2, int(blockCapacity))
 		if err != nil {
 			t.Fatal(err)
 		}
-		node.blocks = append(node.blocks, block)
+		node.blocks = append(node.blocks, b)
 
 		assert.Nil(t, node.WriteAt([]byte("black"), 0))
 		if got, want := node.D.Length, uint64(10); got != want {

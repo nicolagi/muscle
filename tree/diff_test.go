@@ -203,6 +203,7 @@ func TestTreeNodeSameAs(t *testing.T) {
 }
 
 func TestTreeNodeContent(t *testing.T) {
+	bsize := uint32(8192)
 	innerErr := errors.New("some error")
 	bf := blockFactory(t, innerErr)
 	t.Run("get contents for nil node", func(t *testing.T) {
@@ -214,6 +215,7 @@ func TestTreeNodeContent(t *testing.T) {
 	t.Run("get contents for small node", func(t *testing.T) {
 		a := &treeNode{t: &Tree{}, n: &Node{
 			blockFactory: bf,
+			bsize:        bsize,
 		}, maxSize: 1024}
 		require.Nil(t, a.n.WriteAt([]byte("some text"), 0))
 		content, err := a.Content()
@@ -223,7 +225,7 @@ func TestTreeNodeContent(t *testing.T) {
 	t.Run("no error but not all node contents", func(t *testing.T) {
 		a := &treeNode{maxSize: 1024}
 		a.t = &Tree{}
-		a.n = &Node{}
+		a.n = &Node{bsize: bsize}
 		a.n.D.Length = 42
 		content, err := a.Content()
 		assert.Equal(t, "", content)
@@ -231,7 +233,7 @@ func TestTreeNodeContent(t *testing.T) {
 		assert.True(t, errors.Is(err, errTreeNodeTruncated))
 	})
 	t.Run("get contents for too large a node", func(t *testing.T) {
-		a := &treeNode{n: &Node{blockFactory: bf}, maxSize: 1024}
+		a := &treeNode{n: &Node{blockFactory: bf, bsize: bsize}, maxSize: 1024}
 		a.n.D.Length = 1025
 		content, err := a.Content()
 		assert.Equal(t, "", content)
@@ -239,7 +241,7 @@ func TestTreeNodeContent(t *testing.T) {
 		assert.True(t, errors.Is(err, errTreeNodeLarge))
 	})
 	t.Run("read error bubbles up", func(t *testing.T) {
-		a := &treeNode{t: &Tree{}, n: &Node{blockFactory: bf}, maxSize: 1024}
+		a := &treeNode{t: &Tree{}, n: &Node{blockFactory: bf, bsize: bsize}, maxSize: 1024}
 
 		// Pretend the node has some content to load from the store.
 		a.n.D.Length = 1
@@ -273,7 +275,7 @@ func blockFactory(t *testing.T, storeErr error) *block.Factory {
 
 func dirtyBlock(t *testing.T, f *block.Factory, content string) *block.Block {
 	t.Helper()
-	b, err := f.New(nil, DefaultBlockCapacity)
+	b, err := f.New(nil, 8192)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +294,7 @@ func dirtyBlock(t *testing.T, f *block.Factory, content string) *block.Block {
 
 func newBlock(t *testing.T, f *block.Factory, ref block.Ref) *block.Block {
 	t.Helper()
-	b, err := f.New(ref, DefaultBlockCapacity)
+	b, err := f.New(ref, 8192)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,10 @@ import (
 	"github.com/nicolagi/muscle/storage"
 )
 
+// This was the default before node size was configurable and included in the serialized node. There are nodes that have
+// a serialized block capacity of 0, and should instead use the default capacity at that time.
+const v14DefaultBlockCapacity = 1024 * 1024
+
 type codecV14 struct{}
 
 func (codecV14) encodeNode(node *Node) ([]byte, error) {
@@ -57,6 +61,9 @@ func (codecV14) decodeNode(data []byte, dest *Node) error {
 	u8, ptr = gint8(ptr)
 	dest.flags = nodeFlags(u8)
 	dest.bsize, ptr = gint32(ptr)
+	if dest.bsize == 0 {
+		dest.bsize = v14DefaultBlockCapacity
+	}
 	dest.D.Mode, ptr = gint32(ptr)
 	if dest.D.Mode&p.DMDIR != 0 {
 		dest.D.Qid.Type = p.QTDIR
@@ -89,7 +96,7 @@ func (codecV14) decodeNode(data []byte, dest *Node) error {
 			return err
 		}
 		// Block size isn't configurable yet.
-		b, err := dest.blockFactory.New(r, DefaultBlockCapacity)
+		b, err := dest.blockFactory.New(r, int(dest.bsize))
 		if err != nil {
 			return err
 		}

@@ -49,7 +49,7 @@ func TestLatestCodecForNodes(t *testing.T) {
 					t.Log(err)
 					return false
 				}
-				b, err := factory.New(r, DefaultBlockCapacity)
+				b, err := factory.New(r, int(bsize))
 				if err != nil {
 					t.Log(err)
 					return false
@@ -62,7 +62,7 @@ func TestLatestCodecForNodes(t *testing.T) {
 					t.Log(err)
 					return false
 				}
-				b, err := factory.New(r, DefaultBlockCapacity)
+				b, err := factory.New(r, int(bsize))
 				if err != nil {
 					t.Log(err)
 					return false

@@ -49,9 +49,9 @@ func (ff nodeFlags) String() string {
 	return buf.String()
 }
 
-// TODO This de-facto constant is a very big problem, because it can't ever be changed.
-// The constant is used to calculate offsets etc. because there's no explicit size for
-// stored blocks. The size should be stored per node or per block.
+// DefaultBlockCapacity is the capacity for blocks of new nodes. Existing nodes
+// have their block size encoded within them (which is the value of this
+// variable at the time the nodes were created).
 var DefaultBlockCapacity = 1024 * 1024
 
 // TODO This is a terribly temporary (that's probably a lie.) kludge to enable snapshotsfs
@@ -424,7 +424,7 @@ func (node *Node) Truncate(requestedSize uint64) error {
 
 func (node *Node) grow(requestedSize uint64) (err error) {
 	add := func(size int) error {
-		b, err := node.blockFactory.New(nil, DefaultBlockCapacity)
+		b, err := node.blockFactory.New(nil, int(node.bsize))
 		if err != nil {
 			return err
 		}
@@ -434,17 +434,17 @@ func (node *Node) grow(requestedSize uint64) (err error) {
 		node.blocks = append(node.blocks, b)
 		return nil
 	}
-	blockSize := uint64(DefaultBlockCapacity)
+	blockSize := uint64(node.bsize)
 	q, r := node.D.Length/blockSize, int(node.D.Length%blockSize)
 	nextq, nextr := requestedSize/blockSize, int(requestedSize%blockSize)
 	if q < nextq && r > 0 {
-		if err := node.blocks[q].Truncate(DefaultBlockCapacity); err != nil {
+		if err := node.blocks[q].Truncate(int(node.bsize)); err != nil {
 			return err
 		}
 		q, r = q+1, 0
 	}
 	for ; q < nextq; q++ {
-		if err := add(DefaultBlockCapacity); err != nil {
+		if err := add(int(node.bsize)); err != nil {
 			return err
 		}
 	}
@@ -463,8 +463,8 @@ func (node *Node) grow(requestedSize uint64) (err error) {
 
 func (node *Node) shrink(requestedSize uint64) error {
 	// The requested size requires q full blocks and one block with only r bytes.
-	q := int(requestedSize / uint64(DefaultBlockCapacity))
-	r := int(requestedSize % uint64(DefaultBlockCapacity))
+	q := int(requestedSize / uint64(node.bsize))
+	r := int(requestedSize % uint64(node.bsize))
 	if r > 0 {
 		if err := node.blocks[q].Truncate(r); err != nil {
 			return err
@@ -495,7 +495,7 @@ func (node *Node) write(p []byte, off int64) error {
 	if len(p) == 0 {
 		return nil
 	}
-	bs := int64(DefaultBlockCapacity)
+	bs := int64(node.bsize)
 	written, delta, err := node.getBlock(off).Write(p, int(off%bs))
 	if err != nil {
 		return err
@@ -511,13 +511,13 @@ func (node *Node) write(p []byte, off int64) error {
 //  If you do, you have to update node.D.Length as well.
 // And that's cheating, because that's for Write to do.
 func (node *Node) ensureBlocksForWriting(requiredBytes int64) error {
-	bs := int64(DefaultBlockCapacity)
+	bs := int64(node.bsize)
 	q := int(requiredBytes / bs)
 	if requiredBytes%bs != 0 {
 		q++
 	}
 	for len(node.blocks) < q {
-		b, err := node.blockFactory.New(nil, DefaultBlockCapacity)
+		b, err := node.blockFactory.New(nil, int(node.bsize))
 		if err != nil {
 			return err
 		}
@@ -527,7 +527,7 @@ func (node *Node) ensureBlocksForWriting(requiredBytes int64) error {
 }
 
 func (node *Node) getBlock(off int64) *block.Block {
-	index := int(off / int64(DefaultBlockCapacity))
+	index := int(off / int64(node.bsize))
 	if index >= len(node.blocks) {
 		return nil
 	}
@@ -542,7 +542,7 @@ func (node *Node) ReadAt(p []byte, off int64) (int, error) {
 	if block == nil {
 		return 0, nil
 	}
-	o := int(off % int64(DefaultBlockCapacity))
+	o := int(off % int64(node.bsize))
 	n, err := block.Read(p, o)
 	if n == 0 || err != nil {
 		return n, err
