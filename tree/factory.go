@@ -102,7 +102,9 @@ func (f *Factory) NewTree(options ...factoryOption) (*Tree, error) {
 		t.root.D.Mode = 0700 | p.DMDIR
 		t.root.D.Qid.Type = p.QTDIR
 		t.root.flags |= loaded | dirty
-		t.Add(t.root, "ctl", 0600)
+		if _, err := t.Add(t.root, "ctl", 0600); err != nil {
+			return nil, fmt.Errorf("tree.Factory.NewTree: %w", err)
+		}
 	}
 	// Fix mode for roots created before mode was used...
 	t.root.D.Mode |= 0700 | p.DMDIR

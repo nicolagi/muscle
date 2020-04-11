@@ -18,7 +18,11 @@ func TestTreeWalking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Error(err)
+		}
+	}()
 	_, root := tree.Root()
 	assert.Equal(t, root.Path(), "root")
 

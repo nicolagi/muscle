@@ -298,10 +298,13 @@ func TestGrowParallelizationLimit(t *testing.T) {
 		parent.children = append(parent.children, &Node{})
 	}
 	start := time.Now()
-	tree.grow(parent, func(*Node) error {
+	err := tree.grow(parent, func(*Node) error {
 		time.Sleep(50 * time.Millisecond)
 		return nil
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	elapsed := time.Since(start)
 	lb := 75 * time.Millisecond
 	if elapsed < lb {

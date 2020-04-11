@@ -47,10 +47,21 @@ func TestNodePath(t *testing.T) {
 	assert.Equal(t, "", (*Node)(nil).Path())
 }
 
-func nodeReadAll(node *Node) string {
+func mustRead(t *testing.T, node *Node) string {
+	t.Helper()
 	b := make([]byte, node.D.Length)
-	node.ReadAt(b, 0)
+	_, err := node.ReadAt(b, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return string(b)
+}
+
+func mustWrite(t *testing.T, node *Node, p []byte, off int64) {
+	t.Helper()
+	if err := node.WriteAt(p, off); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func blockReadAll(t *testing.T, b *block.Block) string {
@@ -71,10 +82,8 @@ func TestNodeWriting(t *testing.T) {
 	}
 
 	// Append first block and to first block.
-	if err := node.WriteAt([]byte("foo"), 0); err != nil {
-		t.Fatal(err)
-	}
-	if got, want := nodeReadAll(node), "foo"; got != want {
+	mustWrite(t, node, []byte("foo"), 0)
+	if got, want := mustRead(t, node), "foo"; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 	if got, want := len(node.blocks), 1; got != want {
@@ -83,10 +92,8 @@ func TestNodeWriting(t *testing.T) {
 
 	// Cross blocks
 	s := "012345012345012345"
-	if err := node.WriteAt([]byte(s), 0); err != nil {
-		t.Fatal(err)
-	}
-	if got, want := nodeReadAll(node), s; got != want {
+	mustWrite(t, node, []byte(s), 0)
+	if got, want := mustRead(t, node), s; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 	if got, want := len(node.blocks), 3; got != want {
@@ -99,13 +106,13 @@ func TestNodeWriting(t *testing.T) {
 	}
 
 	// Overwrite one block.
-	node.WriteAt([]byte("xxxxxx"), 6)
-	assert.Equal(t, "012345xxxxxx012345", nodeReadAll(node))
+	mustWrite(t, node, []byte("xxxxxx"), 6)
+	assert.Equal(t, "012345xxxxxx012345", mustRead(t, node))
 	assert.Len(t, node.blocks, 3)
 
 	// Cross-block overwrite.
-	node.WriteAt([]byte("yyyyyy"), 9)
-	assert.Equal(t, "012345xxxyyyyyy345", nodeReadAll(node))
+	mustWrite(t, node, []byte("yyyyyy"), 9)
+	assert.Equal(t, "012345xxxyyyyyy345", mustRead(t, node))
 	assert.Len(t, node.blocks, 3)
 	assert.Equal(t, "012345", blockReadAll(t, node.blocks[0]))
 	assert.Equal(t, "xxxyyy", blockReadAll(t, node.blocks[1]))
@@ -124,7 +131,7 @@ func TestNodeWriting(t *testing.T) {
 			pointer:      storage.RandomPointer(),
 			bsize:        blockCapacity,
 		}
-		node.WriteAt([]byte("whiteboard"), 0)
+		mustWrite(t, node, []byte("whiteboard"), 0)
 		flushed, err := node.blocks[0].Flush()
 		if !flushed {
 			t.Fatal("not flushed")
@@ -160,11 +167,11 @@ func TestNodeWriting(t *testing.T) {
 		}
 		node.blocks = append(node.blocks, b)
 
-		assert.Nil(t, node.WriteAt([]byte("black"), 0))
+		mustWrite(t, node, []byte("black"), 0)
 		if got, want := node.D.Length, uint64(10); got != want {
 			t.Errorf("got %d, want a %d-byte node", got, want)
 		}
-		if got, want := nodeReadAll(node), "blackboard"; got != want {
+		if got, want := mustRead(t, node), "blackboard"; got != want {
 			t.Errorf("got %q, want %q", got, want)
 		}
 	})

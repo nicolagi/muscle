@@ -202,7 +202,9 @@ func (tree *Tree) Graft(parent *Node, child *Node) error {
 		return e
 	}
 	if node, found := parent.followBranch(child.D.Name); found {
-		tree.RemoveForMerge(node)
+		if err := tree.RemoveForMerge(node); err != nil {
+			return fmt.Errorf("tree.Tree.Graft: parent: %v: %w", parent, err)
+		}
 	}
 	if added := parent.add(child); added {
 		parent.markDirty()

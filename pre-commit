@@ -1,10 +1,11 @@
 #!/bin/bash
 set -euxo pipefail
-gofiles=$(
-	git diff --cached --name-only --diff-filter ACM |
-	grep '\.go$' || true
-)
-for f in $gofiles ; do
+files=$(git diff --cached --name-only --diff-filter ACM | grep '\.go$' || true)
+dirs=$(for f in $files ; do dirname $f; done | sort | uniq)
+for d in $dirs ; do
+	( cd $d ; errcheck -abspath -ignoretests=false )
+done
+for f in $files ; do
 	goimports -w $f
 	git add $f
 done
