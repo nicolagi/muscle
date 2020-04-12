@@ -15,7 +15,7 @@ func TestMarkDirty(t *testing.T) {
 		a := new(Node)
 		a.markDirty()
 		assert.Equal(t, dirty, a.flags&dirty)
-		assert.False(t, a.pointer.IsNull())
+		assert.Nil(t, a.pointer)
 	})
 	t.Run("node with parent", func(t *testing.T) {
 		inner := new(Node)
@@ -24,8 +24,8 @@ func TestMarkDirty(t *testing.T) {
 		inner.markDirty()
 		assert.Equal(t, dirty, inner.flags&dirty)
 		assert.Equal(t, dirty, outer.flags&dirty)
-		assert.False(t, inner.pointer.IsNull())
-		assert.False(t, outer.pointer.IsNull())
+		assert.Nil(t, inner.pointer)
+		assert.Nil(t, outer.pointer)
 	})
 	t.Run("node that already has a key", func(t *testing.T) {
 		expected := storage.RandomPointer()

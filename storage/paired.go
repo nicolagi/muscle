@@ -219,7 +219,8 @@ func (p *Paired) propagate() {
 		key := Key(line[1:65])
 		value, err := p.fast.Get(key)
 		if err != nil {
-			p.log.mark(itemMissing)
+			// If we can't update it in the log, it will be re-processed (needless but idempotent).
+			_ = p.log.mark(itemMissing)
 			continue
 		}
 		for {
@@ -229,7 +230,8 @@ func (p *Paired) propagate() {
 			log.Warnf("failure to put %q to slow store (will retry): %v", key, err)
 			time.Sleep(p.retryInterval)
 		}
-		p.log.mark(itemDone)
+		// If we can't update it in the log, it will be re-processed (needless but idempotent).
+		_ = p.log.mark(itemDone)
 	}
 }
 

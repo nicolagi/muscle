@@ -87,7 +87,8 @@ func PointerTo(value []byte) Pointer {
 // NewPointerFromHex interprets a hex string as a hash pointer.
 func NewPointerFromHex(hexDigits string) (Pointer, error) {
 	b, err := hex.DecodeString(hexDigits)
-	if len(b) != 32 || err != nil {
+	// Hack: block index/repository reference lengths.
+	if (len(b) != 32 && len(b) != 16) || err != nil {
 		return Null, fmt.Errorf("%q: %w", hexDigits, ErrNotHashPointer)
 	}
 	return Pointer(b), nil

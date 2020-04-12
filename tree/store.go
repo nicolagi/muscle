@@ -1,7 +1,6 @@
 package tree
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -62,26 +61,73 @@ func NewStore(
 }
 
 func (s *Store) StoreNode(node *Node) error {
-	entry := log.WithFields(log.Fields{
-		"op":   "StoreNode",
-		"node": node.String(),
-	})
+	errw := func(e error) error {
+		return fmt.Errorf("tree.Store.StoreNode: %w", e)
+	}
 	encoded, err := s.codec.encodeNode(node)
 	if err != nil {
-		return err
+		return errw(err)
 	}
-	encrypted, err := s.cryptography.encrypt(encoded)
+	var ref block.Ref
+	if len(node.pointer) > 0 {
+		if ref, err = block.NewRef([]byte(node.pointer)); err != nil {
+			return errw(err)
+		}
+	}
+	blk, err := s.blockFactory.New(ref, metadataBlockMaxSize)
 	if err != nil {
-		return err
+		return errw(err)
 	}
-	node.pointer = storage.PointerTo(encoded)
-	err = s.ephemeral.Put(node.pointer.Key(), encrypted)
-	if err == nil {
-		entry.Debug("Clearing dirty flag")
-		node.flags &^= dirty
-		node.recomputeQID()
+	if err := blk.Truncate(0); err != nil {
+		return errw(err)
 	}
-	return err
+	if _, _, err := blk.Write(encoded, 0); err != nil {
+		return errw(err)
+	}
+	if _, err := blk.Flush(); err != nil {
+		return errw(err)
+	}
+	node.pointer = storage.Pointer(blk.Ref().Bytes())
+	node.flags &^= dirty
+	node.recomputeQID()
+	return nil
+}
+
+func (s *Store) SealNode(node *Node) error {
+	errw := func(e error) error {
+		// If the node failed to seal, let's remove the flag.
+		// We have to optimistically set it before sealing or the node hash would be incorrect.
+		node.flags &^= sealed
+		return fmt.Errorf("tree.Store.SealNode: %w", e)
+	}
+	node.flags |= sealed
+	encoded, err := s.codec.encodeNode(node)
+	if err != nil {
+		return errw(err)
+	}
+	var ref block.Ref
+	if len(node.pointer) > 0 {
+		if ref, err = block.NewRef([]byte(node.pointer)); err != nil {
+			return errw(err)
+		}
+	}
+	blk, err := s.blockFactory.New(ref, metadataBlockMaxSize)
+	if err != nil {
+		return errw(err)
+	}
+	if err := blk.Truncate(0); err != nil {
+		return errw(err)
+	}
+	if _, _, err := blk.Write(encoded, 0); err != nil {
+		return errw(err)
+	}
+	if _, err := blk.Seal(); err != nil {
+		return errw(err)
+	}
+	node.pointer = storage.Pointer(blk.Ref().Bytes())
+	node.flags &^= dirty
+	node.recomputeQID()
+	return nil
 }
 
 func (s *Store) StoreRevision(r *Revision) error {
@@ -122,23 +168,30 @@ func (s *Store) StoreRevision(r *Revision) error {
 // LoadNode assumes that dst.key is the destination node's key, and the parent pointer is also correct.
 // Loading will overwrite any other data.
 func (s *Store) LoadNode(dst *Node) error {
+	errw := func(e error) error {
+		return fmt.Errorf("tree.Store.LoadNode: %w", e)
+	}
 	dst.blockFactory = s.blockFactory
-	contents, err := s.ephemeral.Get(dst.pointer.Key())
-	if errors.Is(err, storage.ErrNotFound) {
-		contents, err = s.permanent.Get(dst.pointer.Key())
-	}
+	ref, err := block.NewRef([]byte(dst.pointer))
 	if err != nil {
-		return fmt.Errorf("tree.Store.LoadNode: %w", err)
+		return errw(err)
 	}
-	err = s.codec.decodeNode(s.cryptography.decrypt(contents), dst)
+	blk, err := s.blockFactory.New(ref, metadataBlockMaxSize)
 	if err != nil {
-		return fmt.Errorf("tree.Store.LoadNode: %w", err)
+		return errw(err)
+	}
+	encoded, err := blk.ReadAll()
+	if err != nil {
+		return errw(err)
+	}
+	if err := s.codec.decodeNode(encoded, dst); err != nil {
+		return errw(err)
 	}
 	dst.D.Uid = nodeUID
 	dst.D.Gid = nodeGID
 	dst.recomputeQID()
 	dst.flags |= loaded
-	return err
+	return nil
 }
 
 // TODO: Belongs to musclefs, not to the tree package.

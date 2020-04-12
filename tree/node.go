@@ -372,8 +372,10 @@ func (node *Node) Rename(newName string) {
 
 func (node *Node) recomputeQID() {
 	node.D.Qid.Version = 0
-	for _, b := range node.pointer.Bytes()[:4] {
-		node.D.Qid.Version = (node.D.Qid.Version << 8) | uint32(b)
+	if node.pointer != nil {
+		for _, b := range node.pointer.Bytes()[:4] {
+			node.D.Qid.Version = (node.D.Qid.Version << 8) | uint32(b)
+		}
 	}
 	node.D.Qid.Path = 0
 	checksum := sha1.Sum([]byte(node.Path()))

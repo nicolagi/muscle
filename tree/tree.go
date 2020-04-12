@@ -57,7 +57,6 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 			Uid:  nodeUID,
 		},
 	}
-	child.pointer = storage.RandomPointer()
 	child.recomputeQID()
 	child.updateMTime()
 	if perm&p.DMDIR != 0 {

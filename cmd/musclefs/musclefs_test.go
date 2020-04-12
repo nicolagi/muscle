@@ -329,16 +329,18 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Fa
 	require.Nil(t, err)
 
 	rootFile := path.Join(dir, "other-root") // Avoid conflicts with the ephemeral musclefs root.
-	cacheDir := path.Join(dir, "cache")      // Share the storage.
-	diskStore := storage.NewDiskStore(cacheDir)
+	stagingDir := path.Join(dir, "staging")
+	stagingDiskStore := storage.NewDiskStore(stagingDir)
+	cacheDir := path.Join(dir, "cache")
+	cacheDiskStore := storage.NewDiskStore(cacheDir)
 	// Use the same backing store for the staging area and the cache.
 	// This way we don't have to (in fact, we must not) snapshot the trees created via the factory
 	// to populate the cache from the staging area, which makes the fixtures easier to set up.
 	// Of course this means that the cache directory will contain extraneous intermediate data,
 	// but it's fine for tests.
-	blockFactory, err := block.NewFactory(diskStore, diskStore, sharedKey)
+	blockFactory, err := block.NewFactory(stagingDiskStore, cacheDiskStore, sharedKey)
 	require.Nil(t, err)
-	store, err = tree.NewStore(blockFactory, diskStore, diskStore, nil, rootFile, "remote.root.other", sharedKey)
+	store, err = tree.NewStore(blockFactory, stagingDiskStore, cacheDiskStore, nil, rootFile, "remote.root.other", sharedKey)
 	require.Nil(t, err)
 	factory = tree.NewFactory(blockFactory, store, &config.C{
 		BlockSize: 8192,

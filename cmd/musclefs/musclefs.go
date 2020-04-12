@@ -292,6 +292,8 @@ func runCommand(ops *ops, cmd string) error {
 		if err != nil {
 			return fmt.Errorf("could not mark keys to persist: %v", err)
 		}
+		// Temporary logging. I want to make sure this part is no longer needed, I can then rip out some code.
+		log.Printf("got=%d want=%d keys to persist", len(toPersist), 0)
 		fmt.Fprintf(outputBuffer, "have to persist %d keys\n", len(toPersist))
 
 		// IV. Commit.

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/nicolagi/muscle/storage"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -49,12 +48,11 @@ func (tree *Tree) seal(node *Node) error {
 			return err
 		}
 	}
-	log.Printf("Marking node as sealed: %v", node)
-	node.flags |= sealed
-	if err := tree.store.StoreNode(node); err != nil {
+	log.Printf("Sealing node: %v", node)
+	if err := tree.store.SealNode(node); err != nil {
 		return err
 	}
-	log.Printf("Stored: %v", node)
+	log.Printf("Sealed: %v", node)
 	return nil
 }
 
@@ -132,8 +130,5 @@ func (node *Node) markDirty() {
 	entry.Debug("Setting dirty and recursing")
 	node.flags |= dirty
 	node.flags &= ^sealed
-	if node.pointer.IsNull() {
-		node.pointer = storage.RandomPointer()
-	}
 	node.parent.markDirty()
 }
