@@ -16,6 +16,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Used for blocks holding serialized revisions and nodes. Since only one block
+// is used per revision/node, we can't risk overflowing and ignore
+// the configured block size.
+const metadataBlockMaxSize = 1024 * 1024
+
 // Store is a high-level entity that takes care of loading and storing
 // objects (nodes, revisions) from/to a store. Such operations require
 // encryption/decryption, encoding/decoding, actual store put/get.
@@ -80,16 +85,38 @@ func (s *Store) StoreNode(node *Node) error {
 }
 
 func (s *Store) StoreRevision(r *Revision) error {
+	errw := func(e error) error {
+		return fmt.Errorf("tree.Store.StoreRevision: %w", e)
+	}
 	encoded, err := s.codec.encodeRevision(r)
 	if err != nil {
-		return err
+		return errw(err)
 	}
-	encrypted, err := s.cryptography.encrypt(encoded)
+	// Note: We will treat tree.Revision.key (type storage.Pointer) as the bytes
+	// underlying a block.Ref. In future developments, we will change the type of
+	// tree.Revision.key.
+	var ref block.Ref
+	if r.key.Len() > 0 {
+		if ref, err = block.NewRef([]byte(r.key)); err != nil {
+			return errw(err)
+		}
+	}
+	blk, err := s.blockFactory.New(ref, metadataBlockMaxSize)
 	if err != nil {
-		return err
+		return errw(err)
 	}
-	r.key = storage.PointerTo(encoded)
-	return s.ephemeral.Put(r.key.Key(), encrypted)
+	if err := blk.Truncate(0); err != nil {
+		return errw(err)
+	}
+	if _, _, err := blk.Write(encoded, 0); err != nil {
+		return errw(err)
+	}
+	if _, err := blk.Seal(); err != nil {
+		return errw(err)
+	}
+	// Unsafe:
+	r.key = storage.Pointer(blk.Ref().Bytes())
+	return nil
 }
 
 // LoadNode assumes that dst.key is the destination node's key, and the parent pointer is also correct.
@@ -126,14 +153,6 @@ func (s *Store) updateLocalRootPointer(rootKey storage.Pointer) error {
 
 func (s *Store) UpdateRemoteRevision(r *Revision) error {
 	return s.pointers.Put(storage.Key(s.remoteRootKey), []byte(r.key.Hex()))
-}
-
-func (s *Store) encryptEncodeRevision(r *Revision) ([]byte, error) {
-	encoded, err := s.codec.encodeRevision(r)
-	if err != nil {
-		return nil, err
-	}
-	return s.cryptography.encrypt(encoded)
 }
 
 func (s *Store) LocalRootKey() (storage.Pointer, error) {
@@ -178,16 +197,29 @@ func (s *Store) RemoteRevision(instance string) (rev *Revision, root *Node, err 
 }
 
 func (s *Store) LoadRevisionByKey(key storage.Pointer) (*Revision, error) {
-	b, err := s.ephemeral.Get(key.Key())
-	if errors.Is(err, storage.ErrNotFound) {
-		b, err = s.permanent.Get(key.Key())
+	errw := func(e error) error {
+		return fmt.Errorf("tree.Store.LoadRevisionByKey: %w", e)
 	}
+	// Note: We will treat tree.Revision.key (type storage.Pointer) as the bytes
+	// underlying a block.Ref. In future developments, we will change the type of
+	// tree.Revision.key.
+	ref, err := block.NewRef([]byte(key))
 	if err != nil {
-		return nil, err
+		return nil, errw(err)
 	}
-	b = s.cryptography.decrypt(b)
+	blk, err := s.blockFactory.New(ref, metadataBlockMaxSize)
+	if err != nil {
+		return nil, errw(err)
+	}
+	b, err := blk.ReadAll()
+	if err != nil {
+		return nil, errw(err)
+	}
 	r := &Revision{key: key}
 	err = s.codec.decodeRevision(b, r)
+	if err != nil {
+		return nil, errw(err)
+	}
 	return r, err
 }
 
@@ -329,19 +361,16 @@ func (s *Store) IsStaging(k storage.Pointer) (bool, error) {
 // (at the current head revision) and will inherit all the history. Fork
 // will try not to overwrite the target.
 func (s *Store) Fork(source, target string) error {
+	errw := func(e error) error {
+		return fmt.Errorf("tree.Store.Fork: %w", e)
+	}
 	srev, sroot, err := s.RemoteRevision(source)
 	if err != nil {
 		return err
 	}
 	trev := NewRevision(target, sroot.Key(), []storage.Pointer{srev.key})
-	data, err := s.encryptEncodeRevision(trev)
-	if err != nil {
-		return err
-	}
-	trev.key = storage.PointerTo(data)
-	err = s.permanent.Put(trev.key.Key(), data)
-	if err != nil {
-		return err
+	if err := s.StoreRevision(trev); err != nil {
+		return errw(err)
 	}
 	k := storage.Key(RemoteRootKeyPrefix + target)
 	if _, err := s.pointers.Get(k); err == nil {

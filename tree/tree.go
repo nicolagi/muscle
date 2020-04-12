@@ -113,15 +113,7 @@ func (tree *Tree) RemoveForMerge(node *Node) error {
 
 func (tree *Tree) ReachableKeysInTheStagingArea() (map[string]struct{}, error) {
 	accumulator := make(map[string]struct{})
-	isStaging, err := tree.store.IsStaging(tree.revision)
-	if err != nil {
-		return nil, err
-	}
-	if !isStaging {
-		return nil, errors.New("the revision is not in the staging area")
-	}
-	accumulator[tree.revision.Hex()] = struct{}{}
-	err = tree.reachableKeysInTheStagingArea(tree.root, accumulator)
+	err := tree.reachableKeysInTheStagingArea(tree.root, accumulator)
 	return accumulator, err
 }
 
