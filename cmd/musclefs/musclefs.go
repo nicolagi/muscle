@@ -108,7 +108,10 @@ func (ops *ops) Open(r *srv.Req) {
 		node.PrepareForReads()
 	default:
 		if r.Tc.Mode&p.OTRUNC != 0 {
-			node.Truncate(0)
+			if err := node.Truncate(0); err != nil {
+				r.RespondError(err)
+				return
+			}
 		}
 	}
 	r.RespondRopen(&node.D.Qid, 0)
@@ -135,7 +138,10 @@ func (ops *ops) Read(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
-	p.InitRread(r.Rc, r.Tc.Count)
+	if err := p.InitRread(r.Rc, r.Tc.Count); err != nil {
+		r.RespondError(err)
+		return
+	}
 	var count int
 	var err error
 	if node.IsDir() {
@@ -456,7 +462,7 @@ func main() {
 	}
 	log.SetOutput(f)
 	log.SetFormatter(&log.JSONFormatter{})
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	remoteBasicStore, err := storage.NewStore(cfg)
 	if err != nil {
@@ -533,7 +539,9 @@ func main() {
 			time.Sleep(tree.SnapshotFrequency)
 			ops.mu.Lock()
 			// TODO handle all errors - add errcheck to precommit?
-			ops.tree.FlushIfNotDoneRecently()
+			if err := ops.tree.FlushIfNotDoneRecently(); err != nil {
+				log.Printf("Could not flush: %v", err)
+			}
 			ops.mu.Unlock()
 		}
 	}()
@@ -544,8 +552,12 @@ func main() {
 	for range c {
 		log.Info("Final clean-up")
 		ops.mu.Lock()
-		tt.Flush()
+		if err := tt.Flush(); err != nil {
+			log.Printf("Could not flush: %v", err)
+			ops.mu.Unlock()
+			continue
+		}
 		ops.mu.Unlock()
-		break // Allow to exit
+		break
 	}
 }
