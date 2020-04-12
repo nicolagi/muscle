@@ -2,7 +2,7 @@ package block_test
 
 import (
 	"bytes"
-	"crypto/rand"
+	"math/rand"
 	"testing"
 
 	"github.com/nicolagi/muscle/internal/block"

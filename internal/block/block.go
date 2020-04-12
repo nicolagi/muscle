@@ -3,6 +3,7 @@ package block
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/nicolagi/muscle/storage"
 )
@@ -172,8 +173,8 @@ func (block *Block) seal() error {
 	if err := block.repository.Put(ref.Key(), ciphertext); err != nil {
 		return fmt.Errorf("block.Block.seal: %w", err)
 	}
-	if err := block.index.Delete(block.ref.Key()); err != nil {
-		log.Printf("block.Block.seal left garbage behind: %v", err)
+	if err := block.index.Delete(block.ref.Key()); err != nil && !os.IsNotExist(err) {
+		log.Printf("block.Block.seal: left garbage behind: %v", err)
 	}
 	block.ref = ref
 	block.state = clean
