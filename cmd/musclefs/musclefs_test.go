@@ -340,7 +340,7 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Fa
 	// but it's fine for tests.
 	blockFactory, err := block.NewFactory(stagingDiskStore, cacheDiskStore, sharedKey)
 	require.Nil(t, err)
-	store, err = tree.NewStore(blockFactory, stagingDiskStore, cacheDiskStore, nil, rootFile, "remote.root.other", sharedKey)
+	store, err = tree.NewStore(blockFactory, nil, rootFile, "remote.root.other", sharedKey)
 	require.Nil(t, err)
 	factory = tree.NewFactory(blockFactory, store, &config.C{
 		BlockSize: 8192,

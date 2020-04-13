@@ -310,7 +310,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not build block factory: %v", err)
 	}
-	treeStore, err := tree.NewStore(blockFactory, stagingStore, paired, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
+	treeStore, err := tree.NewStore(blockFactory, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -433,13 +433,16 @@ func main() {
 				} else {
 					b, _ = treeFactory.NewTree(treeFactory.WithRevisionKey(this.Key()))
 				}
-				tree.DiffTrees(a, b, tree.DiffTreesOutput(os.Stdout),
+				err := tree.DiffTrees(a, b, tree.DiffTreesOutput(os.Stdout),
 					tree.DiffTreesInitialPath(historyContext.prefix),
 					tree.DiffTreesContext(historyContext.context),
 					tree.DiffTreesNamesOnly(historyContext.names),
 					tree.DiffTreesVerbose(historyContext.verbose),
 					tree.DiffTreesMaxSize(historyContext.maxSize),
 				)
+				if err != nil {
+					cmdlog.WithField("cause", err).Fatal("Could not diff against remote tree for history")
+				}
 				fmt.Println()
 			}
 		}

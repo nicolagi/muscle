@@ -23,8 +23,6 @@ func TestStoreFork(t *testing.T) {
 	store, err := tree.NewStore(
 		blockFactory,
 		remoteStore,
-		remoteStore,
-		remoteStore,
 		"",
 		tree.RemoteRootKeyPrefix+instance,
 		storage.RandomPointer().Bytes(),

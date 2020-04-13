@@ -100,13 +100,17 @@ func (md *muscleDir) ensureLoaded() error {
 			if err != nil {
 				return err
 			}
-			d.Add(&md.File, child.D.Name, owner, group, 0700|p.DMDIR, d)
+			if err := d.Add(&md.File, child.D.Name, owner, group, 0700|p.DMDIR, d); err != nil {
+				return err
+			}
 		} else {
 			d, err := newMuscleFile(child, md.tree)
 			if err != nil {
 				return err
 			}
-			d.Add(&md.File, child.D.Name, owner, group, 0700, d)
+			if err := d.Add(&md.File, child.D.Name, owner, group, 0700, d); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -248,7 +252,7 @@ func main() {
 		log.Fatalf("Could not parse log level %q: %v", logLevel, err)
 	}
 	log.SetLevel(ll)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	remoteStore, err := storage.NewStore(cfg)
 	if err != nil {
@@ -265,14 +269,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not build block factory: %v", err)
 	}
-	treeStore, err = tree.NewStore(blockFactory, stagingStore, pairedStore, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
+	treeStore, err = tree.NewStore(blockFactory, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
 	treeFactory = tree.NewFactory(blockFactory, treeStore, cfg)
 
 	var root rootDir
-	root.Add(nil, "/", owner, group, p.DMDIR|0700, &root)
+	_ = root.Add(nil, "/", owner, group, p.DMDIR|0700, &root)
 
 	for _, instance := range cfg.ReadOnlyInstances {
 		d := newInstanceSnapshotsDirectory(instance)
