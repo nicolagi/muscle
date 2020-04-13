@@ -1,3 +1,9 @@
+**Update 2020-04-13.**
+I haven't made functional changes in ages and I don't plan to; the programs here work very well for me.
+I'm experimenting a lot with the code anyway and may introduce regressions as I experiment and try to simplify.
+In retrospect, I should've have tried to extend a CWFS+Venti set up to do what I need, rather than rewrite something similar.
+But of course, when I started this, I didn't know much about CWFS nor the Venti archival system...
+
 # muscle
 
 The muscle project consists of musclefs, snapshotsfs, and muscle.
