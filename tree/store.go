@@ -28,8 +28,6 @@ type Store struct {
 	localRootKeyFile string
 	remoteRootKey    string
 	blockFactory     *block.Factory
-	ephemeral        storage.Enumerable
-	permanent        storage.Store
 	pointers         storage.Store
 	cryptography     *cryptography
 	codec            Codec
@@ -37,8 +35,6 @@ type Store struct {
 
 func NewStore(
 	blockFactory *block.Factory,
-	ephemeral storage.Enumerable,
-	permanent storage.Store,
 	pointers storage.Store,
 	localRootKeyFile string,
 	remoteRootKey string,
@@ -52,8 +48,6 @@ func NewStore(
 		blockFactory:     blockFactory,
 		localRootKeyFile: localRootKeyFile,
 		remoteRootKey:    remoteRootKey,
-		ephemeral:        ephemeral,
-		permanent:        permanent,
 		pointers:         pointers,
 		cryptography:     crp,
 		codec:            newStandardCodec(),
@@ -400,11 +394,6 @@ func (s *Store) MergeBase(arev, brev *Revision) (storage.Pointer, error) {
 	}
 
 	return storage.NewPointerFromHex(base.ID)
-}
-
-// TODO I wish this method could be avoided.
-func (s *Store) IsStaging(k storage.Pointer) (bool, error) {
-	return s.ephemeral.Contains(k.Key())
 }
 
 // Fork writes the first revision for the target instance, using as root

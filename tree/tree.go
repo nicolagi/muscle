@@ -110,43 +110,6 @@ func (tree *Tree) RemoveForMerge(node *Node) error {
 	return nil
 }
 
-func (tree *Tree) ReachableKeysInTheStagingArea() (map[string]struct{}, error) {
-	accumulator := make(map[string]struct{})
-	err := tree.reachableKeysInTheStagingArea(tree.root, accumulator)
-	return accumulator, err
-}
-
-func (tree *Tree) reachableKeysInTheStagingArea(node *Node, accumulator map[string]struct{}) error {
-	if node == nil {
-		return nil
-	}
-	key := node.Key()
-	isStaging, err := tree.store.IsStaging(key)
-	if err != nil {
-		return err
-	}
-	// If this node is not in the staging area, there's no way a
-	// descendant of it is in the staging area, because all
-	// changes to one node percolate to his parent.
-	// If it is packed, we still need to recurse,
-	// so we can't return in that case.
-	if !isStaging {
-		return nil
-	}
-	if isStaging {
-		accumulator[key.Hex()] = struct{}{}
-	}
-	if err := tree.Grow(node); err != nil {
-		return err
-	}
-	for _, child := range node.children {
-		if e := tree.reachableKeysInTheStagingArea(child, accumulator); e != nil {
-			return e
-		}
-	}
-	return nil
-}
-
 func (tree *Tree) ReachableKeys(accumulator map[string]struct{}) (map[string]struct{}, error) {
 	if accumulator == nil {
 		accumulator = make(map[string]struct{})

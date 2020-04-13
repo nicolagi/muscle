@@ -82,8 +82,6 @@ func scratchTree() (*Tree, string, error) {
 	}
 	st, err := NewStore(
 		bf,
-		diskStore,
-		paired,
 		nil,
 		rootFile,
 		"remote.root.darkstar",

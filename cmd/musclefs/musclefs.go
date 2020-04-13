@@ -27,7 +27,6 @@ type ops struct {
 
 	factory   *tree.Factory
 	treeStore *tree.Store
-	martino   *storage.Martino
 
 	// Serializes access to the tree.
 	mu   sync.Mutex
@@ -287,24 +286,6 @@ func runCommand(ops *ops, cmd string) error {
 		}
 		ops.tree.SetRevision(revision)
 
-		// III. Mark keys that need to be persisted.
-		toPersist, err := ops.tree.ReachableKeysInTheStagingArea()
-		if err != nil {
-			return fmt.Errorf("could not mark keys to persist: %v", err)
-		}
-		// Temporary logging. I want to make sure this part is no longer needed, I can then rip out some code.
-		log.Printf("got=%d want=%d keys to persist", len(toPersist), 0)
-		fmt.Fprintf(outputBuffer, "have to persist %d keys\n", len(toPersist))
-
-		// IV. Commit.
-		err = ops.martino.Commit(func(k storage.Key) bool {
-			_, found := toPersist[string(k)]
-			return found
-		})
-		if err != nil {
-			return fmt.Errorf("could not persist: %v", err)
-		}
-
 		// Save remote root pointer.
 		if e := ops.treeStore.UpdateRemoteRevision(revision); e != nil {
 			return e
@@ -488,12 +469,11 @@ func main() {
 	// propagation immediately.
 	pairedStore.EnsureBackgroundPuts()
 
-	martino := storage.NewMartino(stagingStore, pairedStore)
 	blockFactory, err := block.NewFactory(stagingStore, pairedStore, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not build block factory: %v", err)
 	}
-	treeStore, err := tree.NewStore(blockFactory, stagingStore, pairedStore, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
+	treeStore, err := tree.NewStore(blockFactory, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -510,7 +490,6 @@ func main() {
 	ops := &ops{
 		factory:            factory,
 		treeStore:          treeStore,
-		martino:            martino,
 		tree:               tt,
 		c:                  new(ctl),
 		mergeConflictsPath: cfg.ConflictResolutionDirectoryPath(),
