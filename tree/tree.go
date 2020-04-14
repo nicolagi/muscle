@@ -82,6 +82,7 @@ func (tree *Tree) Remove(node *Node) error {
 	}
 	node.parent.removeChild(node.D.Name)
 	node.parent.markDirty()
+	node.discard()
 	return nil
 }
 

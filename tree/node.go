@@ -547,3 +547,30 @@ func (node *Node) ReadAt(p []byte, off int64) (int, error) {
 	m, err := node.ReadAt(p[n:], off+int64(n))
 	return n + m, err
 }
+
+func (node *Node) metadataBlock() (*block.Block, error) {
+	ref, err := block.NewRef([]byte(node.pointer))
+	if err != nil {
+		return nil, err
+	}
+	b, err := node.blockFactory.New(ref, metadataBlockMaxSize)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (node *Node) discard() {
+	for _, b := range node.blocks {
+		b.Discard()
+	}
+	if len(node.pointer) > 0 {
+		if b, err := node.metadataBlock(); err != nil {
+			log.Printf("tree.Node.discard: %v", err)
+		} else if b != nil {
+			b.Discard()
+		}
+	}
+	node.blocks = nil
+	node.pointer = nil
+}

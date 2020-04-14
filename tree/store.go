@@ -62,13 +62,12 @@ func (s *Store) StoreNode(node *Node) error {
 	if err != nil {
 		return errw(err)
 	}
-	var ref block.Ref
+	var blk *block.Block
 	if len(node.pointer) > 0 {
-		if ref, err = block.NewRef([]byte(node.pointer)); err != nil {
-			return errw(err)
-		}
+		blk, err = node.metadataBlock()
+	} else {
+		blk, err = s.blockFactory.New(nil, metadataBlockMaxSize)
 	}
-	blk, err := s.blockFactory.New(ref, metadataBlockMaxSize)
 	if err != nil {
 		return errw(err)
 	}
@@ -166,11 +165,7 @@ func (s *Store) LoadNode(dst *Node) error {
 		return fmt.Errorf("tree.Store.LoadNode: %w", e)
 	}
 	dst.blockFactory = s.blockFactory
-	ref, err := block.NewRef([]byte(dst.pointer))
-	if err != nil {
-		return errw(err)
-	}
-	blk, err := s.blockFactory.New(ref, metadataBlockMaxSize)
+	blk, err := dst.metadataBlock()
 	if err != nil {
 		return errw(err)
 	}
