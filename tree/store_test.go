@@ -25,7 +25,6 @@ func TestStoreFork(t *testing.T) {
 		remoteStore,
 		"",
 		tree.RemoteRootKeyPrefix+instance,
-		storage.RandomPointer().Bytes(),
 	)
 	require.Nil(t, err)
 

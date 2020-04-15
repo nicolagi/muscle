@@ -473,7 +473,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not build block factory: %v", err)
 	}
-	treeStore, err := tree.NewStore(blockFactory, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance, cfg.EncryptionKeyBytes())
+	treeStore, err := tree.NewStore(blockFactory, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance)
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}

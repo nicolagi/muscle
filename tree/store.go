@@ -29,7 +29,6 @@ type Store struct {
 	remoteRootKey    string
 	blockFactory     *block.Factory
 	pointers         storage.Store
-	cryptography     *cryptography
 	codec            Codec
 }
 
@@ -38,18 +37,12 @@ func NewStore(
 	pointers storage.Store,
 	localRootKeyFile string,
 	remoteRootKey string,
-	key []byte,
 ) (*Store, error) {
-	crp, err := newCryptography(key)
-	if err != nil {
-		return nil, err
-	}
 	return &Store{
 		blockFactory:     blockFactory,
 		localRootKeyFile: localRootKeyFile,
 		remoteRootKey:    remoteRootKey,
 		pointers:         pointers,
-		cryptography:     crp,
 		codec:            newStandardCodec(),
 	}, nil
 }
