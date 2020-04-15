@@ -57,7 +57,8 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 			Uid:  nodeUID,
 		},
 	}
-	child.recomputeQID()
+	child.D.Qid.Path = uint64(time.Now().UnixNano())
+	child.D.Qid.Version = 1
 	child.updateMTime()
 	if perm&p.DMDIR != 0 {
 		child.D.Qid.Type = p.QTDIR
@@ -208,6 +209,5 @@ func (tree *Tree) Rename(source, target string) error {
 		nodeToMove.markDirty()
 		return nil
 	}
-	nodeToMove.recomputeQID()
 	return fmt.Errorf("add failed")
 }

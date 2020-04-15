@@ -14,6 +14,7 @@ func TestLatestCodecForNodes(t *testing.T) {
 	c := newMultiCodec()
 	c.register(13, &codecV13{})
 	c.register(14, &codecV14{})
+	c.register(15, &codecV15{})
 	key := make([]byte, 16)
 	factory, err := block.NewFactory(nil, nil, key)
 	if err != nil {
@@ -23,6 +24,9 @@ func TestLatestCodecForNodes(t *testing.T) {
 		f := func(
 			name string,
 			flags uint8,
+			qidType uint8,
+			qidPath uint64,
+			qidVersion uint32,
 			bsize uint32,
 			mode uint32,
 			mtime uint32,
@@ -34,6 +38,11 @@ func TestLatestCodecForNodes(t *testing.T) {
 			input := &Node{}
 			input.flags = nodeFlags(flags) & ^(loaded | dirty)
 			input.bsize = bsize
+			input.D.Qid = p.Qid{
+				Type:    qidType,
+				Path:    qidPath,
+				Version: qidVersion,
+			}
 			input.D.Name = name
 			input.D.Mode = mode
 			input.D.Mtime = mtime

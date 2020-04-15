@@ -2,7 +2,6 @@ package tree
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"errors"
 	"fmt"
 	"path"
@@ -370,20 +369,6 @@ func (node *Node) Rename(newName string) {
 	node.markDirty()
 }
 
-func (node *Node) recomputeQID() {
-	node.D.Qid.Version = 0
-	if node.pointer != nil {
-		for _, b := range node.pointer.Bytes()[:4] {
-			node.D.Qid.Version = (node.D.Qid.Version << 8) | uint32(b)
-		}
-	}
-	node.D.Qid.Path = 0
-	checksum := sha1.Sum([]byte(node.Path()))
-	for _, b := range checksum[:8] {
-		node.D.Qid.Path = (node.D.Qid.Path << 8) | uint64(b)
-	}
-}
-
 // TODO nodesByName?
 type NodeSlice []*Node
 
@@ -416,6 +401,7 @@ func (node *Node) Truncate(requestedSize uint64) error {
 	}
 	node.D.Length = requestedSize
 	node.updateMTime()
+	node.D.Qid.Version++
 	return nil
 }
 
@@ -485,6 +471,7 @@ func (node *Node) WriteAt(p []byte, off int64) error {
 		return err
 	}
 	node.updateMTime()
+	node.D.Qid.Version++
 	return nil
 }
 

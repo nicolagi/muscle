@@ -82,7 +82,6 @@ func (s *Store) StoreNode(node *Node) error {
 	}
 	node.pointer = storage.Pointer(blk.Ref().Bytes())
 	node.flags &^= dirty
-	node.recomputeQID()
 	return nil
 }
 
@@ -119,7 +118,6 @@ func (s *Store) SealNode(node *Node) error {
 	}
 	node.pointer = storage.Pointer(blk.Ref().Bytes())
 	node.flags &^= dirty
-	node.recomputeQID()
 	return nil
 }
 
@@ -178,7 +176,6 @@ func (s *Store) LoadNode(dst *Node) error {
 	}
 	dst.D.Uid = nodeUID
 	dst.D.Gid = nodeGID
-	dst.recomputeQID()
 	dst.flags |= loaded
 	return nil
 }
