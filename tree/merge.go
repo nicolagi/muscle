@@ -83,9 +83,9 @@ func Merge(keepLocalFn KeepLocalFn, dst *Tree, srcInstance string, factory *Fact
 		return fmt.Errorf("could not build tree for %q (ancestor): %v", ancestor.Hex(), err)
 	}
 	defer func() {
-		fmt.Printf("echo flush > %s/ctl\n", cfg.MuscleFSMount)
+		fmt.Println("flush")
 		fmt.Println("# If all is merged fine, run the following to create a merge commit.")
-		fmt.Printf("# echo snapshot %s > %s/ctl\n", remote.key.Hex(), cfg.MuscleFSMount)
+		fmt.Printf("# snapshot %s\n", remote.key.Hex())
 	}()
 	return merge3way(keepLocalFn, dst, ancestorTree, remoteTree, dst.root, ancestorTree.root, remoteTree.root, ancestor.Hex(), remote.key.Hex(), cfg)
 }
@@ -135,9 +135,9 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 		}
 		p = strings.TrimPrefix(p, "root/")
 		if remote != nil {
-			fmt.Printf("echo graft %s/%s %s > %s/ctl\n", remoteRev, p, p, cfg.MuscleFSMount)
+			fmt.Printf("graft %s/%s %s\n", remoteRev, p, p)
 		} else {
-			fmt.Printf("# echo rm -rf %s/%s\n", cfg.MuscleFSMount, p)
+			fmt.Printf("unlink %s\n", p)
 		}
 		return nil
 	}
@@ -163,8 +163,8 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 			p := remote.Path()
 			fmt.Printf("%s/%s\n", remoteRev, p)
 			p = strings.TrimPrefix(p, "root/")
-			fmt.Printf("# echo graft %s/%s %s > %s/ctl\n", remoteRev, p, p+".merge-conflict", cfg.MuscleFSMount)
-			fmt.Printf("# echo graft %s/%s %s > %s/ctl\n", remoteRev, p, p, cfg.MuscleFSMount)
+			fmt.Printf("# graft %s/%s %s\n", remoteRev, p, p+".merge-conflict")
+			fmt.Printf("# graft %s/%s %s\n", remoteRev, p, p)
 			localVersion := filepath.Join(
 				cfg.MuscleFSMount,
 				p,
@@ -180,7 +180,7 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 				p,
 			)
 			fmt.Printf("meld %s %s %s\n", localVersion, baseVersion, remoteVersion)
-			fmt.Printf("# echo keep-local-for %s/%s > %s/ctl\n", remoteRev, p, cfg.MuscleFSMount)
+			fmt.Printf("# keep-local-for %s/%s\n", remoteRev, p)
 		}
 		fmt.Println("EOE")
 		return nil
