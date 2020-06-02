@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -19,6 +18,7 @@ import (
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -193,6 +193,23 @@ func runCommand(ops *ops, cmd string) error {
 		if err != nil {
 			return fmt.Errorf("could not rename %q to %q: %v", args[0], args[1], err)
 		}
+	case "unlink":
+		if len(args) == 0 {
+			return errors.New("missing argument to unlink")
+		}
+		elems := strings.Split(args[0], "/")
+		if len(elems) == 0 {
+			return errors.Errorf("not enough elements in path: %v", args[0])
+		}
+		_, r := ops.tree.Root()
+		nn, err := ops.tree.Walk(r, elems...)
+		if err != nil {
+			return errors.Wrapf(err, "could not walk the local tree along %v", elems)
+		}
+		if len(nn) != len(elems) {
+			return errors.Errorf("walked %d path elements, required %d", len(nn), len(elems))
+		}
+		return ops.tree.RemoveForMerge(nn[len(nn)-1])
 	case "graft":
 		parts := strings.Split(args[0], "/")
 		revision := parts[0]
