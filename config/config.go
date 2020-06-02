@@ -72,6 +72,9 @@ type C struct {
 	// Identifies the filesystem, I use the hostname.
 	Instance string `json:"instance"`
 
+	// Path to cache. Defaults to $HOME/lib/muscle/cache.
+	CacheDirectory string `json:"cache-directory"`
+
 	// Permanent storage type - can be "s3" or "null" at present.
 	Storage string `json:"storage"`
 
@@ -147,6 +150,9 @@ func (c *C) SnapshotsFSListenAddr() string {
 }
 
 func (c *C) CacheDirectoryPath() string {
+	if c.CacheDirectory != "" {
+		return c.CacheDirectory
+	}
 	return path.Join(c.base, "cache")
 }
 
