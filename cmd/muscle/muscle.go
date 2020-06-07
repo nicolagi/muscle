@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	stdlog "log"
 	"os"
 	"os/user"
 	"regexp"
@@ -481,7 +482,7 @@ func main() {
 		defer cleanup()
 		err = tree.Merge(keepLocalFn, localTree, mergeContext.tree, treeFactory, cfg)
 		if err != nil {
-			fmt.Printf("There was a fatal error: %v\n", err)
+			stdlog.Fatalf("%+v", err)
 		}
 
 	case "merge-base":

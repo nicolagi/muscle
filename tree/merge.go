@@ -72,7 +72,7 @@ func Merge(keepLocalFn KeepLocalFn, dst *Tree, srcInstance string, factory *Fact
 	dstrev := NewRevision(dst.instance, dst.root.pointer, []storage.Pointer{parentKey})
 	ancestor, err := factory.store.MergeBase(dstrev, remote)
 	if err != nil {
-		return fmt.Errorf("could not find ancestor for %q (destination, local) and %q (source, remote): %v", dst.revision.Hex(), remote.key.Hex(), err)
+		return err
 	}
 	remoteTree, err := factory.NewTree(factory.WithRevisionKey(remote.key))
 	if err != nil {

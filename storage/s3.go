@@ -2,7 +2,6 @@ package storage // import "github.com/nicolagi/muscle/storage"
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -12,9 +11,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/nicolagi/muscle/config"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 var _ Store = (*s3Store)(nil)
@@ -45,7 +44,7 @@ func (s *s3Store) Get(key Key) (contents Value, err error) {
 	if err != nil {
 		if rfErr, ok := err.(awserr.RequestFailure); ok {
 			if rfErr.StatusCode() == http.StatusNotFound {
-				return nil, fmt.Errorf("%q: %w", key, ErrNotFound)
+				return nil, errors.Wrapf(ErrNotFound, "key=%q err=%+v", key, err)
 			}
 		}
 		return nil, err

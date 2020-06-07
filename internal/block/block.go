@@ -70,7 +70,7 @@ func (block *Block) Read(p []byte, off int) (n int, err error) {
 // ReadAll returns a copy of the content of the block.
 func (block *Block) ReadAll() ([]byte, error) {
 	if err := block.ensureReadable(); err != nil {
-		return nil, fmt.Errorf("block.Block.ReadAll: %w", err)
+		return nil, err
 	}
 	dup := make([]byte, len(block.value))
 	copy(dup, block.value)
@@ -263,7 +263,7 @@ func (block *Block) load() (err error) {
 		panic("block.Block.load: unknown location")
 	}
 	if err != nil {
-		return fmt.Errorf("block.Block.load: %w", err)
+		return err
 	}
 	block.value = block.cipher.decrypt(ciphertext)
 	block.state = clean

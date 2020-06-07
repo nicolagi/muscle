@@ -245,7 +245,7 @@ func (s *Store) LoadRevisionByKey(key storage.Pointer) (*Revision, error) {
 	}
 	b, err := blk.ReadAll()
 	if err != nil {
-		return nil, errw(err)
+		return nil, err
 	}
 	r := &Revision{key: key}
 	err = s.codec.decodeRevision(b, r)

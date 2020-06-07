@@ -2,9 +2,12 @@ package mergebase
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
+	stdlog "log"
 	"sort"
+
+	"github.com/nicolagi/muscle/storage"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -128,6 +131,10 @@ outerLoop:
 		}
 		f.visited[a].add(child)
 		parents, err := f.fn(child)
+		if errors.Is(err, storage.ErrNotFound) {
+			stdlog.Printf("Trimming search path because child %q was not found.", child)
+			continue
+		}
 		if err != nil {
 			f.err = err
 			break
