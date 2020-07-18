@@ -12,7 +12,7 @@ require (
 	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af // indirect
 	github.com/jtolds/gls v0.0.0-20170503224851-77f18212c9c7 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
-	github.com/nicolagi/go9p v0.0.0-20190223215146-b21015e18963
+	github.com/lionkov/go9p v0.0.0-20190125202718-b4200817c487
 	github.com/pkg/errors v0.9.1
 	github.com/sergi/go-diff v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.4.2
@@ -27,3 +27,5 @@ require (
 )
 
 go 1.13
+
+replace github.com/lionkov/go9p v0.0.0-20190125202718-b4200817c487 => github.com/nicolagi/go9p v0.0.0-20190223213930-d791c5b05663

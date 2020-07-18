@@ -10,7 +10,7 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/google/go-cmp/cmp"
-	"github.com/nicolagi/go9p/p"
+	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"

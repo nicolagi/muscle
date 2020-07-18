@@ -4,7 +4,7 @@ package main
 
 import (
 	"github.com/google/gops/agent"
-	"github.com/nicolagi/go9p/p"
+	"github.com/lionkov/go9p/p"
 	log "github.com/sirupsen/logrus"
 )
 

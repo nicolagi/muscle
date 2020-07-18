@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nicolagi/go9p/p"
-	"github.com/nicolagi/go9p/p/srv"
+	"github.com/lionkov/go9p/p"
+	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/storage"
 	log "github.com/sirupsen/logrus"
 )

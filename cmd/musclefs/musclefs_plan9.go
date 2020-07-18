@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"github.com/nicolagi/go9p/p"
+	"github.com/lionkov/go9p/p"
 )
 
 type user string

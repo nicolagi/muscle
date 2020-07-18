@@ -4,7 +4,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/nicolagi/go9p/p"
+	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
