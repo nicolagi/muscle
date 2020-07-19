@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"9fans.net/go/plumb"
@@ -12,6 +13,7 @@ import (
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree/mergebase"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -185,6 +187,63 @@ func (s *Store) updateLocalRootPointer(rootKey storage.Pointer) error {
 
 func (s *Store) UpdateRemoteRevision(r *Revision) error {
 	return s.pointers.Put(storage.Key(s.remoteRootKey), []byte(r.key.Hex()))
+}
+
+// LocalBasePointer reads the file $HOME/lib/muscle/base, expecting
+// to find a hex-encoded storage.Pointer that points to a revision.
+func LocalBasePointer() (storage.Pointer, error) {
+	pathname := os.ExpandEnv("$HOME/lib/muscle/base")
+	if content, err := ioutil.ReadFile(pathname); os.IsNotExist(err) {
+		return storage.Null, nil
+	} else if err != nil {
+		return storage.Null, errors.WithStack(err)
+	} else {
+		return storage.NewPointerFromHex(strings.TrimSpace(string(content)))
+	}
+}
+
+// SetLocalBasePointer atomically updates $HOME/lib/muscle/base, and
+// adds an entry to $HOME/lib/muscle/base.history for the previous
+// base pointer.
+func SetLocalBasePointer(pointer storage.Pointer) error {
+	previous, err := LocalBasePointer()
+	if err != nil {
+		return err
+	}
+	pathname := os.ExpandEnv("$HOME/lib/muscle/base")
+	if f, err := os.OpenFile(pathname+".history", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666); err != nil {
+		return errors.WithStack(err)
+	} else {
+		_, werr := fmt.Fprintf(f, "%d	%s\n", time.Now().Unix(), previous.Hex())
+		cerr := f.Close()
+		if werr != nil {
+			return errors.WithStack(werr)
+		}
+		if cerr != nil {
+			return errors.WithStack(cerr)
+		}
+	}
+	if err := ioutil.WriteFile(pathname+".new", []byte(pointer.Hex()), 0666); err != nil {
+		return errors.WithStack(err)
+	}
+	if err := os.Rename(pathname+".new", pathname); err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
+}
+
+func (s *Store) RemoteBasePointer() (storage.Pointer, error) {
+	if content, err := s.pointers.Get("base"); errors.Is(err, storage.ErrNotFound) {
+		return storage.Null, nil
+	} else if err != nil {
+		return storage.Null, err
+	} else {
+		return storage.NewPointerFromHex(strings.TrimSpace(string(content)))
+	}
+}
+
+func (s *Store) SetRemoteBasePointer(pointer storage.Pointer) error {
+	return s.pointers.Put("base", []byte(pointer.Hex()))
 }
 
 func (s *Store) LocalRootKey() (storage.Pointer, error) {

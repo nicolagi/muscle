@@ -189,6 +189,18 @@ func runCommand(ops *ops, cmd string) error {
 	args = args[1:]
 
 	outputBuffer := bytes.NewBuffer(nil)
+
+	// A helper function to return an error, and also add it to the output.
+	output := func(err error) error {
+		_, _ = fmt.Fprintf(outputBuffer, "%+v", err)
+		return err
+	}
+
+	// Ensure the output is available even in the case of an early error return.
+	defer func() {
+		ops.c.contents = outputBuffer.Bytes()
+	}()
+
 	switch cmd {
 	case "level":
 		if err := setLevel(args[0]); err != nil {
@@ -281,6 +293,23 @@ func runCommand(ops *ops, cmd string) error {
 			return fmt.Errorf("could not flush: %v", err)
 		}
 		_, _ = fmt.Fprintln(outputBuffer, "flushed")
+	case "pull":
+		_, _ = fmt.Fprintln(outputBuffer, "pull is a dummy operation")
+		return nil
+	case "push":
+		localbase, err := tree.LocalBasePointer()
+		if err != nil {
+			return output(err)
+		}
+		remotebase, err := ops.treeStore.RemoteBasePointer()
+		if err != nil {
+			return output(err)
+		}
+		if !localbase.Equals(remotebase) {
+			return output(errors.Errorf("local base %v does not match remote base %v, pull first", localbase, remotebase))
+		}
+		_, _ = fmt.Fprintln(outputBuffer, "local base matches remote base, push allowed (dummy operation)")
+		return nil
 	case "snapshot":
 		// Any additional parents for the snapshot. This is used for merges.
 		var parents []storage.Pointer
@@ -328,8 +357,6 @@ func runCommand(ops *ops, cmd string) error {
 	default:
 		return fmt.Errorf("command not recognized: %q", cmd)
 	}
-
-	ops.c.contents = outputBuffer.Bytes()
 
 	return nil
 }

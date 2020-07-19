@@ -375,6 +375,9 @@ func main() {
 		log.WithField("count", len(m)).Info("Found stored keys that are no longer needed")
 		i := 0
 		for keyHex := range m {
+			if keyHex == "base" || strings.HasPrefix(keyHex, tree.RemoteRootKeyPrefix) {
+				continue
+			}
 			key, _ := storage.NewPointerFromHex(keyHex) // TODO handle rror
 			// TODO log a warning
 			// TODO rethink output
