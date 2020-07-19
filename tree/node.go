@@ -20,9 +20,10 @@ const (
 	// A dirty node is one that has mutated since it was loaded from
 	// storage; it should be persisted before exiting and before unloading
 	// the node, at the very least.
-	dirty nodeFlags = 1 << 1
-	// This will be used in a later CL.
+	dirty  nodeFlags = 1 << 1
 	sealed nodeFlags = 1 << 2
+	// The node was unlinked from the tree by a merge or rename operation.
+	unlinked nodeFlags = 1 << 3
 	// If you add flags here, add them to nodeFlags.String as well.
 )
 
@@ -41,7 +42,10 @@ func (ff nodeFlags) String() string {
 	if ff&sealed != 0 {
 		buf.WriteString("sealed,")
 	}
-	if ff & ^(loaded|dirty|sealed) != 0 {
+	if ff&unlinked != 0 {
+		buf.WriteString("unlinked,")
+	}
+	if ff & ^(loaded|dirty|sealed|unlinked) != 0 {
 		buf.WriteString("extraneous,")
 	}
 	buf.Truncate(buf.Len() - 1)

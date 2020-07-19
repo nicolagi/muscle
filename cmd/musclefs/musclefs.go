@@ -40,6 +40,8 @@ type ops struct {
 
 var (
 	_ srv.ReqOps = (*ops)(nil)
+
+	Eunlinked error = &p.Error{Err: "fid points to unlinked node", Errornum: p.EINVAL}
 )
 
 func (ops *ops) Attach(r *srv.Req) {
@@ -58,6 +60,10 @@ func (ops *ops) Walk(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
+	if node.Unlinked() {
+		r.RespondError(Eunlinked)
+		return
+	}
 	if len(r.Tc.Wname) == 0 {
 		node.Ref("clone")
 		r.Newfid.Aux = node
@@ -98,6 +104,10 @@ func (ops *ops) Open(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
+	if node.Unlinked() {
+		r.RespondError(Eunlinked)
+		return
+	}
 	switch {
 	case node.IsDir():
 		if err := ops.tree.Grow(node); err != nil {
@@ -120,6 +130,10 @@ func (ops *ops) Create(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	parent := r.Fid.Aux.(*tree.Node)
+	if parent.Unlinked() {
+		r.RespondError(Eunlinked)
+		return
+	}
 	var node *tree.Node
 	var err error
 	node, err = ops.tree.Add(parent, r.Tc.Name, r.Tc.Perm)
@@ -137,6 +151,10 @@ func (ops *ops) Read(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
+	if node.Unlinked() {
+		r.RespondError(Eunlinked)
+		return
+	}
 	if err := p.InitRread(r.Rc, r.Tc.Count); err != nil {
 		r.RespondError(err)
 		return
@@ -320,6 +338,10 @@ func (ops *ops) Write(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
+	if node.Unlinked() {
+		r.RespondError(Eunlinked)
+		return
+	}
 	if node.IsController() {
 		// Assumption: One Twrite per command.
 		if err := runCommand(ops, string(r.Tc.Data)); err != nil {
@@ -340,6 +362,7 @@ func (ops *ops) Clunk(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
+	/*  Respond with Rclunk even if unlinked. Caller won't care. */
 	defer node.Unref("clunk")
 	r.RespondRclunk()
 }
@@ -348,6 +371,10 @@ func (ops *ops) Remove(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
+	if node.Unlinked() {
+		r.RespondError(Eunlinked)
+		return
+	}
 	node.Unref("remove")
 	if node.IsController() {
 		r.RespondError(srv.Eperm)
@@ -369,6 +396,10 @@ func (ops *ops) Stat(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
+	if node.Unlinked() {
+		r.RespondError(Eunlinked)
+		return
+	}
 	r.RespondRstat(&node.D)
 }
 
@@ -376,6 +407,10 @@ func (ops *ops) Wstat(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*tree.Node)
+	if node.Unlinked() {
+		r.RespondError(Eunlinked)
+		return
+	}
 	dir := r.Tc.Dir
 	if dir.ChangeLength() {
 		if node.IsDir() {

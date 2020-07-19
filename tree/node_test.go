@@ -19,7 +19,7 @@ func TestNodeFlagsString(t *testing.T) {
 		{dirty, "dirty"},
 		{sealed, "sealed"},
 		{loaded | dirty, "loaded,dirty"},
-		{42, "dirty,extraneous"},
+		{42, "dirty,unlinked,extraneous"}, // bits 1, 3, 5
 	}
 	for _, tc := range testCases {
 		if got, want := tc.input.String(), tc.output; got != want {

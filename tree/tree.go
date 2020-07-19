@@ -100,6 +100,9 @@ func (tree *Tree) RemoveForMerge(node *Node) error {
 	if node.IsRoot() {
 		return errors.New("the root cannot be removed")
 	}
+	if node.refs > 0 {
+		node.markUnlinked(node.Path())
+	}
 	parent := node.parent
 	removedCount := parent.removeChild(node.D.Name)
 	if removedCount == 0 {
@@ -151,9 +154,6 @@ func (tree *Tree) Flush() error {
 // The parent from the local tree. We will make the child a child of
 // the parent.
 func (tree *Tree) Graft(parent *Node, child *Node) error {
-	if !parent.IsRoot() && parent.refs > 0 {
-		return fmt.Errorf("%q: %w", parent.Path(), ErrInUse)
-	}
 	if e := tree.Grow(parent); e != nil {
 		return e
 	}
@@ -164,6 +164,9 @@ func (tree *Tree) Graft(parent *Node, child *Node) error {
 	}
 	if added := parent.add(child); added {
 		parent.markDirty()
+		if parent.refs > 0 {
+			parent.PrepareForReads()
+		}
 		return nil
 	}
 	return srv.Eexist
