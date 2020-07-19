@@ -316,20 +316,20 @@ func runCommand(ops *ops, cmd string) error {
 		for _, arg := range args {
 			key, err := storage.NewPointerFromHex(arg)
 			if err != nil {
-				return fmt.Errorf("%q: %w", arg, err)
+				return output(fmt.Errorf("%q: %w", arg, err))
 			}
 			parents = append(parents, key)
 		}
 
 		// I. Dump from memory to staging area.
 		if err := ops.tree.Flush(); err != nil {
-			return fmt.Errorf("could not flush: %v", err)
+			return output(fmt.Errorf("could not flush: %+v", err))
 		}
 		_, _ = fmt.Fprintln(outputBuffer, "flushed")
 
 		// Ibis. Seal the data blocks.
 		if err := ops.tree.Seal(); err != nil {
-			return fmt.Errorf("could not seal: %v", err)
+			return output(fmt.Errorf("could not seal: %+v", err))
 		}
 		_, _ = fmt.Fprintln(outputBuffer, "sealed")
 
@@ -337,7 +337,7 @@ func runCommand(ops *ops, cmd string) error {
 		_, localRoot := ops.tree.Root()
 		remoteRevisionKey, err := ops.treeStore.RemoteRevisionKey("")
 		if err != nil && !errors.Is(err, storage.ErrNotFound) {
-			return fmt.Errorf("could not get remote revision: %v", err)
+			return output(fmt.Errorf("could not get remote revision: %+v", err))
 		}
 		// DO NOT change order of revision keys or you'll break history.
 		// The history code assumes the parent to follow to reconstruct the history of an instance is the last one.
@@ -346,14 +346,15 @@ func runCommand(ops *ops, cmd string) error {
 		}
 		revision := tree.NewRevision(ops.instanceID, localRoot.Key(), parents)
 		if err := ops.treeStore.StoreRevision(revision); err != nil {
-			return err
+			return output(err)
 		}
 		ops.tree.SetRevision(revision)
 
 		// Save remote root pointer.
 		if e := ops.treeStore.UpdateRemoteRevision(revision); e != nil {
-			return e
+			return output(e)
 		}
+		return nil
 	default:
 		return fmt.Errorf("command not recognized: %q", cmd)
 	}
