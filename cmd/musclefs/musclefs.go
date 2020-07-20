@@ -360,7 +360,7 @@ func runCommand(ops *ops, cmd string) error {
 			return output(err)
 		}
 		ops.tree.SetRevision(revision)
-		_, _ = fmt.Fprintf(outputBuffer, "push: revision created: %v", revision)
+		_, _ = fmt.Fprintf(outputBuffer, "push: revision created: %s\n", revision.ShortString())
 
 		if err := ops.treeStore.SetRemoteBasePointer(revision.Key()); err != nil {
 			return output(err)

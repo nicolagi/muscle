@@ -44,6 +44,16 @@ func (r *Revision) Time() time.Time {
 	return time.Unix(r.when, 0)
 }
 
+func (r *Revision) ShortString() string {
+	return fmt.Sprintf(
+		"host=%s root=%v key=%v parents=%v",
+		r.hostname,
+		r.rootKey,
+		r.key,
+		r.parents,
+	)
+}
+
 func (r *Revision) String() string {
 	when := time.Unix(r.when, 0)
 	ago := time.Since(when).Truncate(time.Second).String()
