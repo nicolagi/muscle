@@ -4,15 +4,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
-	"9fans.net/go/plumb"
 	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
-	"github.com/nicolagi/muscle/tree/mergebase"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -373,69 +370,4 @@ func (s *Store) history(r *Revision, maxRevisions int) (rr []*Revision, err erro
 		}
 	}
 	return
-}
-
-// MergeBase finds a revision that is a common parent of revisions a and b.
-func (s *Store) MergeBase(arev, brev *Revision) (storage.Pointer, error) {
-	prefetched := make(map[string]*Revision)
-
-	fetch := func(rp storage.Pointer) (*Revision, error) {
-		r, err := s.LoadRevisionByKey(rp)
-		if err == nil {
-			prefetched[rp.Hex()] = r
-		}
-		return r, err
-	}
-
-	convert := func(r *Revision) mergebase.Node {
-		return mergebase.Node{
-			GraphID: r.instance,
-			ID:      r.key.Hex(),
-		}
-	}
-
-	prefetched[arev.key.Hex()] = arev
-	prefetched[brev.key.Hex()] = brev
-
-	graph, base, err := mergebase.Find(convert(arev), convert(brev), func(child mergebase.Node) (parents []mergebase.Node, err error) {
-		for _, rp := range prefetched[child.ID].parents {
-			r, err := fetch(rp)
-			if err != nil {
-				return nil, err
-			}
-			parents = append(parents, convert(r))
-		}
-		return parents, nil
-	})
-	if err != nil {
-		return storage.Null, err
-	}
-
-	// Best effort for my personal use - might expose it someday.
-	output, err := ioutil.TempFile("", "muscle*.dot")
-	if err == nil {
-		_, _ = fmt.Fprintln(output, graph)
-		_ = output.Close()
-		defer func() {
-			if err := exec.Command("dot", "-O", "-Tpng", output.Name()).Run(); err == nil {
-				fid, err := plumb.Open("send", p.OWRITE)
-				if err != nil {
-					log.Printf("Could not open plumb port %q for writing: %v", "send", err)
-					return
-				}
-				msg := plumb.Message{
-					Type: "text",
-					Data: []byte(output.Name() + ".png"),
-				}
-				if err := msg.Send(fid); err != nil {
-					log.Printf("Could not send %v: %v", &msg, err)
-				}
-				if err := fid.Close(); err != nil {
-					log.Printf("Could not close %v: %v", fid, err)
-				}
-			}
-		}()
-	}
-
-	return storage.NewPointerFromHex(base.ID)
 }

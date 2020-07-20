@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	stdlog "log"
 	"os"
 	"os/user"
 	"regexp"
@@ -57,15 +56,6 @@ var (
 		names   bool
 		verbose bool
 		maxSize int
-	}
-
-	mergeContext struct {
-		tree string
-	}
-
-	mergeBaseContext struct {
-		rev1 string
-		rev2 string
 	}
 )
 
@@ -195,19 +185,6 @@ func main() {
 		if narg := emptyFlags.NArg(); narg != 0 {
 			exitUsage(fmt.Sprintf("list: no args expected, got %d", narg))
 		}
-	case "merge":
-		_ = emptyFlags.Parse(os.Args[2:])
-		if narg := emptyFlags.NArg(); narg != 1 {
-			exitUsage(fmt.Sprintf("merge: expected 1 positional argument for the remote tree to merge into the local one, got %d\n", narg))
-		}
-		mergeContext.tree = emptyFlags.Arg(0)
-	case "merge-base":
-		_ = emptyFlags.Parse(os.Args[2:])
-		if narg := emptyFlags.NArg(); narg != 2 {
-			exitUsage(fmt.Sprintf("merge-base: expected 2 positional arguments (for revisions), got %d\n", narg))
-		}
-		mergeBaseContext.rev1 = emptyFlags.Arg(0)
-		mergeBaseContext.rev2 = emptyFlags.Arg(1)
 	case "mount":
 		_ = emptyFlags.Parse(os.Args[2:])
 		if narg := emptyFlags.NArg(); narg != 0 {
@@ -443,42 +420,6 @@ func main() {
 				fmt.Println(key)
 			}
 		}
-
-	case "merge":
-		if mergeContext.tree == cfg.Instance {
-			log.Fatalf("Refusing to merge %q onto itself", mergeContext.tree)
-		}
-		localRootKey, err := treeStore.LocalRootKey()
-		if err != nil {
-			log.Fatal(err)
-		}
-		localTree, err := treeFactory.NewTree(treeFactory.WithRootKey(localRootKey))
-		if err != nil {
-			log.Fatal(err)
-		}
-		keepLocalFn, cleanup := tree.MustKeepLocalFn(cfg.ConflictResolutionDirectoryPath())
-		defer cleanup()
-		err = tree.Merge(keepLocalFn, localTree, mergeContext.tree, treeFactory, cfg)
-		if err != nil {
-			stdlog.Fatalf("%+v", err)
-		}
-
-	case "merge-base":
-		cmdlog := log.WithField("op", cmd)
-
-		rev1 := mustParseRevision(cmdlog, treeStore, cfg.Instance, mergeBaseContext.rev1)
-		rev2 := mustParseRevision(cmdlog, treeStore, cfg.Instance, mergeBaseContext.rev2)
-
-		// TODO it would be nice to have the distance too
-		mb, err := treeStore.MergeBase(rev1, rev2)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"rev1":  rev1.Key(),
-				"rev2":  rev2.Key(),
-				"cause": err,
-			}).Fatal("could not find merge base")
-		}
-		fmt.Printf("%s:%v\n%s:%v\n%s\n", mergeBaseContext.rev1, rev1.Key(), mergeBaseContext.rev2, rev2.Key(), mb.Hex())
 
 	case "reachable":
 		cmdlog := log.WithField("op", cmd) // TODO adopt pattern for all commands

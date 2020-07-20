@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/nicolagi/muscle/config"
-	"github.com/nicolagi/muscle/storage"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -56,40 +55,6 @@ func KeepLocalFor(dir, revision, pathname string) error {
 
 func keepPathName(dir string, revision string) string {
 	return filepath.Join(dir, revision+".keep")
-}
-
-// Merge logs diagnostic messages and command to be run to merge changes from another revision.
-// It will not modify the tree.
-func Merge(keepLocalFn KeepLocalFn, dst *Tree, srcInstance string, factory *Factory, cfg *config.C) error {
-	remote, _, err := factory.store.RemoteRevision(srcInstance)
-	if err != nil {
-		return fmt.Errorf("could not get remote revision for %q: %v", srcInstance, err)
-	}
-	// dst.revision is going to be empty because the local revision (the destination)
-	// doesn't really exist. We make it up just as in ../cmd/muscle/muscle.go:/parseRevision/.
-	parentKey, err := factory.store.RemoteRevisionKey(dst.instance)
-	if err != nil {
-		return err
-	}
-	dstrev := NewRevision(dst.instance, dst.root.pointer, []storage.Pointer{parentKey})
-	ancestor, err := factory.store.MergeBase(dstrev, remote)
-	if err != nil {
-		return err
-	}
-	remoteTree, err := factory.NewTree(factory.WithRevisionKey(remote.key))
-	if err != nil {
-		return fmt.Errorf("could not build tree for %q (remote): %v", remote.key, err)
-	}
-	ancestorTree, err := factory.NewTree(factory.WithRevisionKey(ancestor))
-	if err != nil {
-		return fmt.Errorf("could not build tree for %q (ancestor): %v", ancestor.Hex(), err)
-	}
-	defer func() {
-		fmt.Println("flush")
-		fmt.Println("# If all is merged fine, run the following to create a merge commit.")
-		fmt.Printf("# snapshot %s\n", remote.key.Hex())
-	}()
-	return merge3way(keepLocalFn, dst, ancestorTree, remoteTree, dst.root, ancestorTree.root, remoteTree.root, ancestor.Hex(), remote.key.Hex(), cfg, os.Stdout)
 }
 
 func sameKeyOrBothNil(a, b *Node) bool {
