@@ -233,7 +233,7 @@ func SetLocalBasePointer(pointer storage.Pointer) error {
 }
 
 func (s *Store) RemoteBasePointer() (storage.Pointer, error) {
-	if content, err := s.pointers.Get("base"); errors.Is(err, storage.ErrNotFound) {
+	if content, err := s.pointers.Get(storage.Key(RemoteRootKeyPrefix + "base")); errors.Is(err, storage.ErrNotFound) {
 		return storage.Null, nil
 	} else if err != nil {
 		return storage.Null, err
@@ -243,7 +243,7 @@ func (s *Store) RemoteBasePointer() (storage.Pointer, error) {
 }
 
 func (s *Store) SetRemoteBasePointer(pointer storage.Pointer) error {
-	return s.pointers.Put("base", []byte(pointer.Hex()))
+	return s.pointers.Put(storage.Key(RemoteRootKeyPrefix+"base"), []byte(pointer.Hex()))
 }
 
 func (s *Store) LocalRootKey() (storage.Pointer, error) {
