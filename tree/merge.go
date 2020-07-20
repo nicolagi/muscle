@@ -2,6 +2,7 @@ package tree
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -96,6 +97,27 @@ func sameKeyOrBothNil(a, b *Node) bool {
 		return a.pointer.Equals(b.pointer)
 	}
 	return a == nil && b == nil
+}
+
+// Returns proposed commands to execute via the ctl file.
+// If empty, and no error, it means there's nothing to pull.
+func (tree *Tree) PullWorklog(keep KeepLocalFn, cfg *config.C, baseTree *Tree, remoteTree *Tree) (output string, err error) {
+	var buf bytes.Buffer
+	err = merge3way(
+		keep,
+		tree,       // tree to merge into
+		baseTree,   // merge base
+		remoteTree, // tree to merge
+		tree.root,
+		baseTree.root,
+		remoteTree.root,
+		baseTree.revision.Hex(),
+		remoteTree.revision.Hex(),
+		cfg,
+		&buf,
+	)
+	output = buf.String()
+	return
 }
 
 // TODO Some commands are output in comments so one can't just pipe to rc. (One shouldn't without checking, anyway...)

@@ -36,6 +36,7 @@ type ops struct {
 	c *ctl
 
 	mergeConflictsPath string
+	cfg                *config.C
 }
 
 var (
@@ -294,7 +295,40 @@ func runCommand(ops *ops, cmd string) error {
 		}
 		_, _ = fmt.Fprintln(outputBuffer, "flushed")
 	case "pull":
-		_, _ = fmt.Fprintln(outputBuffer, "pull is a dummy operation")
+		localbase, err := tree.LocalBasePointer()
+		if err != nil {
+			return output(err)
+		}
+		remotebase, err := ops.treeStore.RemoteBasePointer()
+		if err != nil {
+			return output(err)
+		}
+		if localbase.Equals(remotebase) {
+			_, _ = fmt.Fprintln(outputBuffer, "local base matches remote base, pull is a no-op")
+			return nil
+		}
+		localbasetree, err := ops.factory.NewTree(ops.factory.WithRevisionKey(localbase))
+		if err != nil {
+			return output(err)
+		}
+		remotebasetree, err := ops.factory.NewTree(ops.factory.WithRevisionKey(remotebase))
+		if err != nil {
+			return output(err)
+		}
+		keep, cleanup := tree.MustKeepLocalFn(ops.mergeConflictsPath)
+		defer cleanup()
+		commands, err := ops.tree.PullWorklog(keep, ops.cfg, localbasetree, remotebasetree)
+		if err != nil {
+			return output(err)
+		}
+		if len(commands) == 0 {
+			_, _ = fmt.Fprintln(outputBuffer, "no commands to run, pull is a no-op")
+			if err := tree.SetLocalBasePointer(remotebase); err != nil {
+				return output(err)
+			}
+			return nil
+		}
+		outputBuffer.WriteString(commands)
 		return nil
 	case "push":
 		localbase, err := tree.LocalBasePointer()
@@ -600,6 +634,7 @@ func main() {
 		tree:               tt,
 		c:                  new(ctl),
 		mergeConflictsPath: cfg.ConflictResolutionDirectoryPath(),
+		cfg:                cfg,
 	}
 	ops.instanceID = cfg.Instance
 
