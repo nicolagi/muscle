@@ -439,28 +439,3 @@ func (s *Store) MergeBase(arev, brev *Revision) (storage.Pointer, error) {
 
 	return storage.NewPointerFromHex(base.ID)
 }
-
-// Fork writes the first revision for the target instance, using as root
-// node the root node of the head revision of the source instance, and using
-// as parent revision the head revision of the source instance. The target
-// instance will therefore have the same contents as the source instance
-// (at the current head revision) and will inherit all the history. Fork
-// will try not to overwrite the target.
-func (s *Store) Fork(source, target string) error {
-	errw := func(e error) error {
-		return fmt.Errorf("tree.Store.Fork: %w", e)
-	}
-	srev, sroot, err := s.RemoteRevision(source)
-	if err != nil {
-		return err
-	}
-	trev := NewRevision(target, sroot.Key(), []storage.Pointer{srev.key})
-	if err := s.StoreRevision(trev); err != nil {
-		return errw(err)
-	}
-	k := storage.Key(RemoteRootKeyPrefix + target)
-	if _, err := s.pointers.Get(k); err == nil {
-		return fmt.Errorf("target instance %q already exists", target)
-	}
-	return s.pointers.Put(k, []byte(trev.key.Hex()))
-}
