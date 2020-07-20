@@ -308,7 +308,34 @@ func runCommand(ops *ops, cmd string) error {
 		if !localbase.Equals(remotebase) {
 			return output(errors.Errorf("local base %v does not match remote base %v, pull first", localbase, remotebase))
 		}
-		_, _ = fmt.Fprintln(outputBuffer, "local base matches remote base, push allowed (dummy operation)")
+		_, _ = fmt.Fprintln(outputBuffer, "local base matches remote base, push allowed")
+
+		if err := ops.tree.Flush(); err != nil {
+			return output(err)
+		}
+		_, _ = fmt.Fprintln(outputBuffer, "push: flushed")
+
+		if err := ops.tree.Seal(); err != nil {
+			return output(err)
+		}
+		_, _ = fmt.Fprintln(outputBuffer, "push: sealed")
+
+		_, localroot := ops.tree.Root()
+		revision := tree.NewRevision(ops.instanceID, localroot.Key(), []storage.Pointer{remotebase})
+		if err := ops.treeStore.StoreRevision(revision); err != nil {
+			return output(err)
+		}
+		ops.tree.SetRevision(revision)
+		_, _ = fmt.Fprintf(outputBuffer, "push: revision created: %v", revision)
+
+		if err := ops.treeStore.SetRemoteBasePointer(revision.Key()); err != nil {
+			return output(err)
+		}
+		_, _ = fmt.Fprintf(outputBuffer, "push: updated remote base pointer: %v\n", revision.Key())
+		if err := tree.SetLocalBasePointer(revision.Key()); err != nil {
+			return output(err)
+		}
+		_, _ = fmt.Fprintf(outputBuffer, "push: updated local base pointer: %v\n", revision.Key())
 		return nil
 	case "snapshot":
 		// Any additional parents for the snapshot. This is used for merges.
