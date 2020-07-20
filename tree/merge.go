@@ -3,6 +3,7 @@ package tree
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,7 +88,7 @@ func Merge(keepLocalFn KeepLocalFn, dst *Tree, srcInstance string, factory *Fact
 		fmt.Println("# If all is merged fine, run the following to create a merge commit.")
 		fmt.Printf("# snapshot %s\n", remote.key.Hex())
 	}()
-	return merge3way(keepLocalFn, dst, ancestorTree, remoteTree, dst.root, ancestorTree.root, remoteTree.root, ancestor.Hex(), remote.key.Hex(), cfg)
+	return merge3way(keepLocalFn, dst, ancestorTree, remoteTree, dst.root, ancestorTree.root, remoteTree.root, ancestor.Hex(), remote.key.Hex(), cfg, os.Stdout)
 }
 
 func sameKeyOrBothNil(a, b *Node) bool {
@@ -98,7 +99,7 @@ func sameKeyOrBothNil(a, b *Node) bool {
 }
 
 // TODO Some commands are output in comments so one can't just pipe to rc. (One shouldn't without checking, anyway...)
-func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, local, base, remote *Node, baseRev, remoteRev string, cfg *config.C) error {
+func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, local, base, remote *Node, baseRev, remoteRev string, cfg *config.C, output io.Writer) error {
 	if sameKeyOrBothNil(local, remote) {
 		log.Printf("Same key (or both nil): %v", local)
 		return nil
@@ -118,10 +119,6 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 		return nil
 	}
 
-	if local != nil && !local.IsRoot() && local.refs != 0 {
-		return fmt.Errorf("node %q has %d references", local.Path(), local.refs)
-	}
-
 	if sameKeyOrBothNil(local, base) && (local == nil || !local.IsRoot()) {
 		// If we are here, we need to take the remote changes. There are many cases:
 		// - local copy does not exist, only added in remote
@@ -135,9 +132,9 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 		}
 		p = strings.TrimPrefix(p, "root/")
 		if remote != nil {
-			fmt.Printf("graft %s/%s %s\n", remoteRev, p, p)
+			_, _ = fmt.Fprintf(output, "graft %s/%s %s\n", remoteRev, p, p)
 		} else {
-			fmt.Printf("unlink %s\n", p)
+			_, _ = fmt.Fprintf(output, "unlink %s\n", p)
 		}
 		return nil
 	}
@@ -149,22 +146,22 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 	if remote != nil {
 		resolved := keepLocalFn(remoteRev, strings.TrimPrefix(remote.Path(), "root/"))
 		if resolved {
-			fmt.Printf("# There was a conflict at path %q but it is marked as locally resolved\n", remote.Path())
+			_, _ = fmt.Fprintf(output, "# There was a conflict at path %q but it is marked as locally resolved\n", remote.Path())
 			return nil
 		}
 	}
 
 	if !(local != nil && remote != nil && local.IsDir()) || !remote.IsDir() {
-		fmt.Println("---")
+		_, _ = fmt.Fprintln(output, "---")
 		if local != nil {
-			fmt.Println(local.Path())
+			_, _ = fmt.Fprintln(output, local.Path())
 		}
 		if remote != nil {
 			p := remote.Path()
-			fmt.Printf("%s/%s\n", remoteRev, p)
+			_, _ = fmt.Fprintf(output, "%s/%s\n", remoteRev, p)
 			p = strings.TrimPrefix(p, "root/")
-			fmt.Printf("# graft %s/%s %s\n", remoteRev, p, p+".merge-conflict")
-			fmt.Printf("# graft %s/%s %s\n", remoteRev, p, p)
+			_, _ = fmt.Fprintf(output, "# graft %s/%s %s\n", remoteRev, p, p+".merge-conflict")
+			_, _ = fmt.Fprintf(output, "# graft %s/%s %s\n", remoteRev, p, p)
 			localVersion := filepath.Join(
 				cfg.MuscleFSMount,
 				p,
@@ -179,10 +176,10 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 				remoteRev,
 				p,
 			)
-			fmt.Printf("meld %s %s %s\n", localVersion, baseVersion, remoteVersion)
-			fmt.Printf("# keep-local-for %s/%s\n", remoteRev, p)
+			_, _ = fmt.Fprintf(output, "meld %s %s %s\n", localVersion, baseVersion, remoteVersion)
+			_, _ = fmt.Fprintf(output, "# keep-local-for %s/%s\n", remoteRev, p)
 		}
-		fmt.Println("EOE")
+		_, _ = fmt.Fprintln(output, "EOE")
 		return nil
 	}
 
@@ -211,7 +208,7 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 	}
 
 	for name := range mergeNames {
-		if err := merge3way(keepLocalFn, localTree, baseTree, remoteTree, getChild(localChildren, name), getChild(baseChildren, name), getChild(remoteChildren, name), baseRev, remoteRev, cfg); err != nil {
+		if err := merge3way(keepLocalFn, localTree, baseTree, remoteTree, getChild(localChildren, name), getChild(baseChildren, name), getChild(remoteChildren, name), baseRev, remoteRev, cfg, output); err != nil {
 			return err
 		}
 	}
