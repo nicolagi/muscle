@@ -142,10 +142,6 @@ type instanceSnapshotsDirectory struct {
 	lastRefreshed time.Time
 }
 
-func newInstanceSnapshotsDirectory(instanceID string) *instanceSnapshotsDirectory {
-	return &instanceSnapshotsDirectory{}
-}
-
 func (isd *instanceSnapshotsDirectory) Open(fid *srv.FFid, mode uint8) error {
 	if time.Since(isd.lastRefreshed) > 5*time.Minute {
 		if err := isd.reload(); err != nil {
@@ -278,7 +274,7 @@ func main() {
 	var root rootDir
 	_ = root.Add(nil, "/", owner, group, p.DMDIR|0700, &root)
 
-	d := newInstanceSnapshotsDirectory("base")
+	d := &instanceSnapshotsDirectory{}
 	_ = d.Add(&root.File, "base", owner, group, p.DMDIR|0700, d)
 
 	s := srv.NewFileSrv(&root.File)
