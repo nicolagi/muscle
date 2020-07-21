@@ -39,14 +39,12 @@ var (
 	diffContext struct {
 		context int
 		prefix  string
-		tree    string
 		names   bool
 		verbose bool
 		maxSize int
 	}
 
 	historyContext struct {
-		rev    string
 		prefix string
 		count  int
 		diff   bool
@@ -165,16 +163,14 @@ func main() {
 		}
 	case "diff":
 		_ = diffFlags.Parse(os.Args[2:])
-		if narg := diffFlags.NArg(); narg != 1 {
-			exitUsage(fmt.Sprintf("Expected 1 positional argument for the remote tree to diff against, got %d\n", narg))
+		if narg := diffFlags.NArg(); narg != 0 {
+			exitUsage(fmt.Sprintf("diff: no args expected, got %d\n", narg))
 		}
-		diffContext.tree = diffFlags.Arg(0)
 	case "history":
 		_ = historyFlags.Parse(os.Args[2:])
-		if narg := historyFlags.NArg(); narg != 1 {
-			exitUsage(fmt.Sprintf("Expected 1 positional argument for the revision to display history for, got %d\n", narg))
+		if narg := historyFlags.NArg(); narg != 0 {
+			exitUsage(fmt.Sprintf("history: no args expected, got %d\n", narg))
 		}
-		historyContext.rev = historyFlags.Arg(0)
 	case "init":
 		_ = emptyFlags.Parse(os.Args[2:])
 		if narg := emptyFlags.NArg(); narg != 0 {
@@ -348,11 +344,8 @@ func main() {
 		}
 
 	case "diff":
-		cmdlog := log.WithFields(log.Fields{
-			"local":  "base",
-			"remote": diffContext.tree,
-		})
-		remoteRevisionKey, err := treeStore.RemoteRevisionKey(diffContext.tree)
+		cmdlog := log.WithFields(log.Fields{})
+		remoteRevisionKey, err := treeStore.RemoteRevisionKey("base")
 		if err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not load remote revision key")
 		}
@@ -373,7 +366,7 @@ func main() {
 
 	case "history":
 		cmdlog := log.WithField("op", cmd)
-		rev := mustParseRevision(cmdlog, treeStore, "base", historyContext.rev)
+		rev := mustParseRevision(cmdlog, treeStore, "base", "base")
 		rr, err := treeStore.History(historyContext.count, rev)
 		if err != nil {
 			cmdlog.WithField("cause", err).Warn("History possibly truncated")
