@@ -182,10 +182,6 @@ func (s *Store) updateLocalRootPointer(rootKey storage.Pointer) error {
 	return os.Rename(tmp, s.localRootKeyFile)
 }
 
-func (s *Store) UpdateRemoteRevision(r *Revision) error {
-	return s.pointers.Put(storage.Key(s.remoteRootKey), []byte(r.key.Hex()))
-}
-
 // LocalBasePointer reads the file $HOME/lib/muscle/base, expecting
 // to find a hex-encoded storage.Pointer that points to a revision.
 func LocalBasePointer() (storage.Pointer, error) {
