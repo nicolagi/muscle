@@ -269,7 +269,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not build block factory: %v", err)
 	}
-	treeStore, err = tree.NewStore(blockFactory, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance)
+	treeStore, err = tree.NewStore(blockFactory, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+"base")
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -278,10 +278,8 @@ func main() {
 	var root rootDir
 	_ = root.Add(nil, "/", owner, group, p.DMDIR|0700, &root)
 
-	for _, instance := range cfg.ReadOnlyInstances {
-		d := newInstanceSnapshotsDirectory(instance)
-		_ = d.Add(&root.File, instance, owner, group, p.DMDIR|0700, d)
-	}
+	d := newInstanceSnapshotsDirectory("base")
+	_ = d.Add(&root.File, "base", owner, group, p.DMDIR|0700, d)
 
 	s := srv.NewFileSrv(&root.File)
 	s.Dotu = false

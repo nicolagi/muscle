@@ -20,7 +20,6 @@ type Tree struct {
 
 	revision  storage.Pointer
 	root      *Node
-	instance  string
 	blockSize uint32 // For new nodes.
 
 	readOnly bool

@@ -33,16 +33,6 @@ type factoryOption func(*Tree) error
 
 var ErrOptionClash = errors.New("option clash")
 
-func (*Factory) WithInstance(value string) factoryOption {
-	return func(t *Tree) error {
-		if t.instance != "" {
-			return fmt.Errorf("instance: %w", ErrOptionClash)
-		}
-		t.instance = value
-		return nil
-	}
-}
-
 func (*Factory) Mutable() factoryOption {
 	return func(t *Tree) error {
 		t.readOnly = false
@@ -52,9 +42,6 @@ func (*Factory) Mutable() factoryOption {
 
 func (f *Factory) WithRevisionKey(value storage.Pointer) factoryOption {
 	return func(t *Tree) error {
-		if t.instance != "" {
-			return fmt.Errorf("instance: %w", ErrOptionClash)
-		}
 		if !t.revision.IsNull() {
 			return fmt.Errorf("revision: %w", ErrOptionClash)
 		}
@@ -65,7 +52,6 @@ func (f *Factory) WithRevisionKey(value storage.Pointer) factoryOption {
 		if err != nil {
 			return err
 		}
-		t.instance = r.instance
 		t.revision = r.key
 		t.root = &Node{pointer: r.rootKey}
 		if err := f.store.LoadNode(t.root); err != nil {

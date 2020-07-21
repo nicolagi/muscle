@@ -614,7 +614,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not build block factory: %v", err)
 	}
-	treeStore, err := tree.NewStore(blockFactory, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance)
+	treeStore, err := tree.NewStore(blockFactory, remoteBasicStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+"base")
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -623,7 +623,7 @@ func main() {
 		log.Fatalf("Could not load tree: %v", err)
 	}
 	factory := tree.NewFactory(blockFactory, treeStore, cfg)
-	tt, err := factory.NewTree(factory.WithInstance(cfg.Instance), factory.WithRootKey(rootKey), factory.Mutable())
+	tt, err := factory.NewTree(factory.WithRootKey(rootKey), factory.Mutable())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -636,7 +636,6 @@ func main() {
 		mergeConflictsPath: cfg.ConflictResolutionDirectoryPath(),
 		cfg:                cfg,
 	}
-	ops.instanceID = cfg.Instance
 
 	if err := os.MkdirAll(ops.mergeConflictsPath, 0755); err != nil {
 		log.WithField("cause", err).Fatal("could not ensure conflicts directory exists")

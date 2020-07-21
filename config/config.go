@@ -69,9 +69,6 @@ type C struct {
 	// data.
 	EncryptionKey string `json:"encryption-key"`
 
-	// Identifies the filesystem, I use the hostname.
-	Instance string `json:"instance"`
-
 	// Path to cache. Defaults to $HOME/lib/muscle/cache.
 	CacheDirectory string `json:"cache-directory"`
 
@@ -87,9 +84,6 @@ type C struct {
 	// These only make sense if the storage type is "disk".
 	// If the path is relative, it will be assumed relative to the base dir.
 	DiskStoreDir string `json:"disk-store-dir"`
-
-	// Other instances to expose read-only trees for (see snapshotsfs).
-	ReadOnlyInstances []string `json:"read-only-instances"`
 
 	// Directory holding muscle config file and other files.
 	// Other directories and files are derived from this.
@@ -230,11 +224,6 @@ func Initialize(baseDir string) error {
 		return fmt.Errorf("could not read 32 random bytes, got only %d", n)
 	}
 	c.EncryptionKey = hex.EncodeToString(b)
-	name, err := os.Hostname()
-	if err != nil {
-		return fmt.Errorf("could not get host name: %w", err)
-	}
-	c.Instance = name
 	c.Storage = "disk"
 	c.DiskStoreDir = "permanent"
 	b, err = json.MarshalIndent(c, "", "	")

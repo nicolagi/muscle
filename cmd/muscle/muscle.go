@@ -276,7 +276,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not build block factory: %v", err)
 	}
-	treeStore, err := tree.NewStore(blockFactory, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+cfg.Instance)
+	treeStore, err := tree.NewStore(blockFactory, remoteStore, cfg.RootKeyFilePath(), tree.RemoteRootKeyPrefix+"base")
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -349,7 +349,7 @@ func main() {
 
 	case "diff":
 		cmdlog := log.WithFields(log.Fields{
-			"local":  cfg.Instance,
+			"local":  "base",
 			"remote": diffContext.tree,
 		})
 		remoteRevisionKey, err := treeStore.RemoteRevisionKey(diffContext.tree)
@@ -373,7 +373,7 @@ func main() {
 
 	case "history":
 		cmdlog := log.WithField("op", cmd)
-		rev := mustParseRevision(cmdlog, treeStore, cfg.Instance, historyContext.rev)
+		rev := mustParseRevision(cmdlog, treeStore, "base", historyContext.rev)
 		rr, err := treeStore.History(historyContext.count, rev)
 		if err != nil {
 			cmdlog.WithField("cause", err).Warn("History possibly truncated")
