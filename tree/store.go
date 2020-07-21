@@ -255,31 +255,6 @@ func (s *Store) LocalRoot() (*Node, error) {
 	return s.loadRoot(key)
 }
 
-func (s *Store) RemoteRevisionKey(instance string) (storage.Pointer, error) {
-	var rootDescriptor string
-	// TODO This special treatment of the argument should be avoided.
-	if instance == "" {
-		rootDescriptor = s.remoteRootKey
-	} else {
-		rootDescriptor = RemoteRootKeyPrefix + instance
-	}
-	rootContents, err := s.pointers.Get(storage.Key(rootDescriptor))
-	if err != nil {
-		return storage.Null, err
-	}
-	return storage.NewPointerFromHex(string(rootContents))
-}
-
-// RemoteRevision loads the most recent revision object associated with
-// the given instance and the filesystem root contained therein.
-func (s *Store) RemoteRevision(instance string) (rev *Revision, root *Node, err error) {
-	key, err := s.RemoteRevisionKey(instance)
-	if err != nil {
-		return nil, nil, err
-	}
-	return s.loadRevisionAndRoot(key)
-}
-
 func (s *Store) LoadRevisionByKey(key storage.Pointer) (*Revision, error) {
 	errw := func(e error) error {
 		return fmt.Errorf("tree.Store.LoadRevisionByKey: %w", e)
@@ -305,24 +280,6 @@ func (s *Store) LoadRevisionByKey(key storage.Pointer) (*Revision, error) {
 		return nil, errw(err)
 	}
 	return r, err
-}
-
-func (s *Store) loadRevisionAndRoot(key storage.Pointer) (*Revision, *Node, error) {
-	revision, err := s.LoadRevisionByKey(key)
-	if err != nil {
-		return nil, nil, err
-	}
-	root := &Node{
-		pointer: revision.rootKey,
-		parent:  nil, // That's what makes it the root.
-	}
-	if err := s.LoadNode(root); err != nil {
-		return nil, nil, err
-	}
-	// These two lines would not be needed if I didn't have some bad metadata in my oldest trees.
-	root.D.Mode |= p.DMDIR
-	root.D.Type = p.QTDIR
-	return revision, root, nil
 }
 
 func (s *Store) loadRoot(key storage.Pointer) (*Node, error) {

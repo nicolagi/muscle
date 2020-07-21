@@ -345,7 +345,7 @@ func main() {
 
 	case "diff":
 		cmdlog := log.WithFields(log.Fields{})
-		remoteRevisionKey, err := treeStore.RemoteRevisionKey("base")
+		remoteRevisionKey, err := treeStore.RemoteBasePointer()
 		if err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not load remote revision key")
 		}
@@ -463,7 +463,7 @@ func parseRevision(store *tree.Store, localInstance string, descriptor string) (
 			return nil, nil
 		}
 		var parents []storage.Pointer
-		remoteRevisionKey, err := store.RemoteRevisionKey(localInstance)
+		remoteRevisionKey, err := store.RemoteBasePointer()
 		if err != nil && !errors.Is(err, storage.ErrNotFound) {
 			return nil, err
 		}
@@ -478,7 +478,7 @@ func parseRevision(store *tree.Store, localInstance string, descriptor string) (
 		}
 		return store.LoadRevisionByKey(revisionKey)
 	default:
-		revisionKey, err := store.RemoteRevisionKey(descriptor)
+		revisionKey, err := store.RemoteBasePointer()
 		if err != nil {
 
 			return nil, err
