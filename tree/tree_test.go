@@ -84,7 +84,6 @@ func scratchTree() (*Tree, string, error) {
 		bf,
 		nil,
 		rootFile,
-		"remote.root.darkstar",
 	)
 	if err != nil {
 		return nil, "", err

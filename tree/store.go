@@ -25,7 +25,6 @@ const metadataBlockMaxSize = 1024 * 1024
 // It is built on top of the more basic functionality in muscle/storage.
 type Store struct {
 	localRootKeyFile string
-	remoteRootKey    string
 	blockFactory     *block.Factory
 	pointers         storage.Store
 	codec            Codec
@@ -35,12 +34,10 @@ func NewStore(
 	blockFactory *block.Factory,
 	pointers storage.Store,
 	localRootKeyFile string,
-	remoteRootKey string,
 ) (*Store, error) {
 	return &Store{
 		blockFactory:     blockFactory,
 		localRootKeyFile: localRootKeyFile,
-		remoteRootKey:    remoteRootKey,
 		pointers:         pointers,
 		codec:            newStandardCodec(),
 	}, nil
