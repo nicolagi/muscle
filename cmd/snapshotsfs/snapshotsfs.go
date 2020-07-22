@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,213 +18,315 @@ import (
 )
 
 var (
-	treeFactory *tree.Factory
-	treeStore   *tree.Store
-	qidPath     uint64
-	owner       p.User
-	group       p.Group
+	owner p.User
+	group p.Group
 )
 
-type muscleFile struct {
-	srv.File
-	node *tree.Node
+type node interface {
+	qid() p.Qid
+	stat() p.Dir
+	walk(name string) (child node, err error)
+	open(r *srv.Req) (qid p.Qid, err error)
+	read(r *srv.Req) (b []byte, err error)
+}
+
+type treenode struct {
 	tree *tree.Tree
-}
-
-func newMuscleFile(node *tree.Node, tree *tree.Tree) (*muscleFile, error) {
-	mf := new(muscleFile)
-	mf.node = node
-	mf.tree = tree
-	mf.File.Dir = node.D
-	mf.Uid = owner.Name()
-	mf.Gid = group.Name()
-	return mf, nil
-}
-
-// Read implements srv.FReadOp.
-func (mf *muscleFile) Read(fid *srv.FFid, b []byte, off uint64) (int, error) {
-	n, err := mf.node.ReadAt(b, int64(off))
-	log.WithFields(log.Fields{
-		"requested": len(b),
-		"returned":  n,
-		"offset":    off,
-		"basename":  fid.F.Name,
-		"err":       err,
-	}).Debug("Read request")
-	return n, err
-}
-
-type muscleDir struct {
-	srv.File
 	node *tree.Node
-	tree *tree.Tree
 }
 
-// Find implements srv.FFindOp.
-func (md *muscleDir) Find(child string) (*srv.File, error) {
-	if err := md.ensureLoaded(); err != nil {
+func (tn *treenode) qid() p.Qid { return tn.node.D.Qid }
+
+func (tn *treenode) stat() p.Dir { return tn.node.D }
+
+func (tn *treenode) walk(name string) (child node, err error) {
+	nodes, err := tn.tree.Walk(tn.node, name)
+	if err != nil {
+		if errors.Is(err, tree.ErrNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
-	return md.File.Find(child), nil
+	return &treenode{
+		tree: tn.tree,
+		node: nodes[0],
+	}, nil
 }
 
-// Open implements srv.FOpenOp.
-func (md *muscleDir) Open(*srv.FFid, uint8) error {
-	return md.ensureLoaded()
-}
-
-func (md *muscleDir) ensureLoaded() error {
-	// Whether the children were loaded or not, we need to call grow to ensure child nodes that were trimmed
-	// (by code in the tree package) are reloaded.
-	if err := md.tree.Grow(md.node); err != nil {
-		return err
+func (tn *treenode) open(r *srv.Req) (qid p.Qid, err error) {
+	if r.Tc.Mode&(p.OWRITE|p.ORDWR|p.OTRUNC|p.ORCLOSE) != 0 {
+		err = srv.Eperm
+		return
 	}
-	// TODO: This is kinda expensive and ugly. Need to keep in sync go9p's FSrv child nodes with those in muscle.
-	// Should probably use Srv directly like musclefs does.
-	for _, child := range md.node.Children() {
-		if known := md.File.Find(child.D.Name); known != nil {
-			switch ops := known.Ops.(type) {
-			case *muscleDir:
-				if ops.node != child {
-					ops.node = child
-				}
-			case *muscleFile:
-				if ops.node != child {
-					ops.node = child
-				}
-			default:
-				panic("what kinda node is that!")
-			}
-			continue
+	switch {
+	case tn.node.IsDir():
+		if err = tn.tree.Grow(tn.node); err != nil {
+			return
 		}
-		if child.D.Mode&p.DMDIR != 0 {
-			d, err := newDirectory(child.D.Name, child, md.tree)
-			if err != nil {
-				return err
-			}
-			if err := d.Add(&md.File, child.D.Name, owner, group, 0700|p.DMDIR, d); err != nil {
-				return err
-			}
-		} else {
-			d, err := newMuscleFile(child, md.tree)
-			if err != nil {
-				return err
-			}
-			if err := d.Add(&md.File, child.D.Name, owner, group, 0700, d); err != nil {
-				return err
-			}
-		}
+		tn.node.PrepareForReads()
+	default:
 	}
-	return nil
+	return tn.node.D.Qid, nil
 }
 
-func newDirectory(nameOverride string, node *tree.Node, tree *tree.Tree) (*muscleDir, error) {
-	md := new(muscleDir)
-	md.node = node
-	md.tree = tree
-	if nameOverride != "" {
-		md.Name = nameOverride
+func (tn *treenode) read(r *srv.Req) (b []byte, err error) {
+	b = make([]byte, r.Tc.Count)
+	var n int
+	if tn.node.IsDir() {
+		n, err = tn.node.DirReadAt(b, int64(r.Tc.Offset))
 	} else {
-		md.Name = node.D.Name
+		n, err = tn.node.ReadAt(b, int64(r.Tc.Offset))
 	}
-	md.Uid = owner.Name()
-	md.Gid = group.Name()
-	md.Mode = 0700 | p.DMDIR
-	md.Qid.Type = p.QTDIR
-	md.Qid.Path = qidPath
-	qidPath++
-	md.Length = node.D.Length
-	md.Atime = node.D.Atime
-	md.Mtime = node.D.Mtime
-	return md, nil
+	return b[:n], err
 }
 
-type instanceSnapshotsDirectory struct {
-	srv.File
-	lastRefreshed time.Time
+var _ node = (*treenode)(nil)
+
+type rootdir struct {
+	dir           p.Dir
+	treeroots     []*treenode
+	treerootnames map[string]struct{}
+	buffer        []byte
+	boundaries    []int
+	treefactory   *tree.Factory
+	treestore     *tree.Store
+	loaded        time.Time
 }
 
-func (isd *instanceSnapshotsDirectory) Open(fid *srv.FFid, mode uint8) error {
-	if time.Since(isd.lastRefreshed) > 5*time.Minute {
-		if err := isd.reload(); err != nil {
-			log.Printf("Could not reload instance root: %v", err)
+var _ node = (*rootdir)(nil)
+
+func (root *rootdir) qid() p.Qid { return root.dir.Qid }
+
+func (root *rootdir) stat() p.Dir { return root.dir }
+
+func (root *rootdir) walk(name string) (child node, err error) {
+	if _, ok := root.treerootnames[name]; ok {
+		for _, n := range root.treeroots {
+			if n.node.D.Name == name {
+				return n, nil
+			}
 		}
-		isd.lastRefreshed = time.Now()
 	}
-	return nil
+	// The name can't be looked up.
+	// Try to interpret it as a hash pointer pointing to a revision.
+	revpointer, err := storage.NewPointerFromHex(name)
+	if err != nil {
+		return nil, nil
+	}
+	revtree, err := root.treefactory.NewTree(root.treefactory.WithRevisionKey(revpointer))
+	if err != nil {
+		return nil, err
+	}
+	_, revroot := revtree.Root()
+	revnode := &treenode{
+		tree: revtree,
+		node: revroot,
+	}
+	revnode.node.D.Name = name
+	root.treerootnames[name] = struct{}{}
+	root.treeroots = append(root.treeroots, revnode)
+	root.preparedirentries()
+	return revnode, nil
 }
 
-func (isd *instanceSnapshotsDirectory) reload() error {
-	remotebase, err := treeStore.RemoteBasePointer()
+func (root *rootdir) open(r *srv.Req) (qid p.Qid, err error) {
+	if r.Tc.Mode&(p.OWRITE|p.ORDWR|p.OTRUNC|p.ORCLOSE) != 0 {
+		err = srv.Eperm
+		return
+	}
+	if time.Since(root.loaded) > 5*time.Minute {
+		if err = root.reload(); err != nil {
+			return
+		}
+		root.loaded = time.Now()
+	}
+	return root.dir.Qid, err
+}
+
+func (root *rootdir) reload() error {
+	remotebase, err := root.treestore.RemoteBasePointer()
 	if err != nil {
 		return err
 	}
-	remote, err := treeStore.LoadRevisionByKey(remotebase)
+	remote, err := root.treestore.LoadRevisionByKey(remotebase)
 	if err != nil {
 		return err
 	}
-	remoteRevisions, err := treeStore.History(10, remote)
+	revisions, err := root.treestore.History(10, remote)
 	if err != nil {
 		return err
 	}
-	for _, revision := range remoteRevisions {
-		rootName := revision.Time().Format("2006-01-02T15-04")
-		child := isd.File.Find(rootName)
-		if child != nil {
-			// We know about it already.
+	added := 0
+	for _, revision := range revisions {
+		revname := revision.Time().Format("2006-01-02T15-04")
+		if _, ok := root.treerootnames[revname]; ok {
 			continue
 		}
-
-		revisionTree, err := treeFactory.NewTree(treeFactory.WithRevisionKey(revision.Key()))
+		revtree, err := root.treefactory.NewTree(root.treefactory.WithRevisionKey(revision.Key()))
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		_, revisionRootNode := revisionTree.Root()
-		revisionOysterRootNode, err := newDirectory(rootName, revisionRootNode, revisionTree)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		_ = revisionOysterRootNode.Add(&isd.File, rootName, owner, group, 0700|p.DMDIR, revisionOysterRootNode)
+		_, revroot := revtree.Root()
+		// Override "root" name with timestamp.
+		revroot.D.Name = revname
+		root.treerootnames[revname] = struct{}{}
+		root.treeroots = append(root.treeroots, &treenode{
+			tree: revtree,
+			node: revroot,
+		})
+		added++
+	}
+	if added > 0 {
+		root.preparedirentries()
 	}
 	return nil
 }
 
-type rootDir struct {
-	srv.File
+func (root *rootdir) preparedirentries() {
+	root.buffer = nil
+	root.boundaries = nil
+	end := 0
+	for _, tn := range root.treeroots {
+		b := p.PackDir(&tn.node.D, false)
+		root.buffer = append(root.buffer, b...)
+		end += len(b)
+		root.boundaries = append(root.boundaries, end)
+	}
 }
 
-// Find implements srv.FFindOp. It attemps to load a revision tree.
-func (root *rootDir) Find(hex string) (*srv.File, error) {
-	child := root.File.Find(hex)
-	if child != nil {
-		return child, nil
+func (root *rootdir) read(r *srv.Req) (b []byte, err error) {
+	offset := int(r.Tc.Offset)
+	count := int(r.Tc.Count)
+	// The offset must be the end of one of the dir entries.
+	if offset > 0 {
+		i := sort.SearchInts(root.boundaries, offset)
+		if i == len(root.boundaries) || root.boundaries[i] != offset {
+			return nil, srv.Eperm
+		}
 	}
-	revp, err := storage.NewPointerFromHex(hex)
-	if err != nil {
-		log.WithField("key", hex).Info("Not a hash pointer")
-		return nil, nil
+	// We can't return truncated entries, so we may have to decrease count.
+	j := sort.SearchInts(root.boundaries, offset+count)
+	if j == len(root.boundaries) || root.boundaries[j] != offset+count {
+		if j == 0 {
+			count = 0
+		} else {
+			count = root.boundaries[j-1] - offset
+		}
 	}
-	revisionTree, err := treeFactory.NewTree(treeFactory.WithRevisionKey(revp))
-	if err != nil {
-		log.WithFields(log.Fields{
-			"key": hex,
-			"err": err,
-		}).Info("Could not create tree")
-		return nil, nil
+	if count < 0 {
+		return nil, srv.Eperm
 	}
-	_, revRootKey := revisionTree.Root()
-	revRoot, err := newDirectory(hex, revRootKey, revisionTree)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"key": hex,
-			"err": err,
-		}).Info("Could not create revision root node")
-	}
-	_ = revRoot.Add(&root.File, hex, owner, group, 0700|p.DMDIR, revRoot)
+	return root.buffer[offset : offset+count], nil
+}
 
-	return &revRoot.File, nil
+type fs struct {
+	root *rootdir
+}
+
+var _ srv.ReqOps = (*fs)(nil)
+
+func (fs *fs) Attach(r *srv.Req) {
+	if r.Afid != nil {
+		r.RespondError(srv.Enoauth)
+		return
+	}
+	r.Fid.Aux = fs.root
+	qid := fs.root.qid()
+	r.RespondRattach(&qid)
+}
+
+func (fs *fs) Stat(r *srv.Req) {
+	dir := r.Fid.Aux.(node).stat()
+	r.RespondRstat(&dir)
+}
+
+func (fs *fs) Wstat(r *srv.Req) {
+	r.RespondError(srv.Eperm)
+}
+
+func (fs *fs) Create(r *srv.Req) {
+	r.RespondError(srv.Eperm)
+}
+
+func (fs *fs) Open(r *srv.Req) {
+	qid, err := r.Fid.Aux.(node).open(r)
+	if err != nil {
+		r.RespondError(err)
+		return
+	}
+	r.RespondRopen(&qid, 0)
+}
+
+func (fs *fs) Read(r *srv.Req) {
+	b, err := r.Fid.Aux.(node).read(r)
+	if err != nil {
+		r.RespondError(err)
+		return
+	}
+	r.RespondRread(b)
+}
+
+func (fs *fs) Write(r *srv.Req) {
+	r.RespondError(srv.Eperm)
+}
+
+func (fs *fs) Clunk(r *srv.Req) {
+	n := r.Fid.Aux.(node)
+	if tn, ok := n.(*treenode); ok {
+		tn.node.Unref("clunk")
+	}
+	r.RespondRclunk()
+}
+
+func (fs *fs) Remove(r *srv.Req) {
+	r.RespondError(srv.Eperm)
+}
+
+func (fs *fs) Walk(r *srv.Req) {
+	if len(r.Tc.Wname) == 0 {
+		fs.clone(r)
+	} else {
+		fs.walk(r)
+	}
+}
+
+func (fs *fs) clone(r *srv.Req) {
+	n := r.Fid.Aux.(node)
+	if tn, ok := n.(*treenode); ok {
+		tn.node.Ref("clone")
+	}
+	r.Newfid.Aux = n
+	r.RespondRwalk(nil)
+}
+
+func (fs *fs) walk(r *srv.Req) {
+	n := r.Fid.Aux.(node)
+
+	var qids []p.Qid
+	var err error
+	for _, name := range r.Tc.Wname {
+		if n, err = n.walk(name); n == nil || err != nil {
+			break
+		} else {
+			qids = append(qids, n.qid())
+		}
+	}
+	if err != nil {
+		r.RespondError(err)
+		return
+	}
+	if len(qids) == 0 {
+		r.RespondError(srv.Enoent)
+		return
+	}
+	if len(qids) == len(r.Tc.Wname) {
+		r.Newfid.Aux = n
+		if tn, ok := n.(*treenode); ok {
+			tn.node.Ref("successful walk")
+		}
+	}
+	r.RespondRwalk(qids)
 }
 
 func main() {
@@ -269,22 +373,33 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not build block factory: %v", err)
 	}
-	treeStore, err = tree.NewStore(blockFactory, remoteStore, cfg.RootKeyFilePath())
+	treestore, err := tree.NewStore(blockFactory, remoteStore, cfg.RootKeyFilePath())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	treeFactory = tree.NewFactory(blockFactory, treeStore, cfg)
+	treefactory := tree.NewFactory(blockFactory, treestore, cfg)
 
-	var root rootDir
-	_ = root.Add(nil, "/", owner, group, p.DMDIR|0700, &root)
+	root := &rootdir{
+		treefactory:   treefactory,
+		treestore:     treestore,
+		treerootnames: make(map[string]struct{}),
+	}
+	root.dir.Name = "snapshots"
+	root.dir.Mode = 0700 | p.DMDIR
+	root.dir.Uid = owner.Name()
+	root.dir.Gid = group.Name()
+	root.dir.Mtime = uint32(time.Now().Unix())
+	root.dir.Atime = root.dir.Mtime
+	root.dir.Qid.Type = p.QTDIR
 
-	d := &instanceSnapshotsDirectory{}
-	_ = d.Add(&root.File, "base", owner, group, p.DMDIR|0700, d)
+	fs := fs{
+		root: root,
+	}
 
-	s := srv.NewFileSrv(&root.File)
+	s := &srv.Srv{}
 	s.Dotu = false
-	s.Id = "snapshotsfs"
-	s.Start(s)
+	s.Id = "snapshots"
+	s.Start(&fs)
 	if err := s.StartNetListener("tcp", cfg.SnapshotsFSListenAddr()); err != nil {
 		log.Fatalf("Could not start net listener: %v", err)
 	}
