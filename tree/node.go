@@ -9,6 +9,7 @@ import (
 
 	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
+	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/storage"
 	log "github.com/sirupsen/logrus"
 )
@@ -77,8 +78,7 @@ type Node struct {
 	parent *Node
 
 	// 9P serialized directory contents.
-	serializedDirectoryEntries        []byte
-	serializedDirectoryEntriesOffsets []uint32
+	dirb p9util.DirBuffer
 
 	// A hash of all the data below, before encryption.  Encryption causes
 	// the same content to generated different data every time it is
@@ -156,56 +156,14 @@ func (node *Node) String() string {
 }
 
 func (node *Node) PrepareForReads() {
-	node.serializedDirectoryEntries = nil
-	node.serializedDirectoryEntriesOffsets = nil
-	entryEnd := 0
+	node.dirb.Reset()
 	for _, child := range node.children {
-		entry := p.PackDir(&child.D, false)
-		node.serializedDirectoryEntries = append(node.serializedDirectoryEntries, entry...)
-		entryEnd += len(entry)
-		node.serializedDirectoryEntriesOffsets = append(node.serializedDirectoryEntriesOffsets, uint32(entryEnd))
+		node.dirb.Write(&child.D)
 	}
-}
-
-// Finds the closest index into the serializedDirectoryEntries array where a dirent starts or ends.
-func (node *Node) indexFloor(wanted uint32) (index uint32) {
-	// Shortcut.
-	if wanted == 0 {
-		return 0
-	}
-
-	// TODO use binary search.
-	for i := len(node.serializedDirectoryEntriesOffsets) - 1; i >= 0; i-- {
-		end := node.serializedDirectoryEntriesOffsets[i]
-		if end <= wanted {
-			return end
-		}
-	}
-
-	return 0
 }
 
 func (node *Node) DirReadAt(b []byte, off int64) (n int, err error) {
-	// Validate the offset.
-	start := node.indexFloor(uint32(off))
-	if start != uint32(off) {
-		return -1, &p.Error{Err: "invalid offset", Errornum: p.EINVAL}
-	}
-
-	// Shortcut.
-	if len(node.serializedDirectoryEntries) == 0 {
-		return 0, nil
-	}
-
-	// Find end of dir entry.
-	end := node.indexFloor(uint32(off) + uint32(len(b)))
-	if end == start {
-		return 0, nil
-	}
-	if end-start > uint32(len(b)) {
-		return -1, &p.Error{Err: "too small read size for dir entry", Errornum: p.EINVAL}
-	}
-	return copy(b, node.serializedDirectoryEntries[start:end]), nil
+	return node.dirb.Read(b, int(off))
 }
 
 func (node *Node) childrenMap() map[string]*Node {
@@ -311,8 +269,7 @@ func (node *Node) Trim() {
 		node.D.Name = ""
 		node.blocks = nil
 		node.children = nil
-		node.serializedDirectoryEntries = nil
-		node.serializedDirectoryEntriesOffsets = nil
+		node.dirb.Reset()
 	}
 
 	trim(node)

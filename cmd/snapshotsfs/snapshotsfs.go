@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
+	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
 	log "github.com/sirupsen/logrus"
@@ -27,7 +27,7 @@ type node interface {
 	stat() p.Dir
 	walk(name string) (child node, err error)
 	open(r *srv.Req) (qid p.Qid, err error)
-	read(r *srv.Req) (b []byte, err error)
+	read(r *srv.Req) (n int, err error)
 }
 
 type treenode struct {
@@ -69,25 +69,22 @@ func (tn *treenode) open(r *srv.Req) (qid p.Qid, err error) {
 	return tn.node.D.Qid, nil
 }
 
-func (tn *treenode) read(r *srv.Req) (b []byte, err error) {
-	b = make([]byte, r.Tc.Count)
-	var n int
+func (tn *treenode) read(r *srv.Req) (n int, err error) {
 	if tn.node.IsDir() {
-		n, err = tn.node.DirReadAt(b, int64(r.Tc.Offset))
+		n, err = tn.node.DirReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
 	} else {
-		n, err = tn.node.ReadAt(b, int64(r.Tc.Offset))
+		n, err = tn.node.ReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
 	}
-	return b[:n], err
+	return
 }
 
 var _ node = (*treenode)(nil)
 
 type rootdir struct {
 	dir           p.Dir
+	dirb          p9util.DirBuffer
 	treeroots     []*treenode
 	treerootnames map[string]struct{}
-	buffer        []byte
-	boundaries    []int
 	treefactory   *tree.Factory
 	treestore     *tree.Store
 	loaded        time.Time
@@ -184,40 +181,16 @@ func (root *rootdir) reload() error {
 }
 
 func (root *rootdir) preparedirentries() {
-	root.buffer = nil
-	root.boundaries = nil
-	end := 0
+	root.dirb.Reset()
 	for _, tn := range root.treeroots {
-		b := p.PackDir(&tn.node.D, false)
-		root.buffer = append(root.buffer, b...)
-		end += len(b)
-		root.boundaries = append(root.boundaries, end)
+		root.dirb.Write(&tn.node.D)
 	}
 }
 
-func (root *rootdir) read(r *srv.Req) (b []byte, err error) {
+func (root *rootdir) read(r *srv.Req) (n int, err error) {
 	offset := int(r.Tc.Offset)
 	count := int(r.Tc.Count)
-	// The offset must be the end of one of the dir entries.
-	if offset > 0 {
-		i := sort.SearchInts(root.boundaries, offset)
-		if i == len(root.boundaries) || root.boundaries[i] != offset {
-			return nil, srv.Eperm
-		}
-	}
-	// We can't return truncated entries, so we may have to decrease count.
-	j := sort.SearchInts(root.boundaries, offset+count)
-	if j == len(root.boundaries) || root.boundaries[j] != offset+count {
-		if j == 0 {
-			count = 0
-		} else {
-			count = root.boundaries[j-1] - offset
-		}
-	}
-	if count < 0 {
-		return nil, srv.Eperm
-	}
-	return root.buffer[offset : offset+count], nil
+	return root.dirb.Read(r.Rc.Data[:count], offset)
 }
 
 type fs struct {
@@ -259,12 +232,17 @@ func (fs *fs) Open(r *srv.Req) {
 }
 
 func (fs *fs) Read(r *srv.Req) {
-	b, err := r.Fid.Aux.(node).read(r)
+	if err := p.InitRread(r.Rc, r.Tc.Count); err != nil {
+		r.RespondError(err)
+		return
+	}
+	n, err := r.Fid.Aux.(node).read(r)
 	if err != nil {
 		r.RespondError(err)
 		return
 	}
-	r.RespondRread(b)
+	p.SetRreadCount(r.Rc, uint32(n))
+	r.Respond()
 }
 
 func (fs *fs) Write(r *srv.Req) {
