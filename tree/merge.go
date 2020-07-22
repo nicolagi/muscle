@@ -133,7 +133,7 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 	if remote != nil {
 		resolved := keepLocalFn(remoteRev, strings.TrimPrefix(remote.Path(), "root/"))
 		if resolved {
-			_, _ = fmt.Fprintf(output, "# There was a conflict at path %q but it is marked as locally resolved\n", remote.Path())
+			log.Printf("There was a conflict at path %q but it is marked as locally resolved\n", remote.Path())
 			return nil
 		}
 	}
