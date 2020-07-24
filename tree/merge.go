@@ -1,60 +1,42 @@
 package tree
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/nicolagi/muscle/config"
 	log "github.com/sirupsen/logrus"
 )
 
-type KeepLocalFn func(string, string) bool
-
-func MustKeepLocalFn(dir string) (rf KeepLocalFn, cleanup func()) {
-	var mu sync.Mutex
-	pathnamesByRevision := make(map[string]map[string]struct{})
-	return func(revision, pathname string) bool {
-		mu.Lock()
-		defer mu.Unlock()
-		pathnames := pathnamesByRevision[revision]
-		if pathnames == nil {
-			f, _ := os.OpenFile(keepPathName(dir, revision), os.O_RDONLY|os.O_CREATE, 0640)
-			defer func() {
-				_ = f.Close()
-			}()
-			s := bufio.NewScanner(f)
-			pathnames = make(map[string]struct{})
-			for s.Scan() {
-				pathnames[s.Text()] = struct{}{}
-			}
-			_ = s.Err()
-			pathnamesByRevision[revision] = pathnames
-		}
-		_, ok := pathnames[pathname]
-		return ok
-	}, func() {}
-}
-
-func KeepLocalFor(dir, revision, pathname string) error {
-	f, err := os.OpenFile(keepPathName(dir, revision), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0640)
-	if err != nil {
-		return err
+func (tree *Tree) isIgnored(revision string, pathname string) bool {
+	if tree.ignored == nil {
+		return false
 	}
-	defer func() {
-		_ = f.Close()
-	}()
-	_, err = fmt.Fprintln(f, pathname)
-	return err
+	m := tree.ignored[revision]
+	if m == nil {
+		return false
+	}
+	_, ok := m[pathname]
+	return ok
 }
 
-func keepPathName(dir string, revision string) string {
-	return filepath.Join(dir, revision+".keep")
+// Ignore marks the given pathname within the given revision as
+// ignored for the purpose of pull (merge) operations. In other
+// words, a conflict for pathname when merging the revision will
+// result in the local version to be kept.
+func (tree *Tree) Ignore(revision string, pathname string) {
+	if tree.ignored == nil {
+		tree.ignored = make(map[string]map[string]struct{})
+	}
+	m := tree.ignored[revision]
+	if m == nil {
+		m = make(map[string]struct{})
+		tree.ignored[revision] = m
+	}
+	m[pathname] = struct{}{}
 }
 
 func sameKeyOrBothNil(a, b *Node) bool {
@@ -66,10 +48,9 @@ func sameKeyOrBothNil(a, b *Node) bool {
 
 // Returns proposed commands to execute via the ctl file.
 // If empty, and no error, it means there's nothing to pull.
-func (tree *Tree) PullWorklog(keep KeepLocalFn, cfg *config.C, baseTree *Tree, remoteTree *Tree) (output string, err error) {
+func (tree *Tree) PullWorklog(cfg *config.C, baseTree *Tree, remoteTree *Tree) (output string, err error) {
 	var buf bytes.Buffer
 	err = merge3way(
-		keep,
 		tree,       // tree to merge into
 		baseTree,   // merge base
 		remoteTree, // tree to merge
@@ -89,8 +70,7 @@ func (tree *Tree) PullWorklog(keep KeepLocalFn, cfg *config.C, baseTree *Tree, r
 	return
 }
 
-// TODO Some commands are output in comments so one can't just pipe to rc. (One shouldn't without checking, anyway...)
-func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, local, base, remote *Node, baseRev, remoteRev string, cfg *config.C, output io.Writer) error {
+func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node, baseRev, remoteRev string, cfg *config.C, output io.Writer) error {
 	if sameKeyOrBothNil(local, remote) {
 		log.Printf("Same key (or both nil): %v", local)
 		return nil
@@ -135,7 +115,7 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 	// Otherwise, we can try recursion (losing metadata diffs for the directories, but it's something I can stand at the moment).
 
 	if remote != nil {
-		resolved := keepLocalFn(remoteRev, strings.TrimPrefix(remote.Path(), "root/"))
+		resolved := localTree.isIgnored(remoteRev, strings.TrimPrefix(remote.Path(), "root/"))
 		if resolved {
 			log.Printf("There was a conflict at path %q but it is marked as locally resolved\n", remote.Path())
 			return nil
@@ -199,7 +179,7 @@ func merge3way(keepLocalFn KeepLocalFn, localTree, baseTree, remoteTree *Tree, l
 	}
 
 	for name := range mergeNames {
-		if err := merge3way(keepLocalFn, localTree, baseTree, remoteTree, getChild(localChildren, name), getChild(baseChildren, name), getChild(remoteChildren, name), baseRev, remoteRev, cfg, output); err != nil {
+		if err := merge3way(localTree, baseTree, remoteTree, getChild(localChildren, name), getChild(baseChildren, name), getChild(remoteChildren, name), baseRev, remoteRev, cfg, output); err != nil {
 			return err
 		}
 	}

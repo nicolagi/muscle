@@ -24,6 +24,8 @@ type Tree struct {
 
 	readOnly bool
 
+	ignored map[string]map[string]struct{}
+
 	lastFlushed time.Time
 }
 

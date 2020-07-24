@@ -33,8 +33,7 @@ type ops struct {
 	// Control node
 	c *ctl
 
-	mergeConflictsPath string
-	cfg                *config.C
+	cfg *config.C
 }
 
 var (
@@ -117,6 +116,9 @@ func (ops *ops) Walk(r *srv.Req) {
 func (ops *ops) Open(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
+	if r.Tc.Mode&p.ORCLOSE != 0 {
+		r.RespondError(srv.Eperm)
+	}
 	switch {
 	case r.Fid.Aux == ops.c:
 		r.RespondRopen(&ops.c.D.Qid, 0)
@@ -247,7 +249,8 @@ func runCommand(ops *ops, cmd string) error {
 		ops.tree.DumpNodes()
 	case "keep-local-for":
 		parts := strings.SplitN(args[0], "/", 2)
-		return tree.KeepLocalFor(ops.mergeConflictsPath, parts[0], parts[1])
+		ops.tree.Ignore(parts[0], parts[1])
+		return nil
 	case "rename":
 		err := ops.tree.Rename(args[0], args[1])
 		if err != nil {
@@ -344,9 +347,7 @@ func runCommand(ops *ops, cmd string) error {
 		if err != nil {
 			return output(err)
 		}
-		keep, cleanup := tree.MustKeepLocalFn(ops.mergeConflictsPath)
-		defer cleanup()
-		commands, err := ops.tree.PullWorklog(keep, ops.cfg, localbasetree, remotebasetree)
+		commands, err := ops.tree.PullWorklog(ops.cfg, localbasetree, remotebasetree)
 		if err != nil {
 			return output(err)
 		}
@@ -630,12 +631,11 @@ func main() {
 	}
 
 	ops := &ops{
-		factory:            factory,
-		treeStore:          treeStore,
-		tree:               tt,
-		c:                  new(ctl),
-		mergeConflictsPath: cfg.ConflictResolutionDirectoryPath(),
-		cfg:                cfg,
+		factory:   factory,
+		treeStore: treeStore,
+		tree:      tt,
+		c:         new(ctl),
+		cfg:       cfg,
 	}
 
 	_, root := tt.Root()
@@ -651,10 +651,6 @@ func main() {
 	/* Best-effort clean-up, for when the control file used to be part of the tree. */
 	if nodes, err := ops.tree.Walk(root, "ctl"); err == nil && len(nodes) == 1 {
 		_ = ops.tree.Remove(nodes[0])
-	}
-
-	if err := os.MkdirAll(ops.mergeConflictsPath, 0755); err != nil {
-		log.WithField("cause", err).Fatal("could not ensure conflicts directory exists")
 	}
 
 	fs := &srv.Srv{}
