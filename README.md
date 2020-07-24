@@ -17,8 +17,6 @@ Revisions are linked together in a git-like history.
 The latter, muscle, is a command-line tool that offers additional
 operations on the same data that is exposed via the file server.
 
-The [walk-through](doc/walk-through.md) page shows with examples how muscle can be useful.
-
 The rest of this page goes into technical matters instead.
 
 ## Overview
@@ -42,11 +40,10 @@ The file system supports taking incremental snapshots, called revisions,
 which are linked, in such a way that you can have a history of snapshots
 akin to a git history of commits. In particular, it is possible to see
 the diff between any two revisions of the file system.  For example,
-showing names of modified files in recent revisions for the instance
-named plank can be done as follows:
+showing names of modified files in recent revisions can be done as follows:
 
 ```
-% muscle history -d -N plank | 9 grep '^$|^(key|root/)' | uniq
+% muscle history -d -N | 9 grep '^$|^(key|root/)' | uniq
 key 86420c0f76b8c4070e166dba6f8356adb80e7c51a3df23ee6b5871fffc041f01
 
 root/src/muscle.wiki/Walkthrough.md
@@ -64,11 +61,13 @@ root/tmp/snippets-walk-through
 ```
 
 To allow for disconnected operation, each host running musclefs
-corresponds to a separate tree, called an instance.
+corresponds to a partial working copy of the whole fs.
 
-Such trees can be merged (think merging git branches) in such a way that
-all these trees converge to the same data. (This is the clunkiest part
-of the system but works for me.)
+To synchronize working copies, there are two commands, pull
+(corresponding to git pull --rebase) and push (corresponding to git
+push). The latter is only allowed after pull (corresponding to
+fast-forward git merges). Other analogy: cvs update for pull, cvs
+commit for push.
 
 All blobs are encrypted before being sent to cloud storage. But a big
 caveat, I'm not at all an expert and the encryption might be stupidly
@@ -86,9 +85,9 @@ plan9port, sometimes a 9front VM these days).
 
 I believe that one should try to find already existing software
 before embarking on writing something new.  At some point I found out
-about the [Upspin](https://upspin.io) project and started using it -
-this seemed to provide at least part of that experience and a lot
-more interesting features. You probably want to use that software,
+about the [Upspin](https://upspin.io) project and started using it.
+It seemed to provide at least part of that experience and a lot
+of additional interesting features. You probably want to use that software,
 not this. Anyway. Upspin requires running a server somewhere on the
 internet and be always connected and I didn't want to do that. I don't
 want to maintain the server, and my lousy connectivity would make that
@@ -139,7 +138,7 @@ a new revision is created. A revision is a complete snapshot of the
 filesystem tree and points to a parent revision.  This means that we
 have a history of revisions. It can be inspected with `muscle history`.
 
-When taking a snapshot via `echo snapshot > /n/muscle/ctl`, relevant data
+When taking a snapshot via `echo push > /n/muscle/ctl`, relevant data
 is copied to the local cache (blocking the file server while doing so, but
 this phase is fast), asynchronously uploaded to the persistent storage,
 and remaining garbage is removed from the staging area. The garbage is due
