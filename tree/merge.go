@@ -81,6 +81,10 @@ func (tree *Tree) PullWorklog(keep KeepLocalFn, cfg *config.C, baseTree *Tree, r
 		cfg,
 		&buf,
 	)
+	if buf.Len() > 0 {
+		_, _ = fmt.Fprintln(&buf, "flush")
+		_, _ = fmt.Fprintln(&buf, "pull")
+	}
 	output = buf.String()
 	return
 }
