@@ -1,6 +1,9 @@
 package main
 
+import "github.com/lionkov/go9p/p"
+
 type ctl struct {
+	D        p.Dir
 	contents []byte
 }
 

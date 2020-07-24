@@ -302,10 +302,6 @@ func (node *Node) SetMTime(mtime uint32) {
 	node.markDirty()
 }
 
-func (node *Node) IsController() bool {
-	return node.D.Name == "ctl" && node.parent.IsRoot()
-}
-
 func (node *Node) SameKind(other *Node) bool {
 	return (node.D.Mode&p.DMDIR != 0 && other.D.Mode&p.DMDIR != 0) ||
 		(node.D.Mode&p.DMDIR == 0 && other.D.Mode&p.DMDIR == 0)

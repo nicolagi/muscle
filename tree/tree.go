@@ -74,9 +74,6 @@ func (tree *Tree) Remove(node *Node) error {
 	if node.IsRoot() {
 		return fmt.Errorf("can't remove the root")
 	}
-	if node.IsController() {
-		return fmt.Errorf("can't remove the control file")
-	}
 	if node.IsDir() && len(node.children) > 0 {
 		return fmt.Errorf("dir not empty")
 	}

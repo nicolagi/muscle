@@ -60,124 +60,154 @@ func (ops *ops) Attach(r *srv.Req) {
 func (ops *ops) Walk(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	node := r.Fid.Aux.(*tree.Node)
-	if node.Unlinked() {
-		r.RespondError(Eunlinked)
-		return
-	}
-	if len(r.Tc.Wname) == 0 {
-		node.Ref("clone")
-		r.Newfid.Aux = node
-		r.RespondRwalk(nil)
-		return
-	}
-	// TODO test scenario: nwqids != 0 but < nwname
-	nodes, err := ops.tree.Walk(node, r.Tc.Wname...)
-	if errors.Is(err, tree.ErrNotFound) {
-		if len(nodes) == 0 {
-			r.RespondError(srv.Enoent)
+	switch {
+	case r.Fid.Aux == ops.c:
+		if len(r.Tc.Wname) == 0 {
+			r.Newfid.Aux = ops.c
+			r.RespondRwalk(nil)
+		} else {
+			r.RespondError(srv.Eperm)
+		}
+	default:
+		node := r.Fid.Aux.(*tree.Node)
+		if node.Unlinked() {
+			r.RespondError(Eunlinked)
 			return
 		}
-		// Clear the error if it was of type "not found" and we could walk at least a node.
-		err = nil
+		if len(r.Tc.Wname) == 0 {
+			node.Ref("clone")
+			r.Newfid.Aux = node
+			r.RespondRwalk(nil)
+			return
+		}
+		if node.IsRoot() && len(r.Tc.Wname) == 1 && r.Tc.Wname[0] == "ctl" {
+			r.Newfid.Aux = ops.c
+			r.RespondRwalk([]p.Qid{ops.c.D.Qid})
+			return
+		}
+		// TODO test scenario: nwqids != 0 but < nwname
+		nodes, err := ops.tree.Walk(node, r.Tc.Wname...)
+		if errors.Is(err, tree.ErrNotFound) {
+			if len(nodes) == 0 {
+				r.RespondError(srv.Enoent)
+				return
+			}
+			// Clear the error if it was of type "not found" and we could walk at least a node.
+			err = nil
+		}
+		if err != nil {
+			log.WithFields(log.Fields{
+				"path":  node.Path(),
+				"cause": err.Error(),
+			}).Error("Could not walk")
+			r.RespondError(srv.Eperm)
+			return
+		}
+		var qids []p.Qid
+		for _, n := range nodes {
+			qids = append(qids, n.D.Qid)
+		}
+		if len(qids) == len(r.Tc.Wname) {
+			targetNode := nodes[len(nodes)-1]
+			r.Newfid.Aux = targetNode
+			targetNode.Ref("successful walk")
+		}
+		r.RespondRwalk(qids)
 	}
-	if err != nil {
-		log.WithFields(log.Fields{
-			"path":  node.Path(),
-			"cause": err.Error(),
-		}).Error("Could not walk")
-		r.RespondError(srv.Eperm)
-		return
-	}
-	var qids []p.Qid
-	for _, n := range nodes {
-		qids = append(qids, n.D.Qid)
-	}
-	if len(qids) == len(r.Tc.Wname) {
-		targetNode := nodes[len(nodes)-1]
-		r.Newfid.Aux = targetNode
-		targetNode.Ref("successful walk")
-	}
-	r.RespondRwalk(qids)
 }
 
 func (ops *ops) Open(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	node := r.Fid.Aux.(*tree.Node)
-	if node.Unlinked() {
-		r.RespondError(Eunlinked)
-		return
-	}
 	switch {
-	case node.IsDir():
-		if err := ops.tree.Grow(node); err != nil {
-			r.RespondError(err)
+	case r.Fid.Aux == ops.c:
+		r.RespondRopen(&ops.c.D.Qid, 0)
+	default:
+		node := r.Fid.Aux.(*tree.Node)
+		if node.Unlinked() {
+			r.RespondError(Eunlinked)
 			return
 		}
-		node.PrepareForReads()
-	default:
-		if r.Tc.Mode&p.OTRUNC != 0 {
-			if err := node.Truncate(0); err != nil {
+		switch {
+		case node.IsDir():
+			if err := ops.tree.Grow(node); err != nil {
 				r.RespondError(err)
 				return
 			}
+			node.PrepareForReads()
+		default:
+			if r.Tc.Mode&p.OTRUNC != 0 {
+				if err := node.Truncate(0); err != nil {
+					r.RespondError(err)
+					return
+				}
+			}
 		}
+		r.RespondRopen(&node.D.Qid, 0)
 	}
-	r.RespondRopen(&node.D.Qid, 0)
 }
 
 func (ops *ops) Create(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	parent := r.Fid.Aux.(*tree.Node)
-	if parent.Unlinked() {
-		r.RespondError(Eunlinked)
-		return
+	switch {
+	case r.Fid.Aux == ops.c:
+		r.RespondError(srv.Eperm)
+	default:
+		parent := r.Fid.Aux.(*tree.Node)
+		if parent.Unlinked() {
+			r.RespondError(Eunlinked)
+			return
+		}
+		var node *tree.Node
+		var err error
+		node, err = ops.tree.Add(parent, r.Tc.Name, r.Tc.Perm)
+		if err != nil {
+			r.RespondError(err)
+			return
+		}
+		node.Ref("create")
+		parent.Unref("created child")
+		r.Fid.Aux = node
+		r.RespondRcreate(&node.D.Qid, 0)
 	}
-	var node *tree.Node
-	var err error
-	node, err = ops.tree.Add(parent, r.Tc.Name, r.Tc.Perm)
-	if err != nil {
-		r.RespondError(err)
-		return
-	}
-	node.Ref("create")
-	parent.Unref("created child")
-	r.Fid.Aux = node
-	r.RespondRcreate(&node.D.Qid, 0)
 }
 
 func (ops *ops) Read(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	node := r.Fid.Aux.(*tree.Node)
-	if node.Unlinked() {
-		r.RespondError(Eunlinked)
-		return
-	}
 	if err := p.InitRread(r.Rc, r.Tc.Count); err != nil {
 		r.RespondError(err)
 		return
 	}
-	var count int
-	var err error
-	if node.IsDir() {
-		count, err = node.DirReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
-	} else if node.IsController() {
-		count = ops.c.read(r.Rc.Data[:r.Tc.Count], int(r.Tc.Offset))
-	} else {
-		count, err = node.ReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
+	switch {
+	case r.Fid.Aux == ops.c:
+		ops.c.D.Atime = uint32(time.Now().Unix())
+		count := ops.c.read(r.Rc.Data[:r.Tc.Count], int(r.Tc.Offset))
+		p.SetRreadCount(r.Rc, uint32(count))
+	default:
+		node := r.Fid.Aux.(*tree.Node)
+		if node.Unlinked() {
+			r.RespondError(Eunlinked)
+			return
+		}
+		var count int
+		var err error
+		if node.IsDir() {
+			count, err = node.DirReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
+		} else {
+			count, err = node.ReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
+		}
+		if err != nil {
+			log.WithFields(log.Fields{
+				"path":  node.Path(),
+				"cause": err.Error(),
+			}).Error("Could not read")
+			r.RespondError(srv.Eperm)
+			return
+		}
+		p.SetRreadCount(r.Rc, uint32(count))
 	}
-	if err != nil {
-		log.WithFields(log.Fields{
-			"path":  node.Path(),
-			"cause": err.Error(),
-		}).Error("Could not read")
-		r.RespondError(srv.Eperm)
-		return
-	}
-	p.SetRreadCount(r.Rc, uint32(count))
 	r.Respond()
 }
 
@@ -200,6 +230,7 @@ func runCommand(ops *ops, cmd string) error {
 	// Ensure the output is available even in the case of an early error return.
 	defer func() {
 		ops.c.contents = outputBuffer.Bytes()
+		ops.c.D.Length = uint64(len(ops.c.contents))
 	}()
 
 	switch cmd {
@@ -381,136 +412,153 @@ func runCommand(ops *ops, cmd string) error {
 func (ops *ops) Write(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	node := r.Fid.Aux.(*tree.Node)
-	if node.Unlinked() {
-		r.RespondError(Eunlinked)
-		return
-	}
-	if node.IsController() {
+	switch {
+	case r.Fid.Aux == ops.c:
+		ops.c.D.Mtime = uint32(time.Now().Unix())
 		// Assumption: One Twrite per command.
 		if err := runCommand(ops, string(r.Tc.Data)); err != nil {
 			r.RespondError(err)
 			return
 		}
 		r.RespondRwrite(uint32(len(r.Tc.Data)))
-		return
+	default:
+		node := r.Fid.Aux.(*tree.Node)
+		if node.Unlinked() {
+			r.RespondError(Eunlinked)
+			return
+		}
+		if err := node.WriteAt(r.Tc.Data, int64(r.Tc.Offset)); err != nil {
+			r.RespondError(err)
+			return
+		}
+		r.RespondRwrite(uint32(len(r.Tc.Data)))
 	}
-	if err := node.WriteAt(r.Tc.Data, int64(r.Tc.Offset)); err != nil {
-		r.RespondError(err)
-		return
-	}
-	r.RespondRwrite(uint32(len(r.Tc.Data)))
 }
 
 func (ops *ops) Clunk(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	node := r.Fid.Aux.(*tree.Node)
-	/*  Respond with Rclunk even if unlinked. Caller won't care. */
-	defer node.Unref("clunk")
+	switch {
+	case r.Fid.Aux == ops.c:
+	default:
+		node := r.Fid.Aux.(*tree.Node)
+		/*  Respond with Rclunk even if unlinked. Caller won't care. */
+		defer node.Unref("clunk")
+	}
 	r.RespondRclunk()
 }
 
 func (ops *ops) Remove(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	node := r.Fid.Aux.(*tree.Node)
-	if node.Unlinked() {
-		r.RespondError(Eunlinked)
-		return
-	}
-	node.Unref("remove")
-	if node.IsController() {
+	switch {
+	case r.Fid.Aux == ops.c:
 		r.RespondError(srv.Eperm)
-		return
-	}
-	err := ops.tree.Remove(node)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"path":  node.Path(),
-			"cause": err.Error(),
-		}).Warning("Could not remove")
-		r.RespondError(srv.Eperm)
-	} else {
-		r.RespondRremove()
+	default:
+		node := r.Fid.Aux.(*tree.Node)
+		if node.Unlinked() {
+			r.RespondError(Eunlinked)
+			return
+		}
+		node.Unref("remove")
+		err := ops.tree.Remove(node)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"path":  node.Path(),
+				"cause": err.Error(),
+			}).Warning("Could not remove")
+			r.RespondError(srv.Eperm)
+		} else {
+			r.RespondRremove()
+		}
 	}
 }
 
 func (ops *ops) Stat(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	node := r.Fid.Aux.(*tree.Node)
-	if node.Unlinked() {
-		r.RespondError(Eunlinked)
-		return
+	switch {
+	case r.Fid.Aux == ops.c:
+		r.RespondRstat(&ops.c.D)
+	default:
+		node := r.Fid.Aux.(*tree.Node)
+		if node.Unlinked() {
+			r.RespondError(Eunlinked)
+			return
+		}
+		r.RespondRstat(&node.D)
 	}
-	r.RespondRstat(&node.D)
 }
 
 func (ops *ops) Wstat(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	node := r.Fid.Aux.(*tree.Node)
-	if node.Unlinked() {
-		r.RespondError(Eunlinked)
-		return
-	}
-	dir := r.Tc.Dir
-	if dir.ChangeLength() {
-		if node.IsDir() {
-			r.RespondError(srv.Eperm)
-			return
-		}
-		if err := node.Truncate(dir.Length); err != nil {
-			log.WithFields(log.Fields{
-				"cause": err,
-			}).Error("Could not truncate")
-			r.RespondError(srv.Eperm)
-			return
-		}
-	}
-
-	// From the documentation: "ChangeIllegalFields returns true
-	// if Dir contains values that would request illegal fields to
-	// be changed; these are type, dev, and qid. The size field is
-	// ignored because it's not kept intact.  Any 9p server should
-	// return error to a Wstat request when this method returns true."
-	// Unfortunately (at least mounting on Linux using the 9p module)
-	// rename operations issue Wstat calls with non-empty muid.
-	// Since we need renames to work, let's just discard the muid
-	// if present. Also, Linux tries to set the atime.  In order not to
-	// fail commands such as touch, we'll ignore those also.
-	dir.Atime = ^uint32(0)
-	dir.Muid = ""
-	if dir.ChangeIllegalFields() {
-		log.WithFields(log.Fields{
-			"path": node.Path(),
-			"dir":  dir,
-			"qid":  dir.Qid,
-		}).Warning("Trying to change illegal fields")
+	switch {
+	case r.Fid.Aux == ops.c:
 		r.RespondError(srv.Eperm)
-		return
-	}
+	default:
+		node := r.Fid.Aux.(*tree.Node)
+		if node.Unlinked() {
+			r.RespondError(Eunlinked)
+			return
+		}
+		dir := r.Tc.Dir
+		if dir.ChangeLength() {
+			if node.IsDir() {
+				r.RespondError(srv.Eperm)
+				return
+			}
+			if err := node.Truncate(dir.Length); err != nil {
+				log.WithFields(log.Fields{
+					"cause": err,
+				}).Error("Could not truncate")
+				r.RespondError(srv.Eperm)
+				return
+			}
+		}
 
-	if dir.ChangeName() {
-		node.Rename(dir.Name)
-	}
-	if dir.ChangeMtime() {
-		node.SetMTime(dir.Mtime)
-	}
+		// From the documentation: "ChangeIllegalFields returns true
+		// if Dir contains values that would request illegal fields to
+		// be changed; these are type, dev, and qid. The size field is
+		// ignored because it's not kept intact.  Any 9p server should
+		// return error to a Wstat request when this method returns true."
+		// Unfortunately (at least mounting on Linux using the 9p module)
+		// rename operations issue Wstat calls with non-empty muid.
+		// Since we need renames to work, let's just discard the muid
+		// if present. Also, Linux tries to set the atime.  In order not to
+		// fail commands such as touch, we'll ignore those also.
+		dir.Atime = ^uint32(0)
+		dir.Muid = ""
+		if dir.ChangeIllegalFields() {
+			log.WithFields(log.Fields{
+				"path": node.Path(),
+				"dir":  dir,
+				"qid":  dir.Qid,
+			}).Warning("Trying to change illegal fields")
+			r.RespondError(srv.Eperm)
+			return
+		}
 
-	if dir.ChangeMode() {
-		node.SetMode(dir.Mode)
-	}
+		if dir.ChangeName() {
+			node.Rename(dir.Name)
+		}
+		if dir.ChangeMtime() {
+			node.SetMTime(dir.Mtime)
+		}
 
-	// Owner and group for files stored in a muscle tree are those
-	// of the user/group that started the file server.  We allow to
-	// change the GID but such change won't be persisted.
-	if dir.ChangeGID() {
-		node.D.Gid = dir.Gid
-	}
+		if dir.ChangeMode() {
+			node.SetMode(dir.Mode)
+		}
 
-	r.RespondRwstat()
+		// Owner and group for files stored in a muscle tree are those
+		// of the user/group that started the file server.  We allow to
+		// change the GID but such change won't be persisted.
+		if dir.ChangeGID() {
+			node.D.Gid = dir.Gid
+		}
+
+		r.RespondRwstat()
+	}
 }
 
 func setLevel(level string) error {
@@ -590,6 +638,21 @@ func main() {
 		c:                  new(ctl),
 		mergeConflictsPath: cfg.ConflictResolutionDirectoryPath(),
 		cfg:                cfg,
+	}
+
+	_, root := tt.Root()
+	now := time.Now()
+	ops.c.D.Qid.Path = uint64(now.UnixNano())
+	ops.c.D.Mode = 0644
+	ops.c.D.Mtime = uint32(now.Unix())
+	ops.c.D.Atime = ops.c.D.Mtime
+	ops.c.D.Name = "ctl"
+	ops.c.D.Uid = root.D.Uid
+	ops.c.D.Gid = root.D.Gid
+
+	/* Best-effort clean-up, for when the control file used to be part of the tree. */
+	if nodes, err := ops.tree.Walk(root, "ctl"); err == nil && len(nodes) == 1 {
+		_ = ops.tree.Remove(nodes[0])
 	}
 
 	if err := os.MkdirAll(ops.mergeConflictsPath, 0755); err != nil {
