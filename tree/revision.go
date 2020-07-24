@@ -7,32 +7,28 @@ import (
 	"time"
 
 	"github.com/nicolagi/muscle/storage"
-	log "github.com/sirupsen/logrus"
 )
 
 // Revision is the analogue of a git commit.
 type Revision struct {
 	key storage.Pointer // Hash of the fields below
 
-	parents  []storage.Pointer
-	rootKey  storage.Pointer
-	instance string
-	hostname string // From where the snapshot was taken.
-	when     int64  // When the snapshot was taken (in seconds).
+	parent  storage.Pointer
+	rootKey storage.Pointer
+	host    string // From where the snapshot was taken.
+	when    int64  // When the snapshot was taken (in seconds).
 }
 
-func NewRevision(instance string, rootKey storage.Pointer, parents []storage.Pointer) *Revision {
-	hostname, err := os.Hostname()
+func NewRevision(rootKey storage.Pointer, parent storage.Pointer) *Revision {
+	host, err := os.Hostname()
 	if err != nil {
-		log.WithField("err", err.Error()).Error("Could not get hostname")
-		hostname = "(unknown)"
+		host = "(unknown)"
 	}
 	return &Revision{
-		parents:  parents,
-		rootKey:  rootKey,
-		instance: instance,
-		hostname: hostname,
-		when:     time.Now().Unix(),
+		parent:  parent,
+		rootKey: rootKey,
+		host:    host,
+		when:    time.Now().Unix(),
 	}
 }
 
@@ -46,28 +42,24 @@ func (r *Revision) Time() time.Time {
 
 func (r *Revision) ShortString() string {
 	return fmt.Sprintf(
-		"host=%s root=%v key=%v parents=%v",
-		r.hostname,
-		r.rootKey,
+		"timestamp=%d host=%s key=%v parent=%v root=%v",
+		r.when,
+		r.host,
 		r.key,
-		r.parents,
+		r.parent,
+		r.rootKey,
 	)
 }
 
 func (r *Revision) String() string {
 	when := time.Unix(r.when, 0)
 	ago := time.Since(when).Truncate(time.Second).String()
-	buf := bytes.NewBuffer(nil)
-	fmt.Fprintf(buf, "revision taken %s ago, precisely %s\n", ago, when)
-	fmt.Fprintf(buf, "instance %s\n", r.instance)
-	fmt.Fprintf(buf, "host %s\n", r.hostname)
-	fmt.Fprintf(buf, "key %s\n", r.key.Hex())
-	fmt.Fprint(buf, "parents")
-	for _, pk := range r.parents {
-		fmt.Fprintf(buf, " %s", pk.Hex())
-	}
-	fmt.Fprintln(buf)
-	fmt.Fprintf(buf, "root %s\n", r.rootKey.Hex())
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "timestamp %s (%s ago)\n", when, ago)
+	fmt.Fprintf(&buf, "host %s\n", r.host)
+	fmt.Fprintf(&buf, "key %v\n", r.key)
+	fmt.Fprintf(&buf, "parent %v\n", r.parent)
+	fmt.Fprintf(&buf, "root %v\n", r.rootKey)
 	return buf.String()
 }
 

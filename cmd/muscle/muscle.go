@@ -462,15 +462,11 @@ func parseRevision(store *tree.Store, localInstance string, descriptor string) (
 		if rootKey == nil {
 			return nil, nil
 		}
-		var parents []storage.Pointer
-		remoteRevisionKey, err := store.RemoteBasePointer()
+		parentKey, err := store.RemoteBasePointer()
 		if err != nil && !errors.Is(err, storage.ErrNotFound) {
 			return nil, err
 		}
-		if remoteRevisionKey != nil {
-			parents = append(parents, remoteRevisionKey)
-		}
-		return tree.NewRevision(localInstance, rootKey, parents), nil
+		return tree.NewRevision(rootKey, parentKey), nil
 	case hexRE.MatchString(descriptor):
 		revisionKey, err := storage.NewPointerFromHex(descriptor)
 		if err != nil {

@@ -79,7 +79,7 @@ func (tree *Tree) FlushIfNotDoneRecently() error {
 
 // TODO This is a very ugly hack
 func (tree *Tree) SetRevision(r *Revision) {
-	if tree.root.pointer.Hex() != r.rootKey.Hex() {
+	if !tree.root.pointer.Equals(r.rootKey) {
 		panic("can't set a revision with mismatching root")
 	}
 	tree.revision = r.key

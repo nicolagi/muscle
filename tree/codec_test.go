@@ -111,19 +111,15 @@ func TestLatestCodecForNodes(t *testing.T) {
 	t.Run("for revisions", func(t *testing.T) {
 		f := func(
 			rootKey []byte,
-			parents [][]byte,
+			parentKey []byte,
 			when int64,
 			hostname string,
-			instance string,
 		) bool {
 			input := &Revision{}
 			input.rootKey = storage.NewPointer(rootKey)
-			for _, b := range parents {
-				input.parents = append(input.parents, storage.NewPointer(b))
-			}
+			input.parent = storage.NewPointer(parentKey)
 			input.when = when
-			input.hostname = hostname
-			input.instance = instance
+			input.host = hostname
 			b, err := c.encodeRevision(input)
 			if err != nil {
 				t.Log(err)

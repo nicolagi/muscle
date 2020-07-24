@@ -306,15 +306,10 @@ func (s *Store) history(r *Revision, maxRevisions int) (rr []*Revision, err erro
 			break
 		}
 		rr = append(rr, r)
-		if len(r.parents) == 0 {
+		if r.parent.IsNull() {
 			break
 		}
-		// The parent corresponding to the local instance is always the last element in the revision's parent.
-		pk := r.parents[len(r.parents)-1]
-		if pk.IsNull() {
-			break
-		}
-		r, err = s.LoadRevisionByKey(pk)
+		r, err = s.LoadRevisionByKey(r.parent)
 		if err != nil {
 			break
 		}

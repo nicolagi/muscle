@@ -111,14 +111,12 @@ func (codecV15) decodeNode(data []byte, dest *Node) error {
 }
 
 func (codecV15) encodeRevision(rev *Revision) ([]byte, error) {
-	size := 15 + len(rev.parents) + len(rev.hostname) + len(rev.instance)
+	size := 16 + len(rev.host)
 	if !rev.rootKey.IsNull() {
 		size += int(rev.rootKey.Len())
 	}
-	for _, k := range rev.parents {
-		if !k.IsNull() {
-			size += int(k.Len())
-		}
+	if !rev.parent.IsNull() {
+		size += int(rev.parent.Len())
 	}
 	buf := make([]byte, size)
 	ptr := buf
@@ -129,18 +127,17 @@ func (codecV15) encodeRevision(rev *Revision) ([]byte, error) {
 		ptr = pint8(rev.rootKey.Len(), ptr)
 		ptr = pbytes(rev.rootKey.Bytes(), ptr)
 	}
-	ptr = pint8(uint8(len(rev.parents)), ptr)
-	for _, k := range rev.parents {
-		if k.IsNull() {
-			ptr = pint8(0, ptr)
-		} else {
-			ptr = pint8(k.Len(), ptr)
-			ptr = pbytes(k.Bytes(), ptr)
-		}
+	ptr = pint8(1, ptr) /* only one parent */
+	if rev.parent.IsNull() {
+		ptr = pint8(0, ptr)
+	} else {
+		ptr = pint8(rev.parent.Len(), ptr)
+		ptr = pbytes(rev.parent.Bytes(), ptr)
 	}
 	ptr = pint64(uint64(rev.when), ptr)
-	ptr = pstr(rev.hostname, ptr)
-	ptr = pstr(rev.instance, ptr)
+	ptr = pstr(rev.host, ptr)
+	// Empty instance field, we don't want it anymore.
+	ptr = pstr("", ptr)
 	if len(ptr) != 0 {
 		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
 	}
@@ -160,19 +157,22 @@ func (codecV15) decodeRevision(data []byte, rev *Revision) error {
 	}
 	u8, ptr = gint8(ptr)
 	nparents := u8
+	// Keep only right-most parent, if there are more than one.
+	// (In today's code, each snapshot only has one parent snapshot.)
 	for i := uint8(0); i < nparents; i++ {
 		u8, ptr = gint8(ptr)
 		if u8 == 0 {
-			rev.parents = append(rev.parents, storage.Null)
+			rev.parent = storage.Null
 		} else {
-			rev.parents = append(rev.parents, storage.NewPointer(ptr[:u8]))
+			rev.parent = storage.NewPointer(ptr[:u8])
 			ptr = ptr[u8:]
 		}
 	}
 	u64, ptr = gint64(ptr)
 	rev.when = int64(u64)
-	rev.hostname, ptr = gstr(ptr)
-	rev.instance, ptr = gstr(ptr)
+	rev.host, ptr = gstr(ptr)
+	// Discard instance field, we don't want it anymore.
+	_, ptr = gstr(ptr)
 	if len(ptr) != 0 {
 		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
 	}

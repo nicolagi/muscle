@@ -102,17 +102,14 @@ func (codecV14) decodeRevision(data []byte, rev *Revision) error {
 	nparents := u8
 	for i := uint8(0); i < nparents; i++ {
 		u8, ptr = gint8(ptr)
-		if u8 == 0 {
-			rev.parents = append(rev.parents, storage.Null)
-		} else {
-			rev.parents = append(rev.parents, storage.NewPointer(ptr[:u8]))
-			ptr = ptr[u8:]
-		}
+		// Not interested in parent revisions for this codec (too stale).
+		ptr = ptr[u8:]
 	}
 	u64, ptr = gint64(ptr)
 	rev.when = int64(u64)
-	rev.hostname, ptr = gstr(ptr)
-	rev.instance, ptr = gstr(ptr)
+	rev.host, ptr = gstr(ptr)
+	// Discard instance field, we don't want it anymore.
+	_, ptr = gstr(ptr)
 	if len(ptr) != 0 {
 		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
 	}

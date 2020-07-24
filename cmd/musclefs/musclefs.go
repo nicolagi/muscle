@@ -23,8 +23,6 @@ import (
 )
 
 type ops struct {
-	instanceID string
-
 	factory   *tree.Factory
 	treeStore *tree.Store
 
@@ -386,7 +384,7 @@ func runCommand(ops *ops, cmd string) error {
 		_, _ = fmt.Fprintln(outputBuffer, "push: sealed")
 
 		_, localroot := ops.tree.Root()
-		revision := tree.NewRevision(ops.instanceID, localroot.Key(), []storage.Pointer{remotebase})
+		revision := tree.NewRevision(localroot.Key(), remotebase)
 		if err := ops.treeStore.StoreRevision(revision); err != nil {
 			return output(err)
 		}
