@@ -17,6 +17,7 @@ import (
 	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
+	"github.com/nicolagi/muscle/netutil"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
 	"github.com/pkg/errors"
@@ -648,12 +649,14 @@ func main() {
 	fs.Dotu = false
 	fs.Id = "muscle"
 	if !fs.Start(ops) {
-		log.Fatal("Can't start file server")
+		log.Fatal("go9p/p/srv.Srv.Start returned false")
 	}
 
 	go func() {
-		if err := fs.StartNetListener(cfg.ListenNet, cfg.ListenAddr); err != nil {
-			log.Fatal(err)
+		if listener, err := netutil.Listen(cfg.ListenNet, cfg.ListenAddr); err != nil {
+			log.Fatalf("Could not start net listener: %v", err)
+		} else if err := fs.StartListener(listener); err != nil {
+			log.Fatalf("Could not start 9P listener: %v", err)
 		}
 	}()
 

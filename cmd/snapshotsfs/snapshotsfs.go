@@ -12,6 +12,7 @@ import (
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/internal/p9util"
+	"github.com/nicolagi/muscle/netutil"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
 	log "github.com/sirupsen/logrus"
@@ -371,8 +372,12 @@ func main() {
 	s := &srv.Srv{}
 	s.Dotu = false
 	s.Id = "snapshots"
-	s.Start(&fs)
-	if err := s.StartNetListener(cfg.SnapshotsListenNet, cfg.SnapshotsListenAddr); err != nil {
+	if !s.Start(&fs) {
+		log.Fatal("go9p/p/srv.Srv.Start returned false")
+	}
+	if listener, err := netutil.Listen(cfg.SnapshotsListenNet, cfg.SnapshotsListenAddr); err != nil {
 		log.Fatalf("Could not start net listener: %v", err)
+	} else if err := s.StartListener(listener); err != nil {
+		log.Fatalf("Could not start 9P listener: %v", err)
 	}
 }
