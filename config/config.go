@@ -8,9 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	mathrand "math/rand"
-	 "log"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
 	"time"
@@ -26,13 +24,12 @@ var (
 )
 
 func init() {
-	u, err := user.Current()
-	if err != nil {
-		log.Fatalf("Could not get current user: %v", err)
-	}
-	DefaultBaseDirectoryPath = os.Getenv("MUSCLE_BASE")
-	if DefaultBaseDirectoryPath == "" {
-		DefaultBaseDirectoryPath = path.Join(u.HomeDir, "lib/muscle")
+	if base := os.Getenv("MUSCLE_BASE"); base != "" {
+		DefaultBaseDirectoryPath = base
+	} else {
+		// The portable way of doing this is by using the os/user package,
+		// but I only intend to run this on Linux or NetBSD.
+		DefaultBaseDirectoryPath = os.ExpandEnv("$HOME/lib/muscle")
 	}
 }
 
