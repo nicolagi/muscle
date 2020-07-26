@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/gops/agent"
 	"github.com/lionkov/go9p/p"
 	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/config"
@@ -43,15 +44,11 @@ var (
 )
 
 func (ops *ops) Attach(r *srv.Req) {
-	if r.Afid != nil {
-		r.RespondError(srv.Enoauth)
-	} else {
-		ops.mu.Lock()
-		defer ops.mu.Unlock()
-		root := ops.tree.Attach()
-		r.Fid.Aux = root
-		r.RespondRattach(&root.D.Qid)
-	}
+	ops.mu.Lock()
+	defer ops.mu.Unlock()
+	root := ops.tree.Attach()
+	r.Fid.Aux = root
+	r.RespondRattach(&root.D.Qid)
 }
 
 func (ops *ops) Walk(r *srv.Req) {
@@ -570,10 +567,11 @@ func setLevel(level string) error {
 }
 
 func main() {
-	// Dummy in Plan 9. The gops agent can be made to listen on
-	// "$sysname:0", but there's no point since the executable gops
-	// can't be built.
-	gopsListen()
+	if err := agent.Listen(agent.Options{
+		ShutdownCleanup: true,
+	}); err != nil {
+		log.Printf("Could not start gops agent: %v", err)
+	}
 
 	base := flag.String("base", config.DefaultBaseDirectoryPath, "Base directory for configuration, logs and cache files")
 	flag.Parse()
@@ -654,7 +652,6 @@ func main() {
 	}
 
 	fs := &srv.Srv{}
-	fs.Upool = usersPool() // Platform dependent
 	fs.Dotu = false
 	fs.Id = "muscle"
 	if !fs.Start(ops) {

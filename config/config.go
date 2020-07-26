@@ -8,19 +8,15 @@ import (
 	"io"
 	"io/ioutil"
 	mathrand "math/rand"
+	 "log"
 	"os"
 	"os/user"
 	"path"
 	"path/filepath"
-	"runtime"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 var (
-	AWSCredentialsPath string
-
 	// DefaultBaseDirectoryPath is where all muscle commands store configuration and data.
 	// It defaults to $MUSCLE_BASE if it is set, otherwise it defaults to $HOME/lib/muscle.
 	// Commands override this via the -base flag.
@@ -38,12 +34,6 @@ func init() {
 	if DefaultBaseDirectoryPath == "" {
 		DefaultBaseDirectoryPath = path.Join(u.HomeDir, "lib/muscle")
 	}
-	// The AWS Go packages could be updated to use $home instead of $HOME for Plan 9,
-	// but I'd hate the location $home/.aws/credentials on Plan 9.
-	AWSCredentialsPath = ""
-	if runtime.GOOS == "plan9" {
-		AWSCredentialsPath = path.Join(u.HomeDir, "lib/aws/credentials")
-	}
 }
 
 type C struct {
@@ -54,7 +44,7 @@ type C struct {
 
 	// Listen on localhost or a local-only network, e.g., one for
 	// containers hosted on your computer.  There is no
-	// authentication so the file server must not be exposed on a
+	// authentication nor TLS so the file server must not be exposed on a
 	// public address.
 	ListenIP   string `json:"listen-ip"`
 	ListenPort int    `json:"listen-port"`

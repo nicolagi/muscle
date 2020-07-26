@@ -124,7 +124,7 @@ func (s *s3Store) ensureClient() error {
 	}
 	sess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(s.region),
-		Credentials: credentials.NewSharedCredentials(config.AWSCredentialsPath, s.profile),
+		Credentials: credentials.NewSharedCredentials("", s.profile),
 	})
 	if err != nil {
 		return err
