@@ -307,7 +307,8 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Fa
 	// and the tree store. Otherwise any fixture created via the factory will be unreadable
 	// by the ephemeral musclefs.
 	sharedKey := c.EncryptionKeyBytes()
-	testAddress := c.ListenAddress()
+	// TODO: Assumes TCP.
+	testAddress := c.ListenAddr
 
 	// Start process asynchronously, creating a process group id, so we can later
 	// kill this process and all its children.

@@ -186,5 +186,11 @@ The [walk-through page](doc/walk-through.md) shows how.
 
 Start `musclefs` and `snapshotsfs` as background processes.
 
-Run `muscle mount` to get hints on how to mount the filesystems, either
-using the 9P driver in Linux or 9pfuse from plan9port.
+Example mount commands:
+
+	sudo mount 127.0.0.1 /mnt/muscle -t 9p -o 'trans=tcp,port=2323,dfltuid=1000,dfltgid=1000,uname=youruser'
+	sudo mount `{namespace}^/muscle /mnt/muscle -t 9p -o 'trans=unix,dfltuid=1000,dfltgid=1000,uname=youruser'
+	9pfuse 127.0.0.1:2323 /mnt/muscle
+	9pfuse `{namespace}^/muscle /mnt/muscle
+
+and similar for snapshotsfs.

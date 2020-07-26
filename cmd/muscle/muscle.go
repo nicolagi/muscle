@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/user"
 	"regexp"
 	"strings"
 
@@ -98,16 +97,10 @@ Commands:
 		- Compare with ls -lR of main musclefs (which whould also use cache files that might have been erroneuously
 		removed from the remote).
 
-	diff: compare local tree to a remote tree
-	fork: start a new instance from an existing one
-	history: shows the history of a tree
+	diff: compare local tree to the remote tree
+	history: shows the history of the tree
 	init: initializes configuration given the base directory
 	list: list all keys in remote store
-	merge: generate commands to merge a remote tree into the local one
-	merge-base: find the merge base for two revisions
-
-		Unless you're debugging some problem with the merge command, you don't need this.
-
 	reachable: reads a list of line-separated revision keys from standard input and lists all keys reachable from them to standard output
 	version: show version information
 `, os.Args[0])
@@ -227,31 +220,20 @@ func main() {
 		log.Fatalf("Could not load config from %q: %v", globalContext.base, err)
 	}
 
-	// Sub-commands mount and umount only require the configuration.
-	if os.Args[1] == "mount" {
-		u, err := user.Current()
-		if err != nil {
-			log.Fatalf("Could not get current user: %v", err)
+	if os.Args[1] == "mount" || os.Args[1] == "umount" {
+		var cmds []string
+		if os.Args[1] == "mount" {
+			cmds, err = cfg.MountCommands()
+		} else {
+			cmds, err = cfg.UmountCommands()
 		}
-		ofmt := fmt.Sprintf(
-			"'trans=tcp,port=%%d,dfltuid=%s,dfltgid=%s,uname=%s,access=any'",
-			u.Uid,
-			u.Gid,
-			u.Username,
-		)
-		fmt.Println("# Sweep and send as appropriate:")
-		fmt.Println("sudo", "mount", cfg.ListenIP, cfg.MuscleFSMount, "-t", "9p", "-o", fmt.Sprintf(ofmt, cfg.ListenPort))
-		fmt.Println("sudo", "mount", cfg.SnapshotsFSListenIP, cfg.SnapshotsFSMount, "-t", "9p", "-o", fmt.Sprintf(ofmt, cfg.SnapshotsFSListenPort))
-		fmt.Println("9pfuse", cfg.ListenAddress(), cfg.MuscleFSMount)
-		fmt.Println("9pfuse", cfg.SnapshotsFSListenAddr(), cfg.SnapshotsFSMount)
-		return
-	} else if os.Args[1] == "umount" {
-		fmt.Println("# Sweep and send as appropriate:")
-		fmt.Println("sudo", "umount", cfg.MuscleFSMount)
-		fmt.Println("sudo", "umount", cfg.SnapshotsFSMount)
-		fmt.Println("fusermount", "-u", cfg.MuscleFSMount)
-		fmt.Println("fusermount", "-u", cfg.SnapshotsFSMount)
-		return
+		if err != nil {
+			log.Fatalf("While getting %s commands: %+v", os.Args[1], err)
+		}
+		for _, c := range cmds {
+			fmt.Println(c)
+		}
+		os.Exit(0)
 	}
 
 	stagingStore := storage.NewDiskStore(cfg.StagingDirectoryPath())

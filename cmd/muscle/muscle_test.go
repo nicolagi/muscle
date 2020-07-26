@@ -132,14 +132,16 @@ func TestInit(t *testing.T) {
 				}
 			}(t, srvc)
 
-			if err := netutil.WaitForListener(c.ListenAddress(), 10*time.Second); err != nil {
+			// TODO: Assumes TCP.
+			if err := netutil.WaitForListener(c.ListenAddr, 10*time.Second); err != nil {
 				t.Fatalf("failed to connect to musclefs within 10 seconds: %v", err)
 			}
 
 			// Next part depends on having the 9p program from plan9port.
 			// I want to use an external program to act on the filesystem.
 			// This will create a file and flush the changes to create a new revision.
-			p := newRun9P(t, c.ListenAddress())
+			// TODO: Assumes TCP.
+			p := newRun9P(t, c.ListenAdd)
 			p.run("", "create", "test_file")
 			p.run("test content\n", "write", "test_file")
 			p.run("push\n", "write", "ctl")

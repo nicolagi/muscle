@@ -652,7 +652,7 @@ func main() {
 	}
 
 	go func() {
-		if err := fs.StartNetListener("tcp", cfg.ListenAddress()); err != nil {
+		if err := fs.StartNetListener(cfg.ListenNet, cfg.ListenAddr); err != nil {
 			log.Fatal(err)
 		}
 	}()

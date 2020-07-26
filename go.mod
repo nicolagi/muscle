@@ -1,6 +1,7 @@
 module github.com/nicolagi/muscle
 
 require (
+	9fans.net/go v0.0.2
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
 	github.com/aws/aws-sdk-go v1.33.7
 	github.com/fortytw2/leaktest v1.3.0

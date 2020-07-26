@@ -11,7 +11,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
+
+	"9fans.net/go/plan9/client"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -43,11 +48,10 @@ type C struct {
 	// containers hosted on your computer.  There is no
 	// authentication nor TLS so the file server must not be exposed on a
 	// public address.
-	ListenIP   string `json:"listen-ip"`
-	ListenPort int    `json:"listen-port"`
-
-	SnapshotsFSListenIP   string `json:"snapshotsfs-listen-ip"`
-	SnapshotsFSListenPort int    `json:"snapshotsfs-listen-port"`
+	ListenNet           string `json:"listen-net"`
+	ListenAddr          string `json:"listen-addr"`
+	SnapshotsListenNet  string `json:"snapshots-listen-net"`
+	SnapshotsListenAddr string `json:"snapshots-listen-addr"`
 
 	MuscleFSMount    string `json:"musclefs-mount"`
 	SnapshotsFSMount string `json:"snapshotsfs-mount"`
@@ -112,22 +116,18 @@ func Load(base string) (*C, error) {
 	if c.BlockSize == 0 {
 		c.BlockSize = defaultBlockSize
 	}
+	if c.ListenNet == "unix" && c.ListenAddr == "" {
+		c.ListenAddr = fmt.Sprintf("%s/muscle", client.Namespace())
+	}
+	if c.SnapshotsListenNet == "unix" && c.SnapshotsListenAddr == "" {
+		c.SnapshotsListenAddr = fmt.Sprintf("%s/snapshots", client.Namespace())
+	}
 	return c, err
 }
 
 func load(r io.Reader) (c *C, err error) {
 	err = json.NewDecoder(r).Decode(&c)
 	return
-}
-
-// ListenAddress is the ip:port pair for musclefs to listen on.
-func (c *C) ListenAddress() string {
-	return fmt.Sprintf("%s:%d", c.ListenIP, c.ListenPort)
-}
-
-// SnapshotsFSListenAddr is the ip:port pair for snapshotsfs to listen on.
-func (c *C) SnapshotsFSListenAddr() string {
-	return fmt.Sprintf("%s:%d", c.SnapshotsFSListenIP, c.SnapshotsFSListenPort)
 }
 
 func (c *C) CacheDirectoryPath() string {
@@ -164,6 +164,55 @@ func (c *C) EncryptionKeyBytes() []byte {
 	return c.encryptionKey
 }
 
+// See https://www.kernel.org/doc/Documentation/filesystems/9p.txt.
+func linuxMountCommand(net string, addr string, mountpoint string) (string, error) {
+	uid, gid := os.Getuid(), os.Getgid()
+	switch net {
+	case "unix":
+		return fmt.Sprintf("sudo mount -t 9p %v %v -o trans=unix,dfltuid=%d,dfltgid=%d", addr, mountpoint, uid, gid), nil
+	case "tcp":
+		if parts := strings.Split(addr, ":"); len(parts) != 2 {
+			return "", errors.Errorf("mailformed host-port pair: %q", addr)
+		} else {
+			return fmt.Sprintf("sudo mount -t 9p %v %v -o trans=tcp,port=%v,dfltuid=%d,dfltgid=%d", parts[0], mountpoint, parts[1], uid, gid), nil
+		}
+	default:
+		return "", errors.Errorf("unhandled network type: %v", net)
+	}
+}
+
+func (c *C) MountCommands() ([]string, error) {
+	switch runtime.GOOS {
+	case "linux":
+		var commands []string
+		if cmd, err := linuxMountCommand(c.ListenNet, c.ListenAddr, c.MuscleFSMount); err != nil {
+			return nil, err
+		} else {
+			commands = append(commands, cmd)
+		}
+		if cmd, err := linuxMountCommand(c.SnapshotsListenNet, c.SnapshotsListenAddr, c.SnapshotsFSMount); err != nil {
+			return nil, err
+		} else {
+			commands = append(commands, cmd)
+		}
+		return commands, nil
+	default:
+		return nil, fmt.Errorf("don't know now to mount on %v", runtime.GOOS)
+	}
+}
+
+func (c *C) UmountCommands() ([]string, error) {
+	switch runtime.GOOS {
+	case "linux":
+		return []string{
+			fmt.Sprintf("sudo umount %s", c.MuscleFSMount),
+			fmt.Sprintf("sudo umount %s", c.SnapshotsFSMount),
+		}, nil
+	default:
+		return nil, fmt.Errorf("don't know now to umount on %v", runtime.GOOS)
+	}
+}
+
 // Initialize generates an initial configuration at the given directory.
 func Initialize(baseDir string) error {
 	if err := os.MkdirAll(baseDir, 0700); err != nil {
@@ -179,11 +228,12 @@ func Initialize(baseDir string) error {
 	}
 	var c C
 	c.BlockSize = defaultBlockSize
-	c.ListenIP = "127.0.0.1"
-	c.SnapshotsFSListenIP = "127.0.0.1"
 	mathrand.Seed(time.Now().UnixNano())
-	c.ListenPort = 49152 + mathrand.Intn(65535-49152)
-	c.SnapshotsFSListenPort = 49152 + mathrand.Intn(65535-49152)
+	port := 49152 + mathrand.Intn(65535-49152)
+	c.ListenNet = "tcp"
+	c.ListenAddr = fmt.Sprintf("127.0.0.1:%d", port)
+	c.SnapshotsListenNet = "tcp"
+	c.SnapshotsListenAddr = fmt.Sprintf("127.0.0.1:%d", port+1)
 	c.MuscleFSMount = "/mnt/muscle"
 	c.SnapshotsFSMount = "/mnt/snapshots"
 	b := make([]byte, 32)
