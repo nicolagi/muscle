@@ -324,17 +324,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load config from %q: %v", *base, err)
 	}
-	f, err := os.OpenFile(cfg.SnapshotsFSLogFilePath(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
-	if err != nil {
-		log.Fatalf("Could not open log file %q: %v", cfg.SnapshotsFSLogFilePath(), err)
-	}
-	log.SetOutput(f)
 	ll, err := log.ParseLevel(logLevel)
 	if err != nil {
 		log.Fatalf("Could not parse log level %q: %v", logLevel, err)
 	}
 	log.SetLevel(ll)
-	defer func() { _ = f.Close() }()
 
 	remoteStore, err := storage.NewStore(cfg)
 	if err != nil {

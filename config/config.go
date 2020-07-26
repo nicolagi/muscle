@@ -137,18 +137,6 @@ func (c *C) CacheDirectoryPath() string {
 	return path.Join(c.base, "cache")
 }
 
-func (c *C) MuscleLogFilePath() string {
-	return path.Join(c.base, "muscle.log")
-}
-
-func (c *C) MuscleFSLogFilePath() string {
-	return path.Join(c.base, "musclefs.log")
-}
-
-func (c *C) SnapshotsFSLogFilePath() string {
-	return path.Join(c.base, "snapshotsfs.log")
-}
-
 // An instance of *storage.Paired will log keys to propagate from the
 // fast store to the slow store to this append-only log.  This will
 // ensure all data is eventually copied to the slow store, even if

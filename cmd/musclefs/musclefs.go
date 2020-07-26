@@ -579,14 +579,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load config from %q: %v", *base, err)
 	}
-
-	f, err := os.OpenFile(cfg.MuscleFSLogFilePath(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
-	if err != nil {
-		log.Fatalf("Could not open log file %q: %v", cfg.MuscleFSLogFilePath(), err)
-	}
-	log.SetOutput(f)
 	log.SetFormatter(&log.JSONFormatter{})
-	defer func() { _ = f.Close() }()
 
 	remoteBasicStore, err := storage.NewStore(cfg)
 	if err != nil {
