@@ -329,7 +329,10 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Fa
 	client, err = clnt.Mount("tcp", testAddress, user.Name(), 8192, user)
 	require.Nil(t, err)
 
-	rootFile := path.Join(dir, "other-root") // Avoid conflicts with the ephemeral musclefs root.
+	// dir is the based dir for musclefs.
+	// Let's get another nested temporary directory for the donor.
+	nestedBase := path.Join(dir, "donor")
+	_ = os.MkdirAll(nestedBase, 0777)
 	stagingDir := path.Join(dir, "staging")
 	stagingDiskStore := storage.NewDiskStore(stagingDir)
 	cacheDir := path.Join(dir, "cache")
@@ -341,7 +344,7 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Fa
 	// but it's fine for tests.
 	blockFactory, err := block.NewFactory(stagingDiskStore, cacheDiskStore, sharedKey)
 	require.Nil(t, err)
-	store, err = tree.NewStore(blockFactory, nil, rootFile)
+	store, err = tree.NewStore(blockFactory, nil, nestedBase)
 	require.Nil(t, err)
 	factory = tree.NewFactory(blockFactory, store, &config.C{
 		BlockSize: 8192,
@@ -356,9 +359,11 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Fa
 		if err := syscall.Kill(-command.Process.Pid, syscall.SIGKILL); err != nil {
 			t.Errorf("Could not kill test server: %v", err)
 		}
-		if err := os.RemoveAll(dir); err != nil {
-			t.Errorf("Could not remove test server dir %q: %v", dir, err)
-		}
+		/*
+			if err := os.RemoveAll(dir); err != nil {
+				t.Errorf("Could not remove test server dir %q: %v", dir, err)
+			}
+		*/
 		_ = serverLog.Close()
 	}
 }

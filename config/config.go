@@ -145,17 +145,6 @@ func (c *C) PropagationLogFilePath() string {
 	return path.Join(c.base, "propagation.log")
 }
 
-// RootKeyFilePath is the path to the file that holds the hash pointer
-// to the root of the tree and to the previous root.  Do not lose this
-// pointer, or you lose all your current data and past snapshots of
-// it.  TODO: Turn it into a tamper-evident log so you keep references
-// to past snapshots in case the most recent root gets corrupted or
-// lost because of some regression. In the meantime, pointers to past
-// revisions can be obtained from the musclefs log file.
-func (c *C) RootKeyFilePath() string {
-	return path.Join(c.base, "root")
-}
-
 func (c *C) StagingDirectoryPath() string {
 	return path.Join(c.base, "staging")
 }

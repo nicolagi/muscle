@@ -325,7 +325,7 @@ func runCommand(ops *ops, cmd string) error {
 		}
 		_, _ = fmt.Fprintln(outputBuffer, "flushed")
 	case "pull":
-		localbase, err := tree.LocalBasePointer()
+		localbase, err := ops.treeStore.LocalBasePointer()
 		if err != nil {
 			return output(err)
 		}
@@ -351,7 +351,7 @@ func runCommand(ops *ops, cmd string) error {
 		}
 		if len(commands) == 0 {
 			_, _ = fmt.Fprintln(outputBuffer, "no commands to run, pull is a no-op")
-			if err := tree.SetLocalBasePointer(remotebase); err != nil {
+			if err := ops.treeStore.SetLocalBasePointer(remotebase); err != nil {
 				return output(err)
 			}
 			return nil
@@ -359,7 +359,7 @@ func runCommand(ops *ops, cmd string) error {
 		outputBuffer.WriteString(commands)
 		return nil
 	case "push":
-		localbase, err := tree.LocalBasePointer()
+		localbase, err := ops.treeStore.LocalBasePointer()
 		if err != nil {
 			return output(err)
 		}
@@ -394,7 +394,7 @@ func runCommand(ops *ops, cmd string) error {
 			return output(err)
 		}
 		_, _ = fmt.Fprintf(outputBuffer, "push: updated remote base pointer: %v\n", revision.Key())
-		if err := tree.SetLocalBasePointer(revision.Key()); err != nil {
+		if err := ops.treeStore.SetLocalBasePointer(revision.Key()); err != nil {
 			return output(err)
 		}
 		_, _ = fmt.Fprintf(outputBuffer, "push: updated local base pointer: %v\n", revision.Key())
@@ -608,7 +608,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not build block factory: %v", err)
 	}
-	treeStore, err := tree.NewStore(blockFactory, remoteBasicStore, cfg.RootKeyFilePath())
+	treeStore, err := tree.NewStore(blockFactory, remoteBasicStore, *base)
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}

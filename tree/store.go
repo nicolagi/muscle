@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,22 +24,22 @@ const metadataBlockMaxSize = 1024 * 1024
 // encryption/decryption, encoding/decoding, actual store put/get.
 // It is built on top of the more basic functionality in muscle/storage.
 type Store struct {
-	localRootKeyFile string
-	blockFactory     *block.Factory
-	pointers         storage.Store
-	codec            Codec
+	blockFactory *block.Factory
+	pointers     storage.Store
+	codec        Codec
+	baseDir      string // e.g., $HOME/lib/muscle.
 }
 
 func NewStore(
 	blockFactory *block.Factory,
 	pointers storage.Store,
-	localRootKeyFile string,
+	baseDir string,
 ) (*Store, error) {
 	return &Store{
-		blockFactory:     blockFactory,
-		localRootKeyFile: localRootKeyFile,
-		pointers:         pointers,
-		codec:            newStandardCodec(),
+		blockFactory: blockFactory,
+		pointers:     pointers,
+		codec:        newStandardCodec(),
+		baseDir:      baseDir,
 	}, nil
 }
 
@@ -170,13 +171,13 @@ func (s *Store) LoadNode(dst *Node) error {
 
 // TODO: Belongs to musclefs, not to the tree package.
 func (s *Store) updateLocalRootPointer(rootKey storage.Pointer) error {
-	return setLocalPointer(s.localRootKeyFile, rootKey)
+	return setLocalPointer(filepath.Join(s.baseDir, "root"), rootKey)
 }
 
 // LocalBasePointer reads the file $HOME/lib/muscle/base, expecting
 // to find a hex-encoded storage.Pointer that points to a revision.
-func LocalBasePointer() (storage.Pointer, error) {
-	pathname := os.ExpandEnv("$HOME/lib/muscle/base")
+func (s *Store) LocalBasePointer() (storage.Pointer, error) {
+	pathname := filepath.Join(s.baseDir, "base")
 	return localPointer(pathname)
 }
 
@@ -193,8 +194,8 @@ func localPointer(pathname string) (storage.Pointer, error) {
 // SetLocalBasePointer atomically updates $HOME/lib/muscle/base, and
 // adds an entry to $HOME/lib/muscle/base.history for the previous
 // base pointer.
-func SetLocalBasePointer(pointer storage.Pointer) error {
-	pathname := os.ExpandEnv("$HOME/lib/muscle/base")
+func (s *Store) SetLocalBasePointer(pointer storage.Pointer) error {
+	pathname := filepath.Join(s.baseDir, "base")
 	return setLocalPointer(pathname, pointer)
 }
 
@@ -239,7 +240,7 @@ func (s *Store) SetRemoteBasePointer(pointer storage.Pointer) error {
 }
 
 func (s *Store) LocalRootKey() (storage.Pointer, error) {
-	return localPointer(s.localRootKeyFile)
+	return localPointer(filepath.Join(s.baseDir, "root"))
 }
 
 func (s *Store) LocalRoot() (*Node, error) {
