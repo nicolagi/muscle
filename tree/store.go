@@ -11,7 +11,6 @@ import (
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 // Used for blocks holding serialized revisions and nodes. Since only one block
@@ -171,18 +170,17 @@ func (s *Store) LoadNode(dst *Node) error {
 
 // TODO: Belongs to musclefs, not to the tree package.
 func (s *Store) updateLocalRootPointer(rootKey storage.Pointer) error {
-	log.WithField("key", rootKey).Info("Attempting to store new local root")
-	tmp := fmt.Sprintf("%s.%d", s.localRootKeyFile, time.Now().Unix())
-	if err := ioutil.WriteFile(tmp, []byte(rootKey.Hex()), 0600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, s.localRootKeyFile)
+	return setLocalPointer(s.localRootKeyFile, rootKey)
 }
 
 // LocalBasePointer reads the file $HOME/lib/muscle/base, expecting
 // to find a hex-encoded storage.Pointer that points to a revision.
 func LocalBasePointer() (storage.Pointer, error) {
 	pathname := os.ExpandEnv("$HOME/lib/muscle/base")
+	return localPointer(pathname)
+}
+
+func localPointer(pathname string) (storage.Pointer, error) {
 	if content, err := ioutil.ReadFile(pathname); os.IsNotExist(err) {
 		return storage.Null, nil
 	} else if err != nil {
@@ -196,11 +194,15 @@ func LocalBasePointer() (storage.Pointer, error) {
 // adds an entry to $HOME/lib/muscle/base.history for the previous
 // base pointer.
 func SetLocalBasePointer(pointer storage.Pointer) error {
-	previous, err := LocalBasePointer()
+	pathname := os.ExpandEnv("$HOME/lib/muscle/base")
+	return setLocalPointer(pathname, pointer)
+}
+
+func setLocalPointer(pathname string, pointer storage.Pointer) error {
+	previous, err := localPointer(pathname)
 	if err != nil {
 		return err
 	}
-	pathname := os.ExpandEnv("$HOME/lib/muscle/base")
 	if f, err := os.OpenFile(pathname+".history", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666); err != nil {
 		return errors.WithStack(err)
 	} else {
@@ -237,11 +239,7 @@ func (s *Store) SetRemoteBasePointer(pointer storage.Pointer) error {
 }
 
 func (s *Store) LocalRootKey() (storage.Pointer, error) {
-	b, err := ioutil.ReadFile(s.localRootKeyFile)
-	if os.IsNotExist(err) {
-		return storage.Null, nil
-	}
-	return storage.NewPointerFromHex(string(b))
+	return localPointer(s.localRootKeyFile)
 }
 
 func (s *Store) LocalRoot() (*Node, error) {
