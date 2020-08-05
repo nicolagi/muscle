@@ -53,11 +53,6 @@ func (ff nodeFlags) String() string {
 	return buf.String()
 }
 
-// TODO This is a terribly temporary (that's probably a lie.) kludge to enable snapshotsfs
-func (node *Node) Children() []*Node {
-	return node.children
-}
-
 // Node describes a node in the filesystem tree.
 type Node struct {
 	blockFactory *block.Factory
