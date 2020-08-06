@@ -1,9 +1,28 @@
 package storage
 
 import (
+	"fmt"
+	"math/rand"
+	"reflect"
 	"testing"
 	"testing/quick"
 )
+
+// Generate implements quick.Generator.
+func (Key) Generate(rand *rand.Rand, size int) reflect.Value {
+	if size <= 0 {
+		size = 1
+	}
+	b := make([]byte, size)
+	n, err := rand.Read(b)
+	if err != nil {
+		panic(err)
+	}
+	if n != size {
+		panic(fmt.Sprintf("got %d, want %d random bytes", n, size))
+	}
+	return reflect.ValueOf(Key(fmt.Sprintf("%02x", b)))
+}
 
 func TestRandomKey(t *testing.T) {
 	t.Run("random keys are distinct", func(t *testing.T) {

@@ -6,6 +6,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"syscall"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -45,7 +48,17 @@ func (s *DiskStore) Put(k Key, v Value) error {
 }
 
 func (s *DiskStore) Delete(k Key) error {
-	return os.Remove(s.pathFor(k))
+	err := os.Remove(s.pathFor(k))
+	if err != nil {
+		perr, ok := err.(*os.PathError)
+		if ok {
+			serr, ok := perr.Err.(syscall.Errno)
+			if ok && serr == syscall.ENOENT {
+				return errors.Wrapf(ErrNotFound, "could not delete %v", k)
+			}
+		}
+	}
+	return err
 }
 
 func (s *DiskStore) ForEach(cb func(Key) error) error {
