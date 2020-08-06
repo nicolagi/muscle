@@ -1,9 +1,9 @@
 package block
 
 import (
+	"errors"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/nicolagi/muscle/storage"
 )
@@ -173,7 +173,7 @@ func (block *Block) seal() error {
 	if err := block.repository.Put(ref.Key(), ciphertext); err != nil {
 		return fmt.Errorf("block.Block.seal: %w", err)
 	}
-	if err := block.index.Delete(block.ref.Key()); err != nil && !os.IsNotExist(err) {
+	if err := block.index.Delete(block.ref.Key()); err != nil && !errors.Is(err, storage.ErrNotFound) {
 		log.Printf("block.Block.seal: left garbage behind: %v", err)
 	}
 	block.ref = ref
@@ -205,7 +205,7 @@ func (block *Block) forget() {
 func (block *Block) Discard() {
 	block.value = nil
 	if block.location == index {
-		if err := block.index.Delete(block.ref.Key()); err != nil {
+		if err := block.index.Delete(block.ref.Key()); err != nil && !errors.Is(err, storage.ErrNotFound) {
 			log.Printf("block.Block.Discard left garbage behind: %v", err)
 		}
 	}
