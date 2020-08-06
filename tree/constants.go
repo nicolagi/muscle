@@ -2,10 +2,9 @@ package tree
 
 import (
 	"errors"
-	"os"
+	"log"
+	"os/user"
 	"time"
-
-	"github.com/lionkov/go9p/p"
 )
 
 const (
@@ -16,6 +15,19 @@ var (
 	RemoteRootKeyPrefix = "remote.root."
 	ErrReadOnly         = errors.New("entity is read only")
 
-	nodeUID = p.OsUsers.Uid2User(os.Geteuid()).Name()
-	nodeGID = p.OsUsers.Gid2Group(os.Getegid()).Name()
+	nodeUID string
+	nodeGID string
 )
+
+func init() {
+	u, err := user.Current()
+	if err != nil {
+		log.Fatalf("could not get current user: %v", err)
+	}
+	nodeUID = u.Username
+	g, err := user.LookupGroupId(u.Gid)
+	if err != nil {
+		log.Fatalf("could not get group %v: %v", u.Gid, err)
+	}
+	nodeGID = g.Name
+}
