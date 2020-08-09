@@ -82,12 +82,14 @@ func (f *Factory) NewTree(options ...factoryOption) (*Tree, error) {
 		}
 	}
 	if t.root == nil {
-		t.root = &Node{}
-		t.root.blockFactory = f.blockFactory
-		t.root.D.Name = "root"
-		t.root.D.Mode = 0700 | p.DMDIR
-		t.root.D.Qid.Type = p.QTDIR
-		t.root.flags |= loaded | dirty
+		parent := &Node{blockFactory: f.blockFactory}
+		root, err := t.Add(parent, "root", 0700|p.DMDIR)
+		if err != nil {
+			return nil, err
+		}
+		t.root = root
+		// Clear out the fake parent, only introduced to re-use the logic in tree.Add.
+		t.root.parent = nil
 	}
 	// Fix mode for roots created before mode was used...
 	t.root.D.Mode |= 0700 | p.DMDIR

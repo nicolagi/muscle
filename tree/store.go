@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/pkg/errors"
@@ -281,14 +280,10 @@ func (s *Store) LoadRevisionByKey(key storage.Pointer) (*Revision, error) {
 func (s *Store) loadRoot(key storage.Pointer) (*Node, error) {
 	root := &Node{
 		pointer: key,
-		parent:  nil, // That's what makes it the root.
 	}
 	if err := s.LoadNode(root); err != nil {
 		return nil, err
 	}
-	// These two lines would not be needed if I didn't have some bad metadata in my oldest trees.
-	root.D.Mode |= p.DMDIR
-	root.D.Type = p.QTDIR
 	return root, nil
 }
 

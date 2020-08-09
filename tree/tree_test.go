@@ -2,27 +2,35 @@ package tree
 
 import (
 	"errors"
-	"io/ioutil"
-	"os"
-	"path"
 	"testing"
 
 	"github.com/nicolagi/muscle/config"
-	"github.com/nicolagi/muscle/internal/block"
-	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTreeWalking(t *testing.T) {
-	tree, tempDir, err := scratchTree()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Error(err)
+func TestTreeAdd(t *testing.T) {
+	t.Run("added node's owner and group are inherited from the process", func(t *testing.T) {
+		t.Logf("nodeUID=%s nodeGID=%s", nodeUID, nodeGID)
+		if nodeUID == "" || nodeGID == "" {
+			t.Fatal("nodeUID or nodeGID not set")
 		}
-	}()
+		parent := &Node{}
+		tree := newTestTree(t)
+		child, err := tree.Add(parent, "file", 0666)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := child.D.Uid, nodeUID; got != want {
+			t.Errorf("got %v, want %v", got, want)
+		}
+		if got, want := child.D.Gid, nodeGID; got != want {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+}
+
+func TestTreeWalking(t *testing.T) {
+	tree := newTestTree(t)
 	_, root := tree.Root()
 	assert.Equal(t, root.Path(), "root")
 
@@ -64,32 +72,12 @@ func TestTreeWalking(t *testing.T) {
 	assert.Equal(t, "root/foo/bar", nodes[1].Path())
 }
 
-func scratchTree() (*Tree, string, error) {
-	tdir, err := ioutil.TempDir("", "")
-	if err != nil {
-		return nil, "", err
-	}
-	rootFile := path.Join(tdir, "root")
-	cacheDir := path.Join(tdir, "cache")
-	diskStore := storage.NewDiskStore(cacheDir)
-	paired, err := storage.NewPaired(diskStore, nil, "/tmp/tree.test.paired.log")
-	if err != nil {
-		return nil, "", err
-	}
-	bf, err := block.NewFactory(diskStore, paired, []byte("ciaociaociaociao"))
-	if err != nil {
-		return nil, "", err
-	}
-	st, err := NewStore(
-		bf,
-		nil,
-		rootFile,
-	)
-	if err != nil {
-		return nil, "", err
-	}
-	tt, err := NewFactory(bf, st, &config.C{
+func newTestTree(t *testing.T) *Tree {
+	tree, err := NewFactory(newTestBlockFactory(t), newTestStore(t), &config.C{
 		BlockSize: 8192,
 	}).NewTree()
-	return tt, tdir, err
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tree
 }

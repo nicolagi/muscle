@@ -321,21 +321,6 @@ func (node *Node) Rename(newName string) {
 	node.markDirty()
 }
 
-// TODO nodesByName?
-type NodeSlice []*Node
-
-func (ns NodeSlice) Len() int {
-	return len(ns)
-}
-
-func (ns NodeSlice) Less(i, j int) bool {
-	return ns[i].D.Name < ns[j].D.Name
-}
-
-func (ns NodeSlice) Swap(i, j int) {
-	ns[i], ns[j] = ns[j], ns[i]
-}
-
 func (node *Node) Truncate(requestedSize uint64) error {
 	if node.IsDir() {
 		return errors.New("impossible to truncate a directory")

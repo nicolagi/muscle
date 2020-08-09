@@ -168,7 +168,9 @@ func TestGrow(t *testing.T) {
 			node.flags |= loaded
 			return nil
 		}))
-		sort.Sort(NodeSlice(a.children))
+		sort.Slice(a.children, func(i, j int) bool {
+			return a.children[i].D.Name < a.children[j].D.Name
+		})
 		assert.Equal(t, "usr", a.children[0].D.Name)
 		assert.Regexp(t, "usr\\.dupe[0-9]+", a.children[1].D.Name)
 		assert.EqualValues(t, 0, a.children[0].flags&dirty)
