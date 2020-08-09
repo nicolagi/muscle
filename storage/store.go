@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
 
@@ -14,23 +13,6 @@ var (
 )
 
 type Key string
-
-// RandomKey generates a random sequence of length bytes and converts it to a
-// key in hex (byte length of the key will then be double the requested length).
-func RandomKey(length uint8) (Key, error) {
-	if length == 0 {
-		return "", nil
-	}
-	b := make([]byte, length)
-	n, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-	if n != int(length) {
-		return "", fmt.Errorf("key of length %d required, got only %d bytes", length, n)
-	}
-	return Key(fmt.Sprintf("%x", b)), nil
-}
 
 type Value []byte
 

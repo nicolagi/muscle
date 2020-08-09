@@ -121,7 +121,7 @@ func TestPaired(t *testing.T) {
 		store, err := NewPaired(fast, slow, pathname)
 		require.Nil(t, err)
 
-		k, _ := RandomKey(32)
+		k := randomKey(32)
 		after, err := store.Get(k)
 		assert.Nil(t, after)
 		assert.Equal(t, cannedErr, err)
@@ -209,10 +209,8 @@ func TestPaired(t *testing.T) {
 			},
 		}
 
-		k, err := RandomKey(32)
-		require.Nil(t, err)
-		value, err := RandomKey(64)
-		require.Nil(t, err)
+		k := randomKey(32)
+		value := randomKey(64)
 		v := []byte(value)
 		pathname, cleanupLog := disposablePathName(t)
 		defer cleanupLog()

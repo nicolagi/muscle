@@ -40,33 +40,41 @@ func (s storeFuncs) Delete(key Key) error {
 // Generate implements quick.Generator.
 // Intended for unit tests in this package.
 func (Key) Generate(rand *rand.Rand, size int) reflect.Value {
-	if size <= 0 {
-		size = 1
+	return reflect.ValueOf(generateKey(rand, size))
+}
+
+func generateKey(r *rand.Rand, size int) Key {
+	if size == 0 {
+		return Key("")
+	}
+	if size < 0 {
+		size = -size
 	}
 	b := make([]byte, size)
-	n, err := rand.Read(b)
+	var n int
+	var err error
+	if r != nil {
+		n, err = r.Read(b)
+	} else {
+		n, err = rand.Read(b)
+	}
 	if err != nil {
 		panic(err)
 	}
 	if n != size {
 		panic(fmt.Sprintf("got %d, want %d random bytes", n, size))
 	}
-	return reflect.ValueOf(Key(fmt.Sprintf("%02x", b)))
+	// Note to self: would return length 2 for size 0!
+	return Key(fmt.Sprintf("%02x", b))
 }
 
-func TestRandomKey(t *testing.T) {
+func randomKey(size int) Key {
+	return generateKey(nil, size)
+}
+
+func TestKeyGenerate(t *testing.T) {
 	t.Run("random keys are distinct", func(t *testing.T) {
-		f := func() bool {
-			k1, err := RandomKey(16)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-			k2, err := RandomKey(16)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
+		f := func(k1, k2 Key) bool {
 			return k1 != k2
 		}
 		if err := quick.Check(f, nil); err != nil {
@@ -74,13 +82,10 @@ func TestRandomKey(t *testing.T) {
 		}
 	})
 	t.Run("random keys are of the required size", func(t *testing.T) {
-		f := func(size uint8) bool {
-			key, err := RandomKey(size)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-			return len(key) == 2*int(size)
+		f := func(smallSize uint8) bool {
+			size := int(smallSize)
+			key := randomKey(size)
+			return len(key) == 2*size
 		}
 		if err := quick.Check(f, nil); err != nil {
 			t.Error(err)
