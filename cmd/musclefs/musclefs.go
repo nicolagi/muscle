@@ -460,11 +460,16 @@ func (ops *ops) Remove(r *srv.Req) {
 		node.Unref("remove")
 		err := ops.tree.Remove(node)
 		if err != nil {
-			log.WithFields(log.Fields{
-				"path":  node.Path(),
-				"cause": err.Error(),
-			}).Warning("Could not remove")
-			r.RespondError(srv.Eperm)
+			var perr *p.Error
+			if errors.As(err, &perr) {
+				if perr != srv.Enotempty {
+					log.Printf("%s: %+v", node.Path(), err)
+				}
+				r.RespondError(perr)
+			} else {
+				log.Printf("%s: %+v", node.Path(), err)
+				r.RespondError(srv.Eperm)
+			}
 		} else {
 			r.RespondRremove()
 		}

@@ -1,7 +1,6 @@
 package tree
 
 import (
-	"errors"
 	"fmt"
 	"runtime"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"github.com/lionkov/go9p/p"
 	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/storage"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -75,10 +75,12 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 
 func (tree *Tree) Remove(node *Node) error {
 	if node.IsRoot() {
-		return fmt.Errorf("can't remove the root")
+		return errors.Wrapf(srv.Eperm, "removing the file system root is not allowed")
 	}
-	if node.IsDir() && len(node.children) > 0 {
-		return fmt.Errorf("dir not empty")
+	if len(node.children) > 0 {
+		// Don't wrap the error, don't add stack trace.
+		// We don't want to log it.
+		return srv.Enotempty
 	}
 	node.parent.removeChild(node.D.Name)
 	node.parent.markDirty()

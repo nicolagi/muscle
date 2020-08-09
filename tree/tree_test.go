@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/lionkov/go9p/p"
+	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -25,6 +27,30 @@ func TestTreeAdd(t *testing.T) {
 		}
 		if got, want := child.D.Gid, nodeGID; got != want {
 			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+}
+
+func TestTreeRemove(t *testing.T) {
+	t.Run("removing the root is not allowed", func(t *testing.T) {
+		tree := newTestTree(t)
+		// The root is just the directory with no parent.
+		parent := &Node{}
+		parent.D.Mode = p.DMDIR
+		err := tree.Remove(parent)
+		if !errors.Is(err, srv.Eperm) {
+			t.Errorf("got %v, want a wrapper of %v", err, srv.Eperm)
+		}
+	})
+	t.Run("removing a non-empty directory is not allowed", func(t *testing.T) {
+		tree := newTestTree(t)
+		parent := &Node{}
+		if _, err := tree.Add(parent, "file", 0666); err != nil {
+			t.Fatal(err)
+		}
+		err := tree.Remove(parent)
+		if !errors.Is(err, srv.Enotempty) {
+			t.Errorf("got %v, want a wrapper of %v", err, srv.Enotempty)
 		}
 	})
 }
