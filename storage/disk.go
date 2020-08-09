@@ -4,16 +4,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"syscall"
 
 	"github.com/pkg/errors"
-)
-
-const (
-	diskStoreDirPerm  = 0700
-	diskStoreFilePerm = 0600
 )
 
 type DiskStore struct {
@@ -34,15 +28,15 @@ func (s *DiskStore) Get(k Key) (Value, error) {
 
 func (s *DiskStore) Put(k Key, v Value) error {
 	p := s.pathFor(k)
-	err := ioutil.WriteFile(p, v, diskStoreFilePerm)
+	err := ioutil.WriteFile(p, v, 0666)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return err
 		}
-		if err = os.MkdirAll(path.Dir(p), diskStoreDirPerm); err != nil {
+		if err = os.MkdirAll(filepath.Dir(p), 0777); err != nil {
 			return err
 		}
-		return ioutil.WriteFile(p, v, diskStoreFilePerm)
+		return ioutil.WriteFile(p, v, 0666)
 	}
 	return nil
 }
@@ -68,7 +62,7 @@ func (s *DiskStore) ForEach(cb func(Key) error) error {
 			return err
 		}
 		if !fi.IsDir() {
-			kk = append(kk, Key(path.Base(p)))
+			kk = append(kk, Key(filepath.Base(p)))
 		}
 		return nil
 	})
@@ -93,5 +87,5 @@ func (s *DiskStore) Contains(k Key) (bool, error) {
 
 func (s *DiskStore) pathFor(key Key) string {
 	k := string(key)
-	return path.Join(s.dir, k[:2], k)
+	return filepath.Join(s.dir, k[:2], k)
 }
