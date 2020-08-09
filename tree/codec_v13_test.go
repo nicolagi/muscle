@@ -9,7 +9,7 @@ import (
 )
 
 func TestCodecV13(t *testing.T) {
-	index := storage.NewInMemory(0)
+	index := &storage.InMemory{}
 	blockFactory, err := block.NewFactory(index, nil, make([]byte, 16))
 	if err != nil {
 		t.Fatal(err)

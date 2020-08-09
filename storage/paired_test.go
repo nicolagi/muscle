@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -87,7 +86,7 @@ func TestPropagationLogPreservesStateAcrossRestarts(t *testing.T) {
 func TestPaired(t *testing.T) {
 
 	t.Run("Successful put and get from fast store regardless of slow store", func(t *testing.T) {
-		fast := NewInMemory(0)
+		fast := &InMemory{}
 		logFilePath, cleanupLog := disposablePathName(t)
 		defer cleanupLog()
 		paired, err := NewPaired(fast, NullStore{}, logFilePath)
@@ -111,14 +110,13 @@ func TestPaired(t *testing.T) {
 	})
 
 	t.Run("Get when fast store does not have key and slow store breaks", func(t *testing.T) {
-		fast := NewInMemory(0)
+		fast := &InMemory{}
 
 		pathname, cleanupLog := disposablePathName(t)
 		defer cleanupLog()
 
-		slow := new(StoreMock)
 		cannedErr := errors.New("failed")
-		slow.On("Get", mock.Anything).Return(nil, cannedErr)
+		slow := storeFuncs{get: func(Key) (Value, error) { return nil, cannedErr }}
 
 		store, err := NewPaired(fast, slow, pathname)
 		require.Nil(t, err)
@@ -133,8 +131,8 @@ func TestPaired(t *testing.T) {
 		pathname, cleanup := disposablePathName(t)
 		defer cleanup()
 
-		fast := NewInMemory(0)
-		slow := NewInMemory(0)
+		fast := &InMemory{}
+		slow := &InMemory{}
 		store, err := NewPaired(fast, slow, pathname)
 		if err != nil {
 			t.Fatal(err)
@@ -167,11 +165,12 @@ func TestPaired(t *testing.T) {
 		pathname, cleanupLog := disposablePathName(t)
 		defer cleanupLog()
 
-		fast := new(StoreMock)
-		fast.On("Get", mock.Anything).Return(nil, ErrNotFound)
-		fast.On("Put", mock.Anything, mock.Anything).Return(errors.New("failed"))
+		fast := storeFuncs{
+			get: func(Key) (Value, error) { return nil, ErrNotFound },
+			put: func(Key, Value) error { return errors.New("failed") },
+		}
 
-		slow := NewInMemory(0)
+		slow := &InMemory{}
 
 		store, err := NewPaired(fast, slow, pathname)
 		require.Nil(t, err)
@@ -195,8 +194,20 @@ func TestPaired(t *testing.T) {
 	})
 
 	t.Run("Put propagates asynchronously from fast to slow, retrying as necessary", func(t *testing.T) {
-		fast := NewInMemory(0)
-		slow := NewInMemory(5)
+		fast := &InMemory{}
+		slow1 := &InMemory{}
+		putErrs := make(map[Key]int)
+		slow := storeFuncs{
+			get: slow1.Get,
+			put: func(k Key, v Value) error {
+				if count := putErrs[k]; count < 5 {
+					putErrs[k] = count + 1
+					return fmt.Errorf("error %d on put of %v", 1+count, k)
+				}
+				putErrs[k] = 0
+				return slow1.Put(k, v)
+			},
+		}
 
 		k, err := RandomKey(32)
 		require.Nil(t, err)

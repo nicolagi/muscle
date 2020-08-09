@@ -19,7 +19,7 @@ import (
 
 func setup(t *testing.T) (*block.Factory, *Tree) {
 	t.Helper()
-	store := storage.NewInMemory(0)
+	store := &storage.InMemory{}
 	key := make([]byte, 16)
 	rand.Read(key)
 	bf, err := block.NewFactory(store, store, key)

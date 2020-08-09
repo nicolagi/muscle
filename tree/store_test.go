@@ -35,7 +35,7 @@ func newTestBlockFactory(t *testing.T) *block.Factory {
 	t.Helper()
 	key := make([]byte, 16)
 	rand.Read(key)
-	index := storage.NewInMemory(0)
+	index := &storage.InMemory{}
 	bf, err := block.NewFactory(index, nil, key)
 	if err != nil {
 		t.Fatal(err)

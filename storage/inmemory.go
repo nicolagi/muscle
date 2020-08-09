@@ -1,30 +1,21 @@
 package storage
 
 import (
-	"fmt"
 	"sync"
 )
 
-// InMemory implements Store, meant to be used in unit tests.
+// InMemory implements Store, meant to be used in unit tests in other packages.
 type InMemory struct {
-	maxPutErrsPerKey int
-
 	sync.Mutex
-	m       map[Key]Value
-	putErrs map[Key]int
-}
-
-func NewInMemory(maxPutErrsPerKey int) *InMemory {
-	return &InMemory{
-		maxPutErrsPerKey: maxPutErrsPerKey,
-		m:                make(map[Key]Value),
-		putErrs:          make(map[Key]int),
-	}
+	m map[Key]Value
 }
 
 func (s *InMemory) Get(k Key) (Value, error) {
 	s.Lock()
 	defer s.Unlock()
+	if s.m == nil {
+		return nil, ErrNotFound
+	}
 	v, ok := s.m[k]
 	if !ok {
 		return nil, ErrNotFound
@@ -35,11 +26,9 @@ func (s *InMemory) Get(k Key) (Value, error) {
 func (s *InMemory) Put(k Key, v Value) error {
 	s.Lock()
 	defer s.Unlock()
-	if count := s.putErrs[k]; count < s.maxPutErrsPerKey {
-		s.putErrs[k] = count + 1
-		return fmt.Errorf("error %d on put of %v", 1+count, k)
+	if s.m == nil {
+		s.m = make(map[Key]Value)
 	}
-	s.putErrs[k] = 0
 	s.m[k] = v
 	return nil
 }

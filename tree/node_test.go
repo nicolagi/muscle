@@ -121,7 +121,7 @@ func TestNodeWriting(t *testing.T) {
 	t.Run("writing on block that is not loaded", func(t *testing.T) {
 		key := make([]byte, 16)
 		rand.Read(key)
-		bf, err := block.NewFactory(storage.NewInMemory(0), storage.NewInMemory(0), key)
+		bf, err := block.NewFactory(&storage.InMemory{}, &storage.InMemory{}, key)
 		if err != nil {
 			t.Fatal(err)
 		}
