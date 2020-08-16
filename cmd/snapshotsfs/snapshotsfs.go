@@ -34,6 +34,14 @@ type node interface {
 type treenode struct {
 	tree *tree.Tree
 	node *tree.Node
+	dirb p9util.DirBuffer
+}
+
+func (tn *treenode) prepareForReads() {
+	tn.dirb.Reset()
+	for _, child := range tn.node.Children() {
+		tn.dirb.Write(&child.D)
+	}
 }
 
 func (tn *treenode) qid() p.Qid { return tn.node.D.Qid }
@@ -64,7 +72,7 @@ func (tn *treenode) open(r *srv.Req) (qid p.Qid, err error) {
 		if err = tn.tree.Grow(tn.node); err != nil {
 			return
 		}
-		tn.node.PrepareForReads()
+		tn.prepareForReads()
 	default:
 	}
 	return tn.node.D.Qid, nil
@@ -72,7 +80,7 @@ func (tn *treenode) open(r *srv.Req) (qid p.Qid, err error) {
 
 func (tn *treenode) read(r *srv.Req) (n int, err error) {
 	if tn.node.IsDir() {
-		n, err = tn.node.DirReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
+		n, err = tn.dirb.Read(r.Rc.Data[:r.Tc.Count], int(r.Tc.Offset))
 	} else {
 		n, err = tn.node.ReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
 	}
