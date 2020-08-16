@@ -297,17 +297,8 @@ func (node *Node) SetMTime(mtime uint32) {
 	node.markDirty()
 }
 
-func (node *Node) SameKind(other *Node) bool {
-	return (node.D.Mode&p.DMDIR != 0 && other.D.Mode&p.DMDIR != 0) ||
-		(node.D.Mode&p.DMDIR == 0 && other.D.Mode&p.DMDIR == 0)
-}
-
 func (node *Node) IsRoot() bool {
 	return node.D.Mode&p.DMDIR != 0 && node.parent == nil
-}
-
-func (node *Node) IsFile() bool {
-	return node.D.Mode&p.DMDIR == 0
 }
 
 func (node *Node) SetMode(mode uint32) {
