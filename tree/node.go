@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/nicolagi/muscle/internal/block"
-	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/storage"
 	log "github.com/sirupsen/logrus"
 )
@@ -70,9 +69,6 @@ type Node struct {
 	// Pointer to the parent node. For the root node (and only for the root
 	// node) this will be nil.
 	parent *Node
-
-	// 9P serialized directory contents.
-	dirb p9util.DirBuffer
 
 	// A hash of all the data below, before encryption.  Encryption causes
 	// the same content to generated different data every time it is
@@ -147,17 +143,6 @@ func (node *Node) String() string {
 		return "(nil node)"
 	}
 	return fmt.Sprintf("%s@%s", node.D.Name, node.pointer)
-}
-
-func (node *Node) PrepareForReads() {
-	node.dirb.Reset()
-	for _, child := range node.children {
-		node.dirb.Write(&child.D)
-	}
-}
-
-func (node *Node) DirReadAt(b []byte, off int64) (n int, err error) {
-	return node.dirb.Read(b, int(off))
 }
 
 func (node *Node) Children() []*Node {
@@ -267,7 +252,6 @@ func (node *Node) Trim() {
 		node.D.Name = ""
 		node.blocks = nil
 		node.children = nil
-		node.dirb.Reset()
 	}
 
 	trim(node)

@@ -163,9 +163,6 @@ func (tree *Tree) Graft(parent *Node, child *Node) error {
 	}
 	if added := parent.add(child); added {
 		parent.markDirty()
-		if parent.refs > 0 {
-			parent.PrepareForReads()
-		}
 		return nil
 	}
 	return Eexist
