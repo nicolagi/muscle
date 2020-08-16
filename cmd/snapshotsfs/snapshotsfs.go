@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"flag"
-	"os"
 	"strings"
 	"time"
 
@@ -17,34 +16,6 @@ import (
 	"github.com/nicolagi/muscle/tree"
 	log "github.com/sirupsen/logrus"
 )
-
-var (
-	owner p.User
-	group p.Group
-)
-
-func nodeQID(node *tree.Node) (qid p.Qid) {
-	qid.Path = node.D.Qid.Path
-	qid.Version = node.D.Qid.Version
-	if node.D.Mode&tree.DMDIR != 0 {
-		qid.Type = p.QTDIR
-	} else {
-		qid.Type = 0
-	}
-	return
-}
-
-func nodeDir(node *tree.Node) (dir p.Dir) {
-	dir.Qid = nodeQID(node)
-	dir.Gid = group.Name()
-	dir.Length = node.D.Size
-	dir.Mode = node.D.Mode
-	dir.Mtime = node.D.Modified
-	dir.Atime = node.D.Modified
-	dir.Name = node.D.Name
-	dir.Uid = owner.Name()
-	return
-}
 
 type node interface {
 	qid() p.Qid
@@ -64,17 +35,17 @@ func (tn *treenode) prepareForReads() {
 	tn.dirb.Reset()
 	var dir p.Dir
 	for _, child := range tn.node.Children() {
-		dir = nodeDir(child)
+		p9util.NodeDirVar(child, &dir)
 		tn.dirb.Write(&dir)
 	}
 }
 
 func (tn *treenode) qid() p.Qid {
-	return nodeQID(tn.node)
+	return p9util.NodeQID(tn.node)
 }
 
 func (tn *treenode) stat() p.Dir {
-	return nodeDir(tn.node)
+	return p9util.NodeDir(tn.node)
 }
 
 func (tn *treenode) walk(name string) (child node, err error) {
@@ -357,9 +328,6 @@ func main() {
 	flag.StringVar(&logLevel, "verbosity", "info", "sets the log `level`, among "+strings.Join(levels, ", "))
 	flag.Parse()
 
-	owner = p.OsUsers.Uid2User(os.Getuid())
-	group = p.OsUsers.Gid2Group(os.Getgid())
-
 	cfg, err := config.Load(*base)
 	if err != nil {
 		log.Fatalf("Could not load config from %q: %v", *base, err)
@@ -398,8 +366,8 @@ func main() {
 	}
 	root.dir.Name = "snapshots"
 	root.dir.Mode = 0700 | p.DMDIR
-	root.dir.Uid = owner.Name()
-	root.dir.Gid = group.Name()
+	root.dir.Uid = p9util.NodeUID
+	root.dir.Gid = p9util.NodeGID
 	root.dir.Mtime = uint32(time.Now().Unix())
 	root.dir.Atime = root.dir.Mtime
 	root.dir.Qid.Type = p.QTDIR

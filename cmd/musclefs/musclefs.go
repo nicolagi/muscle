@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"os/user"
 	"sort"
 	"strings"
 	"sync"
@@ -26,23 +25,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var nodeUID string
-
-var nodeGID string
-
-func init() {
-	u, err := user.Current()
-	if err != nil {
-		log.Fatalf("could not get current user: %v", err)
-	}
-	nodeUID = u.Username
-	g, err := user.LookupGroupId(u.Gid)
-	if err != nil {
-		log.Fatalf("could not get group %v: %v", u.Gid, err)
-	}
-	nodeGID = g.Name
-}
-
 type fsNode struct {
 	*tree.Node
 
@@ -53,32 +35,9 @@ func (node *fsNode) prepareForReads() {
 	node.dirb.Reset()
 	var dir p.Dir
 	for _, child := range node.Children() {
-		dir = nodeDir(child)
+		p9util.NodeDirVar(child, &dir)
 		node.dirb.Write(&dir)
 	}
-}
-
-func nodeQID(node *tree.Node) (qid p.Qid) {
-	qid.Path = node.D.Qid.Path
-	qid.Version = node.D.Qid.Version
-	if node.D.Mode&tree.DMDIR != 0 {
-		qid.Type = p.QTDIR
-	} else {
-		qid.Type = 0
-	}
-	return
-}
-
-func nodeDir(node *tree.Node) (dir p.Dir) {
-	dir.Qid = nodeQID(node)
-	dir.Gid = nodeGID
-	dir.Length = node.D.Size
-	dir.Mode = node.D.Mode
-	dir.Mtime = node.D.Modified
-	dir.Atime = node.D.Modified
-	dir.Name = node.D.Name
-	dir.Uid = nodeUID
-	return
 }
 
 type ops struct {
@@ -106,7 +65,7 @@ func (ops *ops) Attach(r *srv.Req) {
 	defer ops.mu.Unlock()
 	root := ops.tree.Attach()
 	r.Fid.Aux = &fsNode{Node: root}
-	qid := nodeQID(root)
+	qid := p9util.NodeQID(root)
 	r.RespondRattach(&qid)
 }
 
@@ -158,7 +117,7 @@ func (ops *ops) Walk(r *srv.Req) {
 		}
 		var qids []p.Qid
 		for _, n := range nodes {
-			qids = append(qids, nodeQID(n))
+			qids = append(qids, p9util.NodeQID(n))
 		}
 		if len(qids) == len(r.Tc.Wname) {
 			targetNode := nodes[len(nodes)-1]
@@ -199,7 +158,7 @@ func (ops *ops) Open(r *srv.Req) {
 				}
 			}
 		}
-		qid := nodeQID(node.Node)
+		qid := p9util.NodeQID(node.Node)
 		r.RespondRopen(&qid, 0)
 	}
 }
@@ -224,7 +183,7 @@ func (ops *ops) Create(r *srv.Req) {
 		node.Ref("create")
 		parent.Unref("created child")
 		r.Fid.Aux = &fsNode{Node: node}
-		qid := nodeQID(node)
+		qid := p9util.NodeQID(node)
 		r.RespondRcreate(&qid, 0)
 	}
 }
@@ -546,7 +505,7 @@ func (ops *ops) Stat(r *srv.Req) {
 			r.RespondError(Eunlinked)
 			return
 		}
-		dir := nodeDir(node.Node)
+		dir := p9util.NodeDir(node.Node)
 		r.RespondRstat(&dir)
 	}
 }
@@ -700,8 +659,8 @@ func main() {
 	ops.c.D.Mtime = uint32(now.Unix())
 	ops.c.D.Atime = ops.c.D.Mtime
 	ops.c.D.Name = "ctl"
-	ops.c.D.Uid = nodeUID
-	ops.c.D.Gid = nodeGID
+	ops.c.D.Uid = p9util.NodeUID
+	ops.c.D.Gid = p9util.NodeGID
 
 	/* Best-effort clean-up, for when the control file used to be part of the tree. */
 	if nodes, err := ops.tree.Walk(root, "ctl"); err == nil && len(nodes) == 1 {
