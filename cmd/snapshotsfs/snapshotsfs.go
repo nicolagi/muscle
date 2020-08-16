@@ -42,8 +42,6 @@ func nodeDir(node *tree.Node) (dir p.Dir) {
 	dir.Mtime = node.D.Mtime
 	dir.Atime = node.D.Mtime
 	dir.Name = node.D.Name
-	dir.Size = node.D.Size
-	dir.Type = node.D.Type
 	dir.Uid = node.D.Uid
 	return
 }

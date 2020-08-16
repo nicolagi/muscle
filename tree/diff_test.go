@@ -99,8 +99,6 @@ func TestNodeMetaContent(t *testing.T) {
 		content, err := a.Content()
 		assert.Nil(t, err)
 		assert.Equal(t, `Key ""
-Dir.Size 0
-Dir.Type 0
 Dir.Qid.Version 0
 Dir.Qid.Path 0
 Dir.Mode 0
@@ -114,8 +112,6 @@ blocks:
 	t.Run("meta node with non-zero node", func(t *testing.T) {
 		a := nodeMeta{n: &Node{}}
 		a.n.pointer, _ = storage.NewPointerFromHex("f00df00df00df00df00df00df00df00df00df00df00df00df00df00df00df00d")
-		a.n.D.Size = 1
-		a.n.D.Type = 2
 		a.n.D.Qid.Version = 5
 		a.n.D.Qid.Path = 6
 		a.n.D.Mode = 7
@@ -131,8 +127,6 @@ blocks:
 		content, err := a.Content()
 		assert.Nil(t, err)
 		assert.Equal(t, `Key "f00df00df00df00df00df00df00df00df00df00df00df00df00df00df00df00d"
-Dir.Size 1
-Dir.Type 2
 Dir.Qid.Version 5
 Dir.Qid.Path 6
 Dir.Mode 7

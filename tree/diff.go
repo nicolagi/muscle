@@ -52,8 +52,6 @@ func (node nodeMeta) Content() (string, error) {
 	_, _ = fmt.Fprintf(
 		&output,
 		`Key %q
-Dir.Size %d
-Dir.Type %d
 Dir.Qid.Version %d
 Dir.Qid.Path %d
 Dir.Mode %d
@@ -63,8 +61,6 @@ Dir.Name %q
 Dir.Uid %q
 `,
 		node.n.pointer.Hex(),
-		node.n.D.Size,
-		node.n.D.Type,
 		node.n.D.Qid.Version,
 		node.n.D.Qid.Path,
 		node.n.D.Mode,
