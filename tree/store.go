@@ -163,7 +163,6 @@ func (s *Store) LoadNode(dst *Node) error {
 		return errw(err)
 	}
 	dst.D.Uid = nodeUID
-	dst.D.Gid = nodeGID
 	dst.flags |= loaded
 	return nil
 }

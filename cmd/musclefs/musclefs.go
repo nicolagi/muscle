@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"os/user"
 	"sort"
 	"strings"
 	"sync"
@@ -24,6 +25,20 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
+
+var nodeGID string
+
+func init() {
+	u, err := user.Current()
+	if err != nil {
+		log.Fatalf("could not get current user: %v", err)
+	}
+	g, err := user.LookupGroupId(u.Gid)
+	if err != nil {
+		log.Fatalf("could not get group %v: %v", u.Gid, err)
+	}
+	nodeGID = g.Name
+}
 
 type fsNode struct {
 	*tree.Node
@@ -53,7 +68,7 @@ func nodeQID(node *tree.Node) (qid p.Qid) {
 
 func nodeDir(node *tree.Node) (dir p.Dir) {
 	dir.Qid = nodeQID(node)
-	dir.Gid = node.D.Gid
+	dir.Gid = nodeGID
 	dir.Length = node.D.Length
 	dir.Mode = node.D.Mode
 	dir.Mtime = node.D.Mtime
@@ -595,11 +610,10 @@ func (ops *ops) Wstat(r *srv.Req) {
 			node.SetMode(dir.Mode)
 		}
 
-		// Owner and group for files stored in a muscle tree are those
-		// of the user/group that started the file server.  We allow to
-		// change the GID but such change won't be persisted.
+		// TODO: Not sure it's best to 'pretend' it works, or fail.
 		if dir.ChangeGID() {
-			node.D.Gid = dir.Gid
+			r.RespondError(srv.Eperm)
+			return
 		}
 
 		r.RespondRwstat()
@@ -686,7 +700,7 @@ func main() {
 	ops.c.D.Atime = ops.c.D.Mtime
 	ops.c.D.Name = "ctl"
 	ops.c.D.Uid = root.D.Uid
-	ops.c.D.Gid = root.D.Gid
+	ops.c.D.Gid = nodeGID
 
 	/* Best-effort clean-up, for when the control file used to be part of the tree. */
 	if nodes, err := ops.tree.Walk(root, "ctl"); err == nil && len(nodes) == 1 {

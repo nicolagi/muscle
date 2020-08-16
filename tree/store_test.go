@@ -25,9 +25,6 @@ func TestStoreLoadNode(t *testing.T) {
 		if got, want := node.D.Uid, nodeUID; got != want {
 			t.Errorf("got %v, want %v", got, want)
 		}
-		if got, want := node.D.Gid, nodeGID; got != want {
-			t.Errorf("got %v, want %v", got, want)
-		}
 	})
 }
 
