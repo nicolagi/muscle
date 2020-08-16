@@ -58,7 +58,6 @@ Dir.Dev %d
 Dir.Qid.Version %d
 Dir.Qid.Path %d
 Dir.Mode %d
-Dir.Atime %s
 Dir.Mtime %s
 Dir.Length %d
 Dir.Name %q
@@ -72,7 +71,6 @@ Dir.Gid %q
 		node.n.D.Qid.Version,
 		node.n.D.Qid.Path,
 		node.n.D.Mode,
-		time.Unix(int64(node.n.D.Atime), 0).UTC().Format(time.RFC3339),
 		time.Unix(int64(node.n.D.Mtime), 0).UTC().Format(time.RFC3339),
 		node.n.D.Length,
 		node.n.D.Name,

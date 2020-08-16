@@ -10,7 +10,6 @@ type Qid struct {
 type Dir struct {
 	Qid
 
-	Atime  uint32
 	Dev    uint32
 	Gid    string
 	Length uint64

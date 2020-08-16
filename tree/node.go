@@ -194,7 +194,6 @@ func (node *Node) Ref(reason string) {
 	}).Debug("REF/UNREF")
 	for n := node; n != nil; n = n.parent {
 		n.refs++
-		n.D.Atime = uint32(time.Now().Unix())
 	}
 }
 
@@ -232,7 +231,7 @@ func (node *Node) Trim() {
 			}
 		}
 
-		age := now - node.D.Atime
+		age := now - node.D.Mtime
 
 		le := log.WithFields(log.Fields{
 			"path":  node.Path(),

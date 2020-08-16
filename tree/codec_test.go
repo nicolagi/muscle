@@ -75,7 +75,6 @@ func TestLatestCodecForNodes(t *testing.T) {
 			}
 
 			// Normalize
-			input.D.Atime = mtime
 			for _, c := range input.children {
 				c.parent = input
 			}

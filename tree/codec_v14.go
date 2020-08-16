@@ -43,7 +43,6 @@ func (codecV14) decodeNode(data []byte, dest *Node) error {
 		dest.D.Length, ptr = gint64(ptr)
 	}
 	dest.D.Mtime, ptr = gint32(ptr)
-	dest.D.Atime = dest.D.Mtime
 
 	u32, ptr = gint32(ptr)
 	if u32 > 0 {

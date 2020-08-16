@@ -105,7 +105,6 @@ Dir.Dev 0
 Dir.Qid.Version 0
 Dir.Qid.Path 0
 Dir.Mode 0
-Dir.Atime 1970-01-01T00:00:00Z
 Dir.Mtime 1970-01-01T00:00:00Z
 Dir.Length 0
 Dir.Name ""
@@ -123,7 +122,6 @@ blocks:
 		a.n.D.Qid.Version = 5
 		a.n.D.Qid.Path = 6
 		a.n.D.Mode = 7
-		a.n.D.Atime = 8
 		a.n.D.Mtime = 9
 		a.n.D.Length = 10
 		a.n.D.Name = "carl"
@@ -143,7 +141,6 @@ Dir.Dev 3
 Dir.Qid.Version 5
 Dir.Qid.Path 6
 Dir.Mode 7
-Dir.Atime 1970-01-01T00:00:08Z
 Dir.Mtime 1970-01-01T00:00:09Z
 Dir.Length 10
 Dir.Name "carl"
