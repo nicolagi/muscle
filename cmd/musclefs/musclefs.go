@@ -17,6 +17,7 @@ import (
 	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
+	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/netutil"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
@@ -26,6 +27,15 @@ import (
 
 type fsNode struct {
 	*tree.Node
+
+	dirb p9util.DirBuffer
+}
+
+func (node *fsNode) prepareForReads() {
+	node.dirb.Reset()
+	for _, child := range node.Children() {
+		node.dirb.Write(&child.D)
+	}
 }
 
 type ops struct {
@@ -136,7 +146,7 @@ func (ops *ops) Open(r *srv.Req) {
 				r.RespondError(err)
 				return
 			}
-			node.PrepareForReads()
+			node.prepareForReads()
 		default:
 			if r.Tc.Mode&p.OTRUNC != 0 {
 				if err := node.Truncate(0); err != nil {
@@ -194,7 +204,7 @@ func (ops *ops) Read(r *srv.Req) {
 		var count int
 		var err error
 		if node.IsDir() {
-			count, err = node.DirReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
+			count, err = node.dirb.Read(r.Rc.Data[:r.Tc.Count], int(r.Tc.Offset))
 		} else {
 			count, err = node.ReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
 		}

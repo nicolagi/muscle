@@ -160,6 +160,10 @@ func (node *Node) DirReadAt(b []byte, off int64) (n int, err error) {
 	return node.dirb.Read(b, int(off))
 }
 
+func (node *Node) Children() []*Node {
+	return node.children
+}
+
 func (node *Node) childrenMap() map[string]*Node {
 	m := make(map[string]*Node)
 	for _, child := range node.children {
