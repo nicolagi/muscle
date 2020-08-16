@@ -23,7 +23,6 @@ func TestLatestCodecForNodes(t *testing.T) {
 		f := func(
 			name string,
 			flags uint8,
-			qidType uint8,
 			qidPath uint64,
 			qidVersion uint32,
 			bsize uint32,
@@ -37,7 +36,6 @@ func TestLatestCodecForNodes(t *testing.T) {
 			input := &Node{}
 			input.flags = nodeFlags(flags) & ^(loaded | dirty)
 			input.bsize = bsize
-			input.D.Qid.Type = qidType
 			input.D.Qid.Path = qidPath
 			input.D.Qid.Version = qidVersion
 			input.D.Name = name
@@ -82,7 +80,6 @@ func TestLatestCodecForNodes(t *testing.T) {
 				c.parent = input
 			}
 			if input.D.Mode&DMDIR != 0 {
-				input.D.Qid.Type = QTDIR
 				input.D.Length = 0
 			}
 			// This would only be needed on the output node, but adding it here as well for comparison.

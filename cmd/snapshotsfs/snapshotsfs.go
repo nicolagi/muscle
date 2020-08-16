@@ -23,12 +23,15 @@ var (
 	group p.Group
 )
 
-func nodeQID(node *tree.Node) p.Qid {
-	return p.Qid{
-		Path:    node.D.Qid.Path,
-		Version: node.D.Qid.Version,
-		Type:    node.D.Qid.Type,
+func nodeQID(node *tree.Node) (qid p.Qid) {
+	qid.Path = node.D.Qid.Path
+	qid.Version = node.D.Qid.Version
+	if node.D.Mode&tree.DMDIR != 0 {
+		qid.Type = p.QTDIR
+	} else {
+		qid.Type = 0
 	}
+	return
 }
 
 func nodeDir(node *tree.Node) (dir p.Dir) {

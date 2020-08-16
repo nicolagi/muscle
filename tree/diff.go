@@ -55,7 +55,6 @@ func (node nodeMeta) Content() (string, error) {
 Dir.Size %d
 Dir.Type %d
 Dir.Dev %d
-Dir.Qid.Type %d
 Dir.Qid.Version %d
 Dir.Qid.Path %d
 Dir.Mode %d
@@ -71,7 +70,6 @@ Dir.Muid %q
 		node.n.D.Size,
 		node.n.D.Type,
 		node.n.D.Dev,
-		node.n.D.Qid.Type,
 		node.n.D.Qid.Version,
 		node.n.D.Qid.Path,
 		node.n.D.Mode,
@@ -256,7 +254,7 @@ func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
 	if err != nil {
 		return err
 	}
-	if output != "" || a == nil || b == nil || a.D.Qid.Type&QTDIR != b.D.Qid.Type&QTDIR {
+	if output != "" || a == nil || b == nil || a.D.Mode&DMDIR != b.D.Mode&DMDIR {
 		if opts.namesOnly {
 			_, _ = fmt.Fprintln(opts.output, commonp)
 		} else {

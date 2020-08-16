@@ -23,7 +23,8 @@ func (codecV15) encodeNode(node *Node) ([]byte, error) {
 	buf := make([]byte, size)
 	ptr := buf
 	ptr = pint8(15, ptr)
-	ptr = pint8(node.D.Qid.Type, ptr)
+	// The QID type (file or directory) is derived from the mode (DMDIR flag).
+	ptr = pint8(0, ptr)
 	ptr = pint64(node.D.Qid.Path, ptr)
 	ptr = pint32(node.D.Qid.Version, ptr)
 	ptr = pstr(node.D.Name, ptr)
@@ -55,7 +56,8 @@ func (codecV15) decodeNode(data []byte, dest *Node) error {
 	var u8 uint8
 	var u32 uint32
 
-	dest.D.Qid.Type, ptr = gint8(ptr)
+	// The QID type (file or directory) is derived from the mode (DMDIR flag).
+	_, ptr = gint8(ptr)
 	dest.D.Qid.Path, ptr = gint64(ptr)
 	dest.D.Qid.Version, ptr = gint32(ptr)
 	dest.D.Name, ptr = gstr(ptr)
@@ -64,7 +66,6 @@ func (codecV15) decodeNode(data []byte, dest *Node) error {
 	dest.bsize, ptr = gint32(ptr)
 	dest.D.Mode, ptr = gint32(ptr)
 	if dest.D.Mode&DMDIR != 0 {
-		dest.D.Qid.Type = QTDIR
 		// Ignore the length, it's 0 for directories, see stat(9p) or stat(5).
 		_, ptr = gint64(ptr)
 	} else {

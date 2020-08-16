@@ -37,7 +37,6 @@ func (codecV14) decodeNode(data []byte, dest *Node) error {
 	}
 	dest.D.Mode, ptr = gint32(ptr)
 	if dest.D.Mode&DMDIR != 0 {
-		dest.D.Qid.Type = QTDIR
 		// Ignore the length, it's 0 for directories, see stat(9p) or stat(5).
 		_, ptr = gint64(ptr)
 	} else {

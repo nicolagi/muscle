@@ -30,7 +30,6 @@ func (codec codecV13) decodeNode(data []byte, dest *Node) error {
 	dest.D.Name, ptr = gstr(ptr)
 	dest.D.Mode, ptr = gint32(ptr)
 	if dest.D.Mode&DMDIR != 0 {
-		dest.D.Qid.Type = QTDIR
 		// Read and ignore the length. I used to calculate and store directory lengths
 		// (length of the serialized dir entries) but I later learned that the size is conventionally 0.
 		_, ptr = gint64(ptr)

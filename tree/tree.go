@@ -60,9 +60,6 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	child.D.Qid.Path = uint64(time.Now().UnixNano())
 	child.D.Qid.Version = 1
 	child.updateMTime()
-	if perm&DMDIR != 0 {
-		child.D.Qid.Type = QTDIR
-	}
 	if added := node.add(child); !added {
 		return nil, ErrExists
 	}

@@ -4,7 +4,6 @@ import "fmt"
 
 type Qid struct {
 	Path    uint64
-	Type    uint8
 	Version uint32
 }
 
@@ -26,7 +25,6 @@ type Dir struct {
 
 const (
 	DMDIR = 0x80000000
-	QTDIR = 0x80
 )
 
 var (
