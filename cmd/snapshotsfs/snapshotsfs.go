@@ -23,6 +23,30 @@ var (
 	group p.Group
 )
 
+func nodeQID(node *tree.Node) p.Qid {
+	return p.Qid{
+		Path:    node.D.Qid.Path,
+		Version: node.D.Qid.Version,
+		Type:    node.D.Qid.Type,
+	}
+}
+
+func nodeDir(node *tree.Node) (dir p.Dir) {
+	dir.Qid = nodeQID(node)
+	dir.Atime = node.D.Atime
+	dir.Dev = node.D.Dev
+	dir.Gid = node.D.Gid
+	dir.Length = node.D.Length
+	dir.Mode = node.D.Mode
+	dir.Mtime = node.D.Mtime
+	dir.Muid = node.D.Muid
+	dir.Name = node.D.Name
+	dir.Size = node.D.Size
+	dir.Type = node.D.Type
+	dir.Uid = node.D.Uid
+	return
+}
+
 type node interface {
 	qid() p.Qid
 	stat() p.Dir
@@ -39,14 +63,20 @@ type treenode struct {
 
 func (tn *treenode) prepareForReads() {
 	tn.dirb.Reset()
+	var dir p.Dir
 	for _, child := range tn.node.Children() {
-		tn.dirb.Write(&child.D)
+		dir = nodeDir(child)
+		tn.dirb.Write(&dir)
 	}
 }
 
-func (tn *treenode) qid() p.Qid { return tn.node.D.Qid }
+func (tn *treenode) qid() p.Qid {
+	return nodeQID(tn.node)
+}
 
-func (tn *treenode) stat() p.Dir { return tn.node.D }
+func (tn *treenode) stat() p.Dir {
+	return nodeDir(tn.node)
+}
 
 func (tn *treenode) walk(name string) (child node, err error) {
 	nodes, err := tn.tree.Walk(tn.node, name)
@@ -75,7 +105,7 @@ func (tn *treenode) open(r *srv.Req) (qid p.Qid, err error) {
 		tn.prepareForReads()
 	default:
 	}
-	return tn.node.D.Qid, nil
+	return tn.qid(), nil
 }
 
 func (tn *treenode) read(r *srv.Req) (n int, err error) {
@@ -191,8 +221,10 @@ func (root *rootdir) reload() error {
 
 func (root *rootdir) preparedirentries() {
 	root.dirb.Reset()
+	var dir p.Dir
 	for _, tn := range root.treeroots {
-		root.dirb.Write(&tn.node.D)
+		dir = tn.stat()
+		root.dirb.Write(&dir)
 	}
 }
 

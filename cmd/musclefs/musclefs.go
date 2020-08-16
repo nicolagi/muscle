@@ -33,9 +33,35 @@ type fsNode struct {
 
 func (node *fsNode) prepareForReads() {
 	node.dirb.Reset()
+	var dir p.Dir
 	for _, child := range node.Children() {
-		node.dirb.Write(&child.D)
+		dir = nodeDir(child)
+		node.dirb.Write(&dir)
 	}
+}
+
+func nodeQID(node *tree.Node) p.Qid {
+	return p.Qid{
+		Path:    node.D.Qid.Path,
+		Version: node.D.Qid.Version,
+		Type:    node.D.Qid.Type,
+	}
+}
+
+func nodeDir(node *tree.Node) (dir p.Dir) {
+	dir.Qid = nodeQID(node)
+	dir.Atime = node.D.Atime
+	dir.Dev = node.D.Dev
+	dir.Gid = node.D.Gid
+	dir.Length = node.D.Length
+	dir.Mode = node.D.Mode
+	dir.Mtime = node.D.Mtime
+	dir.Muid = node.D.Muid
+	dir.Name = node.D.Name
+	dir.Size = node.D.Size
+	dir.Type = node.D.Type
+	dir.Uid = node.D.Uid
+	return
 }
 
 type ops struct {
@@ -63,7 +89,8 @@ func (ops *ops) Attach(r *srv.Req) {
 	defer ops.mu.Unlock()
 	root := ops.tree.Attach()
 	r.Fid.Aux = &fsNode{Node: root}
-	r.RespondRattach(&root.D.Qid)
+	qid := nodeQID(root)
+	r.RespondRattach(&qid)
 }
 
 func (ops *ops) Walk(r *srv.Req) {
@@ -114,7 +141,7 @@ func (ops *ops) Walk(r *srv.Req) {
 		}
 		var qids []p.Qid
 		for _, n := range nodes {
-			qids = append(qids, n.D.Qid)
+			qids = append(qids, nodeQID(n))
 		}
 		if len(qids) == len(r.Tc.Wname) {
 			targetNode := nodes[len(nodes)-1]
@@ -155,7 +182,8 @@ func (ops *ops) Open(r *srv.Req) {
 				}
 			}
 		}
-		r.RespondRopen(&node.D.Qid, 0)
+		qid := nodeQID(node.Node)
+		r.RespondRopen(&qid, 0)
 	}
 }
 
@@ -179,7 +207,8 @@ func (ops *ops) Create(r *srv.Req) {
 		node.Ref("create")
 		parent.Unref("created child")
 		r.Fid.Aux = &fsNode{Node: node}
-		r.RespondRcreate(&node.D.Qid, 0)
+		qid := nodeQID(node)
+		r.RespondRcreate(&qid, 0)
 	}
 }
 
@@ -500,7 +529,8 @@ func (ops *ops) Stat(r *srv.Req) {
 			r.RespondError(Eunlinked)
 			return
 		}
-		r.RespondRstat(&node.D)
+		dir := nodeDir(node.Node)
+		r.RespondRstat(&dir)
 	}
 }
 
