@@ -31,8 +31,8 @@ func (codecV15) encodeNode(node *Node) ([]byte, error) {
 	ptr = pint8(uint8(node.flags & ^(loaded|dirty)), ptr)
 	ptr = pint32(node.bsize, ptr)
 	ptr = pint32(node.D.Mode, ptr)
-	ptr = pint64(node.D.Length, ptr)
-	ptr = pint32(node.D.Mtime, ptr)
+	ptr = pint64(node.D.Size, ptr)
+	ptr = pint32(node.D.Modified, ptr)
 	ptr = pint32(0, ptr)
 	ptr = pint32(uint32(len(node.children)), ptr)
 	for _, c := range node.children {
@@ -69,9 +69,9 @@ func (codecV15) decodeNode(data []byte, dest *Node) error {
 		// Ignore the length, it's 0 for directories, see stat(9p) or stat(5).
 		_, ptr = gint64(ptr)
 	} else {
-		dest.D.Length, ptr = gint64(ptr)
+		dest.D.Size, ptr = gint64(ptr)
 	}
-	dest.D.Mtime, ptr = gint32(ptr)
+	dest.D.Modified, ptr = gint32(ptr)
 
 	u32, ptr = gint32(ptr)
 	if u32 > 0 {

@@ -40,8 +40,8 @@ func TestLatestCodecForNodes(t *testing.T) {
 			input.D.Qid.Version = qidVersion
 			input.D.Name = name
 			input.D.Mode = mode
-			input.D.Mtime = mtime
-			input.D.Length = length
+			input.D.Modified = mtime
+			input.D.Size = length
 			for _, b := range children {
 				input.children = append(input.children, &Node{
 					pointer: storage.NewPointer(b),
@@ -79,7 +79,7 @@ func TestLatestCodecForNodes(t *testing.T) {
 				c.parent = input
 			}
 			if input.D.Mode&DMDIR != 0 {
-				input.D.Length = 0
+				input.D.Size = 0
 			}
 			// This would only be needed on the output node, but adding it here as well for comparison.
 			input.blockFactory = factory

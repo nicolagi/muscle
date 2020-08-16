@@ -231,7 +231,7 @@ func (node *Node) Trim() {
 			}
 		}
 
-		age := now - node.D.Mtime
+		age := now - node.D.Modified
 
 		le := log.WithFields(log.Fields{
 			"path":  node.Path(),
@@ -274,12 +274,12 @@ func (node *Node) removeChild(name string) (removedCount int) {
 }
 
 func (node *Node) updateMTime() {
-	node.D.Mtime = uint32(time.Now().Unix())
+	node.D.Modified = uint32(time.Now().Unix())
 	node.markDirty()
 }
 
 func (node *Node) SetMTime(mtime uint32) {
-	node.D.Mtime = mtime
+	node.D.Modified = mtime
 	node.markDirty()
 }
 
@@ -303,9 +303,9 @@ func (node *Node) Truncate(requestedSize uint64) error {
 		return errors.New("impossible to truncate a directory")
 	}
 	var err error
-	if requestedSize == node.D.Length {
+	if requestedSize == node.D.Size {
 		return nil
-	} else if requestedSize > node.D.Length {
+	} else if requestedSize > node.D.Size {
 		err = node.grow(requestedSize)
 	} else {
 		err = node.shrink(requestedSize)
@@ -313,7 +313,7 @@ func (node *Node) Truncate(requestedSize uint64) error {
 	if err != nil {
 		return err
 	}
-	node.D.Length = requestedSize
+	node.D.Size = requestedSize
 	node.updateMTime()
 	node.D.Qid.Version++
 	return nil
@@ -332,7 +332,7 @@ func (node *Node) grow(requestedSize uint64) (err error) {
 		return nil
 	}
 	blockSize := uint64(node.bsize)
-	q, r := node.D.Length/blockSize, int(node.D.Length%blockSize)
+	q, r := node.D.Size/blockSize, int(node.D.Size%blockSize)
 	nextq, nextr := requestedSize/blockSize, int(requestedSize%blockSize)
 	if q < nextq && r > 0 {
 		if err := node.blocks[q].Truncate(int(node.bsize)); err != nil {
@@ -400,7 +400,7 @@ func (node *Node) write(p []byte, off int64) error {
 	}
 	off -= off % bs
 	off += bs
-	node.D.Length += uint64(delta)
+	node.D.Size += uint64(delta)
 	return node.write(p[written:], off)
 }
 

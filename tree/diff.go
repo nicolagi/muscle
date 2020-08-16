@@ -64,10 +64,10 @@ Dir.Uid %q
 		node.n.D.Qid.Version,
 		node.n.D.Qid.Path,
 		node.n.D.Mode,
-		time.Unix(int64(node.n.D.Mtime), 0).UTC().Format(time.RFC3339),
-		node.n.D.Length,
+		time.Unix(int64(node.n.D.Modified), 0).UTC().Format(time.RFC3339),
+		node.n.D.Size,
 		node.n.D.Name,
-		node.n.D.Uid,
+		node.n.D.Owner,
 	)
 	_, _ = fmt.Fprintf(&output, "blocks:\n")
 	for _, b := range node.n.blocks {
@@ -101,16 +101,16 @@ func (node treeNode) Content() (string, error) {
 	if node.n == nil {
 		return "", nil
 	}
-	if node.n.D.Length > uint64(node.maxSize) {
-		return "", fmt.Errorf("%d: %w", node.n.D.Length, errTreeNodeLarge)
+	if node.n.D.Size > uint64(node.maxSize) {
+		return "", fmt.Errorf("%d: %w", node.n.D.Size, errTreeNodeLarge)
 	}
-	content := make([]byte, node.n.D.Length)
+	content := make([]byte, node.n.D.Size)
 	n, err := node.n.ReadAt(content, 0)
 	if err != nil {
 		return "", err
 	}
-	if uint64(n) != node.n.D.Length {
-		return "", fmt.Errorf("got %d out of %d bytes: %w", n, node.n.D.Length, errTreeNodeTruncated)
+	if uint64(n) != node.n.D.Size {
+		return "", fmt.Errorf("got %d out of %d bytes: %w", n, node.n.D.Size, errTreeNodeTruncated)
 	}
 	return string(content), err
 }

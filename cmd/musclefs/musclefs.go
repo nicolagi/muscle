@@ -69,12 +69,12 @@ func nodeQID(node *tree.Node) (qid p.Qid) {
 func nodeDir(node *tree.Node) (dir p.Dir) {
 	dir.Qid = nodeQID(node)
 	dir.Gid = nodeGID
-	dir.Length = node.D.Length
+	dir.Length = node.D.Size
 	dir.Mode = node.D.Mode
-	dir.Mtime = node.D.Mtime
-	dir.Atime = node.D.Mtime
+	dir.Mtime = node.D.Modified
+	dir.Atime = node.D.Modified
 	dir.Name = node.D.Name
-	dir.Uid = node.D.Uid
+	dir.Uid = node.D.Owner
 	return
 }
 
@@ -697,7 +697,7 @@ func main() {
 	ops.c.D.Mtime = uint32(now.Unix())
 	ops.c.D.Atime = ops.c.D.Mtime
 	ops.c.D.Name = "ctl"
-	ops.c.D.Uid = root.D.Uid
+	ops.c.D.Uid = root.D.Owner
 	ops.c.D.Gid = nodeGID
 
 	/* Best-effort clean-up, for when the control file used to be part of the tree. */

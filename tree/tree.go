@@ -51,9 +51,9 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 		bsize:        uint32(tree.blockSize),
 		parent:       node,
 		D: Dir{
-			Name: name,
-			Mode: perm,
-			Uid:  nodeUID,
+			Name:  name,
+			Mode:  perm,
+			Owner: nodeUID,
 		},
 	}
 	child.D.Qid.Path = uint64(time.Now().UnixNano())
@@ -62,7 +62,7 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	if added := node.add(child); !added {
 		return nil, ErrExists
 	}
-	node.SetMTime(child.D.Mtime)
+	node.SetMTime(child.D.Modified)
 	child.markDirty()
 	return child, nil
 }

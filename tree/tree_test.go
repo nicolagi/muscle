@@ -20,7 +20,7 @@ func TestTreeAdd(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got, want := child.D.Uid, nodeUID; got != want {
+		if got, want := child.D.Owner, nodeUID; got != want {
 			t.Errorf("got %v, want %v", got, want)
 		}
 	})

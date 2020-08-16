@@ -10,11 +10,11 @@ type Qid struct {
 type Dir struct {
 	Qid
 
-	Length uint64
-	Mode   uint32
-	Mtime  uint32
-	Name   string
-	Uid    string
+	Owner    string
+	Name     string
+	Size     uint64
+	Mode     uint32
+	Modified uint32
 }
 
 const (
