@@ -24,6 +24,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type fsNode struct {
+	*tree.Node
+}
+
 type ops struct {
 	factory   *tree.Factory
 	treeStore *tree.Store
@@ -48,7 +52,7 @@ func (ops *ops) Attach(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	root := ops.tree.Attach()
-	r.Fid.Aux = root
+	r.Fid.Aux = &fsNode{Node: root}
 	r.RespondRattach(&root.D.Qid)
 }
 
@@ -64,7 +68,7 @@ func (ops *ops) Walk(r *srv.Req) {
 			r.RespondError(srv.Eperm)
 		}
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
@@ -81,7 +85,7 @@ func (ops *ops) Walk(r *srv.Req) {
 			return
 		}
 		// TODO test scenario: nwqids != 0 but < nwname
-		nodes, err := ops.tree.Walk(node, r.Tc.Wname...)
+		nodes, err := ops.tree.Walk(node.Node, r.Tc.Wname...)
 		if errors.Is(err, tree.ErrNotFound) {
 			if len(nodes) == 0 {
 				r.RespondError(srv.Enoent)
@@ -104,7 +108,7 @@ func (ops *ops) Walk(r *srv.Req) {
 		}
 		if len(qids) == len(r.Tc.Wname) {
 			targetNode := nodes[len(nodes)-1]
-			r.Newfid.Aux = targetNode
+			r.Newfid.Aux = &fsNode{Node: targetNode}
 			targetNode.Ref("successful walk")
 		}
 		r.RespondRwalk(qids)
@@ -121,14 +125,14 @@ func (ops *ops) Open(r *srv.Req) {
 	case r.Fid.Aux == ops.c:
 		r.RespondRopen(&ops.c.D.Qid, 0)
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
 		}
 		switch {
 		case node.IsDir():
-			if err := ops.tree.Grow(node); err != nil {
+			if err := ops.tree.Grow(node.Node); err != nil {
 				r.RespondError(err)
 				return
 			}
@@ -152,21 +156,19 @@ func (ops *ops) Create(r *srv.Req) {
 	case r.Fid.Aux == ops.c:
 		r.RespondError(srv.Eperm)
 	default:
-		parent := r.Fid.Aux.(*tree.Node)
+		parent := r.Fid.Aux.(*fsNode)
 		if parent.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
 		}
-		var node *tree.Node
-		var err error
-		node, err = ops.tree.Add(parent, r.Tc.Name, r.Tc.Perm)
+		node, err := ops.tree.Add(parent.Node, r.Tc.Name, r.Tc.Perm)
 		if err != nil {
 			r.RespondError(err)
 			return
 		}
 		node.Ref("create")
 		parent.Unref("created child")
-		r.Fid.Aux = node
+		r.Fid.Aux = &fsNode{Node: node}
 		r.RespondRcreate(&node.D.Qid, 0)
 	}
 }
@@ -184,7 +186,7 @@ func (ops *ops) Read(r *srv.Req) {
 		count := ops.c.read(r.Rc.Data[:r.Tc.Count], int(r.Tc.Offset))
 		p.SetRreadCount(r.Rc, uint32(count))
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
@@ -419,7 +421,7 @@ func (ops *ops) Write(r *srv.Req) {
 		}
 		r.RespondRwrite(uint32(len(r.Tc.Data)))
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
@@ -438,7 +440,7 @@ func (ops *ops) Clunk(r *srv.Req) {
 	switch {
 	case r.Fid.Aux == ops.c:
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		/*  Respond with Rclunk even if unlinked. Caller won't care. */
 		defer node.Unref("clunk")
 	}
@@ -452,13 +454,13 @@ func (ops *ops) Remove(r *srv.Req) {
 	case r.Fid.Aux == ops.c:
 		r.RespondError(srv.Eperm)
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
 		}
 		node.Unref("remove")
-		err := ops.tree.Remove(node)
+		err := ops.tree.Remove(node.Node)
 		if err != nil {
 			var perr *p.Error
 			if errors.As(err, &perr) {
@@ -483,7 +485,7 @@ func (ops *ops) Stat(r *srv.Req) {
 	case r.Fid.Aux == ops.c:
 		r.RespondRstat(&ops.c.D)
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
@@ -499,7 +501,7 @@ func (ops *ops) Wstat(r *srv.Req) {
 	case r.Fid.Aux == ops.c:
 		r.RespondError(srv.Eperm)
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
