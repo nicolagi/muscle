@@ -53,7 +53,6 @@ func nodeQID(node *tree.Node) (qid p.Qid) {
 
 func nodeDir(node *tree.Node) (dir p.Dir) {
 	dir.Qid = nodeQID(node)
-	dir.Dev = node.D.Dev
 	dir.Gid = node.D.Gid
 	dir.Length = node.D.Length
 	dir.Mode = node.D.Mode

@@ -54,7 +54,6 @@ func (node nodeMeta) Content() (string, error) {
 		`Key %q
 Dir.Size %d
 Dir.Type %d
-Dir.Dev %d
 Dir.Qid.Version %d
 Dir.Qid.Path %d
 Dir.Mode %d
@@ -67,7 +66,6 @@ Dir.Gid %q
 		node.n.pointer.Hex(),
 		node.n.D.Size,
 		node.n.D.Type,
-		node.n.D.Dev,
 		node.n.D.Qid.Version,
 		node.n.D.Qid.Path,
 		node.n.D.Mode,

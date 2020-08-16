@@ -101,7 +101,6 @@ func TestNodeMetaContent(t *testing.T) {
 		assert.Equal(t, `Key ""
 Dir.Size 0
 Dir.Type 0
-Dir.Dev 0
 Dir.Qid.Version 0
 Dir.Qid.Path 0
 Dir.Mode 0
@@ -118,7 +117,6 @@ blocks:
 		a.n.pointer, _ = storage.NewPointerFromHex("f00df00df00df00df00df00df00df00df00df00df00df00df00df00df00df00d")
 		a.n.D.Size = 1
 		a.n.D.Type = 2
-		a.n.D.Dev = 3
 		a.n.D.Qid.Version = 5
 		a.n.D.Qid.Path = 6
 		a.n.D.Mode = 7
@@ -137,7 +135,6 @@ blocks:
 		assert.Equal(t, `Key "f00df00df00df00df00df00df00df00df00df00df00df00df00df00df00df00d"
 Dir.Size 1
 Dir.Type 2
-Dir.Dev 3
 Dir.Qid.Version 5
 Dir.Qid.Path 6
 Dir.Mode 7
