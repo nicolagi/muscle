@@ -42,7 +42,6 @@ func nodeDir(node *tree.Node) (dir p.Dir) {
 	dir.Length = node.D.Length
 	dir.Mode = node.D.Mode
 	dir.Mtime = node.D.Mtime
-	dir.Muid = node.D.Muid
 	dir.Name = node.D.Name
 	dir.Size = node.D.Size
 	dir.Type = node.D.Type

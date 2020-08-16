@@ -16,7 +16,6 @@ type Dir struct {
 	Length uint64
 	Mode   uint32
 	Mtime  uint32
-	Muid   string
 	Name   string
 	Size   uint16
 	Type   uint16

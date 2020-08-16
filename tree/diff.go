@@ -64,7 +64,6 @@ Dir.Length %d
 Dir.Name %q
 Dir.Uid %q
 Dir.Gid %q
-Dir.Muid %q
 `,
 		node.n.pointer.Hex(),
 		node.n.D.Size,
@@ -79,7 +78,6 @@ Dir.Muid %q
 		node.n.D.Name,
 		node.n.D.Uid,
 		node.n.D.Gid,
-		node.n.D.Muid,
 	)
 	_, _ = fmt.Fprintf(&output, "blocks:\n")
 	for _, b := range node.n.blocks {

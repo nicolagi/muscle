@@ -111,7 +111,6 @@ Dir.Length 0
 Dir.Name ""
 Dir.Uid ""
 Dir.Gid ""
-Dir.Muid ""
 blocks:
 `, content)
 	})
@@ -130,7 +129,6 @@ blocks:
 		a.n.D.Name = "carl"
 		a.n.D.Uid = "perkins"
 		a.n.D.Gid = "eddie"
-		a.n.D.Muid = "cochran"
 		ref1, _ := block.NewRef([]byte{222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13})
 		ref2, _ := block.NewRef([]byte{139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239})
 		b1 := newBlock(t, bf, ref1)
@@ -151,7 +149,6 @@ Dir.Length 10
 Dir.Name "carl"
 Dir.Uid "perkins"
 Dir.Gid "eddie"
-Dir.Muid "cochran"
 blocks:
 	deadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00d
 	8badf00ddeadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00ddeadbeef
