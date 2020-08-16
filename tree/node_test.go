@@ -49,7 +49,7 @@ func TestNodePath(t *testing.T) {
 
 func mustRead(t *testing.T, node *Node) string {
 	t.Helper()
-	b := make([]byte, node.D.Length)
+	b := make([]byte, node.D.Size)
 	_, err := node.ReadAt(b, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +155,7 @@ func TestNodeWriting(t *testing.T) {
 			pointer:      storage.RandomPointer(),
 			bsize:        blockCapacity,
 		}
-		node.D.Length = 10 // This would have been serialized...
+		node.D.Size = 10 // This would have been serialized...
 		b, err := bf.New(ref1, int(blockCapacity))
 		if err != nil {
 			t.Fatal(err)
@@ -168,7 +168,7 @@ func TestNodeWriting(t *testing.T) {
 		node.blocks = append(node.blocks, b)
 
 		mustWrite(t, node, []byte("black"), 0)
-		if got, want := node.D.Length, uint64(10); got != want {
+		if got, want := node.D.Size, uint64(10); got != want {
 			t.Errorf("got %d, want a %d-byte node", got, want)
 		}
 		if got, want := mustRead(t, node), "blackboard"; got != want {

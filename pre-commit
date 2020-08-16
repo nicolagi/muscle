@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euxo pipefail
 files=$(git diff --cached --name-only --diff-filter ACM | grep '\.go$' || true)
 dirs=$(for f in $files ; do dirname $f; done | sort | uniq)

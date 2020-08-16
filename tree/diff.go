@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/diff"
 )
 
@@ -53,36 +52,20 @@ func (node nodeMeta) Content() (string, error) {
 	_, _ = fmt.Fprintf(
 		&output,
 		`Key %q
-Dir.Size %d
-Dir.Type %d
-Dir.Dev %d
-Dir.Qid.Type %d
 Dir.Qid.Version %d
 Dir.Qid.Path %d
 Dir.Mode %d
-Dir.Atime %s
 Dir.Mtime %s
 Dir.Length %d
 Dir.Name %q
-Dir.Uid %q
-Dir.Gid %q
-Dir.Muid %q
 `,
 		node.n.pointer.Hex(),
-		node.n.D.Size,
-		node.n.D.Type,
-		node.n.D.Dev,
-		node.n.D.Qid.Type,
 		node.n.D.Qid.Version,
 		node.n.D.Qid.Path,
 		node.n.D.Mode,
-		time.Unix(int64(node.n.D.Atime), 0).UTC().Format(time.RFC3339),
-		time.Unix(int64(node.n.D.Mtime), 0).UTC().Format(time.RFC3339),
-		node.n.D.Length,
+		time.Unix(int64(node.n.D.Modified), 0).UTC().Format(time.RFC3339),
+		node.n.D.Size,
 		node.n.D.Name,
-		node.n.D.Uid,
-		node.n.D.Gid,
-		node.n.D.Muid,
 	)
 	_, _ = fmt.Fprintf(&output, "blocks:\n")
 	for _, b := range node.n.blocks {
@@ -116,16 +99,16 @@ func (node treeNode) Content() (string, error) {
 	if node.n == nil {
 		return "", nil
 	}
-	if node.n.D.Length > uint64(node.maxSize) {
-		return "", fmt.Errorf("%d: %w", node.n.D.Length, errTreeNodeLarge)
+	if node.n.D.Size > uint64(node.maxSize) {
+		return "", fmt.Errorf("%d: %w", node.n.D.Size, errTreeNodeLarge)
 	}
-	content := make([]byte, node.n.D.Length)
+	content := make([]byte, node.n.D.Size)
 	n, err := node.n.ReadAt(content, 0)
 	if err != nil {
 		return "", err
 	}
-	if uint64(n) != node.n.D.Length {
-		return "", fmt.Errorf("got %d out of %d bytes: %w", n, node.n.D.Length, errTreeNodeTruncated)
+	if uint64(n) != node.n.D.Size {
+		return "", fmt.Errorf("got %d out of %d bytes: %w", n, node.n.D.Size, errTreeNodeTruncated)
 	}
 	return string(content), err
 }
@@ -257,7 +240,7 @@ func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
 	if err != nil {
 		return err
 	}
-	if output != "" || a == nil || b == nil || a.D.Qid.Type&p.QTDIR != b.D.Qid.Type&p.QTDIR {
+	if output != "" || a == nil || b == nil || a.D.Mode&DMDIR != b.D.Mode&DMDIR {
 		if opts.namesOnly {
 			_, _ = fmt.Fprintln(opts.output, commonp)
 		} else {

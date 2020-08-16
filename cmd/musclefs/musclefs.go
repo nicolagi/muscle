@@ -17,12 +17,28 @@ import (
 	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
+	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/netutil"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
+
+type fsNode struct {
+	*tree.Node
+
+	dirb p9util.DirBuffer
+}
+
+func (node *fsNode) prepareForReads() {
+	node.dirb.Reset()
+	var dir p.Dir
+	for _, child := range node.Children() {
+		p9util.NodeDirVar(child, &dir)
+		node.dirb.Write(&dir)
+	}
+}
 
 type ops struct {
 	factory   *tree.Factory
@@ -48,8 +64,9 @@ func (ops *ops) Attach(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	root := ops.tree.Attach()
-	r.Fid.Aux = root
-	r.RespondRattach(&root.D.Qid)
+	r.Fid.Aux = &fsNode{Node: root}
+	qid := p9util.NodeQID(root)
+	r.RespondRattach(&qid)
 }
 
 func (ops *ops) Walk(r *srv.Req) {
@@ -64,7 +81,7 @@ func (ops *ops) Walk(r *srv.Req) {
 			r.RespondError(srv.Eperm)
 		}
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
@@ -81,7 +98,7 @@ func (ops *ops) Walk(r *srv.Req) {
 			return
 		}
 		// TODO test scenario: nwqids != 0 but < nwname
-		nodes, err := ops.tree.Walk(node, r.Tc.Wname...)
+		nodes, err := ops.tree.Walk(node.Node, r.Tc.Wname...)
 		if errors.Is(err, tree.ErrNotFound) {
 			if len(nodes) == 0 {
 				r.RespondError(srv.Enoent)
@@ -100,11 +117,11 @@ func (ops *ops) Walk(r *srv.Req) {
 		}
 		var qids []p.Qid
 		for _, n := range nodes {
-			qids = append(qids, n.D.Qid)
+			qids = append(qids, p9util.NodeQID(n))
 		}
 		if len(qids) == len(r.Tc.Wname) {
 			targetNode := nodes[len(nodes)-1]
-			r.Newfid.Aux = targetNode
+			r.Newfid.Aux = &fsNode{Node: targetNode}
 			targetNode.Ref("successful walk")
 		}
 		r.RespondRwalk(qids)
@@ -121,18 +138,18 @@ func (ops *ops) Open(r *srv.Req) {
 	case r.Fid.Aux == ops.c:
 		r.RespondRopen(&ops.c.D.Qid, 0)
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
 		}
 		switch {
 		case node.IsDir():
-			if err := ops.tree.Grow(node); err != nil {
+			if err := ops.tree.Grow(node.Node); err != nil {
 				r.RespondError(err)
 				return
 			}
-			node.PrepareForReads()
+			node.prepareForReads()
 		default:
 			if r.Tc.Mode&p.OTRUNC != 0 {
 				if err := node.Truncate(0); err != nil {
@@ -141,7 +158,8 @@ func (ops *ops) Open(r *srv.Req) {
 				}
 			}
 		}
-		r.RespondRopen(&node.D.Qid, 0)
+		qid := p9util.NodeQID(node.Node)
+		r.RespondRopen(&qid, 0)
 	}
 }
 
@@ -152,22 +170,21 @@ func (ops *ops) Create(r *srv.Req) {
 	case r.Fid.Aux == ops.c:
 		r.RespondError(srv.Eperm)
 	default:
-		parent := r.Fid.Aux.(*tree.Node)
+		parent := r.Fid.Aux.(*fsNode)
 		if parent.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
 		}
-		var node *tree.Node
-		var err error
-		node, err = ops.tree.Add(parent, r.Tc.Name, r.Tc.Perm)
+		node, err := ops.tree.Add(parent.Node, r.Tc.Name, r.Tc.Perm)
 		if err != nil {
 			r.RespondError(err)
 			return
 		}
 		node.Ref("create")
 		parent.Unref("created child")
-		r.Fid.Aux = node
-		r.RespondRcreate(&node.D.Qid, 0)
+		r.Fid.Aux = &fsNode{Node: node}
+		qid := p9util.NodeQID(node)
+		r.RespondRcreate(&qid, 0)
 	}
 }
 
@@ -184,7 +201,7 @@ func (ops *ops) Read(r *srv.Req) {
 		count := ops.c.read(r.Rc.Data[:r.Tc.Count], int(r.Tc.Offset))
 		p.SetRreadCount(r.Rc, uint32(count))
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
@@ -192,7 +209,7 @@ func (ops *ops) Read(r *srv.Req) {
 		var count int
 		var err error
 		if node.IsDir() {
-			count, err = node.DirReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
+			count, err = node.dirb.Read(r.Rc.Data[:r.Tc.Count], int(r.Tc.Offset))
 		} else {
 			count, err = node.ReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
 		}
@@ -419,7 +436,7 @@ func (ops *ops) Write(r *srv.Req) {
 		}
 		r.RespondRwrite(uint32(len(r.Tc.Data)))
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
@@ -438,7 +455,7 @@ func (ops *ops) Clunk(r *srv.Req) {
 	switch {
 	case r.Fid.Aux == ops.c:
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		/*  Respond with Rclunk even if unlinked. Caller won't care. */
 		defer node.Unref("clunk")
 	}
@@ -452,17 +469,17 @@ func (ops *ops) Remove(r *srv.Req) {
 	case r.Fid.Aux == ops.c:
 		r.RespondError(srv.Eperm)
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
 		}
 		node.Unref("remove")
-		err := ops.tree.Remove(node)
+		err := ops.tree.Remove(node.Node)
 		if err != nil {
 			var perr *p.Error
 			if errors.As(err, &perr) {
-				if perr != srv.Enotempty {
+				if perr != tree.ErrNotEmpty {
 					log.Printf("%s: %+v", node.Path(), err)
 				}
 				r.RespondError(perr)
@@ -483,12 +500,13 @@ func (ops *ops) Stat(r *srv.Req) {
 	case r.Fid.Aux == ops.c:
 		r.RespondRstat(&ops.c.D)
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
 		}
-		r.RespondRstat(&node.D)
+		dir := p9util.NodeDir(node.Node)
+		r.RespondRstat(&dir)
 	}
 }
 
@@ -499,7 +517,7 @@ func (ops *ops) Wstat(r *srv.Req) {
 	case r.Fid.Aux == ops.c:
 		r.RespondError(srv.Eperm)
 	default:
-		node := r.Fid.Aux.(*tree.Node)
+		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			r.RespondError(Eunlinked)
 			return
@@ -552,11 +570,10 @@ func (ops *ops) Wstat(r *srv.Req) {
 			node.SetMode(dir.Mode)
 		}
 
-		// Owner and group for files stored in a muscle tree are those
-		// of the user/group that started the file server.  We allow to
-		// change the GID but such change won't be persisted.
+		// TODO: Not sure it's best to 'pretend' it works, or fail.
 		if dir.ChangeGID() {
-			node.D.Gid = dir.Gid
+			r.RespondError(srv.Eperm)
+			return
 		}
 
 		r.RespondRwstat()
@@ -642,8 +659,8 @@ func main() {
 	ops.c.D.Mtime = uint32(now.Unix())
 	ops.c.D.Atime = ops.c.D.Mtime
 	ops.c.D.Name = "ctl"
-	ops.c.D.Uid = root.D.Uid
-	ops.c.D.Gid = root.D.Gid
+	ops.c.D.Uid = p9util.NodeUID
+	ops.c.D.Gid = p9util.NodeGID
 
 	/* Best-effort clean-up, for when the control file used to be part of the tree. */
 	if nodes, err := ops.tree.Walk(root, "ctl"); err == nil && len(nodes) == 1 {

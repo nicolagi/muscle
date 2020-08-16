@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"flag"
-	"os"
 	"strings"
 	"time"
 
@@ -18,11 +17,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	owner p.User
-	group p.Group
-)
-
 type node interface {
 	qid() p.Qid
 	stat() p.Dir
@@ -34,11 +28,25 @@ type node interface {
 type treenode struct {
 	tree *tree.Tree
 	node *tree.Node
+	dirb p9util.DirBuffer
 }
 
-func (tn *treenode) qid() p.Qid { return tn.node.D.Qid }
+func (tn *treenode) prepareForReads() {
+	tn.dirb.Reset()
+	var dir p.Dir
+	for _, child := range tn.node.Children() {
+		p9util.NodeDirVar(child, &dir)
+		tn.dirb.Write(&dir)
+	}
+}
 
-func (tn *treenode) stat() p.Dir { return tn.node.D }
+func (tn *treenode) qid() p.Qid {
+	return p9util.NodeQID(tn.node)
+}
+
+func (tn *treenode) stat() p.Dir {
+	return p9util.NodeDir(tn.node)
+}
 
 func (tn *treenode) walk(name string) (child node, err error) {
 	nodes, err := tn.tree.Walk(tn.node, name)
@@ -64,15 +72,15 @@ func (tn *treenode) open(r *srv.Req) (qid p.Qid, err error) {
 		if err = tn.tree.Grow(tn.node); err != nil {
 			return
 		}
-		tn.node.PrepareForReads()
+		tn.prepareForReads()
 	default:
 	}
-	return tn.node.D.Qid, nil
+	return tn.qid(), nil
 }
 
 func (tn *treenode) read(r *srv.Req) (n int, err error) {
 	if tn.node.IsDir() {
-		n, err = tn.node.DirReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
+		n, err = tn.dirb.Read(r.Rc.Data[:r.Tc.Count], int(r.Tc.Offset))
 	} else {
 		n, err = tn.node.ReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
 	}
@@ -183,8 +191,10 @@ func (root *rootdir) reload() error {
 
 func (root *rootdir) preparedirentries() {
 	root.dirb.Reset()
+	var dir p.Dir
 	for _, tn := range root.treeroots {
-		root.dirb.Write(&tn.node.D)
+		dir = tn.stat()
+		root.dirb.Write(&dir)
 	}
 }
 
@@ -318,9 +328,6 @@ func main() {
 	flag.StringVar(&logLevel, "verbosity", "info", "sets the log `level`, among "+strings.Join(levels, ", "))
 	flag.Parse()
 
-	owner = p.OsUsers.Uid2User(os.Getuid())
-	group = p.OsUsers.Gid2Group(os.Getgid())
-
 	cfg, err := config.Load(*base)
 	if err != nil {
 		log.Fatalf("Could not load config from %q: %v", *base, err)
@@ -359,8 +366,8 @@ func main() {
 	}
 	root.dir.Name = "snapshots"
 	root.dir.Mode = 0700 | p.DMDIR
-	root.dir.Uid = owner.Name()
-	root.dir.Gid = group.Name()
+	root.dir.Uid = p9util.NodeUID
+	root.dir.Gid = p9util.NodeGID
 	root.dir.Mtime = uint32(time.Now().Unix())
 	root.dir.Atime = root.dir.Mtime
 	root.dir.Qid.Type = p.QTDIR

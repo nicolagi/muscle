@@ -72,21 +72,18 @@ func (tree *Tree) PullWorklog(cfg *config.C, baseTree *Tree, remoteTree *Tree) (
 
 func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node, baseRev, remoteRev string, cfg *config.C, output io.Writer) error {
 	if sameKeyOrBothNil(local, remote) {
-		log.Printf("Same key (or both nil): %v", local)
 		return nil
 	}
 
 	if same, err := sameContents(local, remote); err != nil {
 		return err
 	} else if same {
-		log.Printf("Same contents (ignoring metadata differences): %v", local)
 		return nil
 	}
 
 	if sameKeyOrBothNil(remote, base) {
 		// The remote has not changed since the common point in history.
 		// We keep the local changes.
-		log.Printf("Only locally changed, remote is equal to common ancestor: %v", local)
 		return nil
 	}
 

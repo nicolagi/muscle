@@ -7,9 +7,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
-	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/storage"
 	log "github.com/sirupsen/logrus"
 )
@@ -72,18 +70,15 @@ type Node struct {
 	// node) this will be nil.
 	parent *Node
 
-	// 9P serialized directory contents.
-	dirb p9util.DirBuffer
-
 	// A hash of all the data below, before encryption.  Encryption causes
 	// the same content to generated different data every time it is
 	// encrypted. Therefore the hash would change and we would not be able
 	// to tell two nodes are the same.
 	pointer storage.Pointer
 
-	// 9P structure containing the node's metadata, e.g., name, size,
+	// Fields containing the node's metadata, e.g., name, size,
 	// permissions, modification time...
-	D p.Dir
+	D Dir
 
 	// Only one of the two will be relevant, based on the node type.  The
 	// children field is relevant for directories, the blocks field is
@@ -140,7 +135,7 @@ func (node *Node) Path() string {
 }
 
 func (node *Node) IsDir() bool {
-	return node.D.Mode&p.DMDIR != 0
+	return node.D.Mode&DMDIR != 0
 }
 
 func (node *Node) String() string {
@@ -150,15 +145,8 @@ func (node *Node) String() string {
 	return fmt.Sprintf("%s@%s", node.D.Name, node.pointer)
 }
 
-func (node *Node) PrepareForReads() {
-	node.dirb.Reset()
-	for _, child := range node.children {
-		node.dirb.Write(&child.D)
-	}
-}
-
-func (node *Node) DirReadAt(b []byte, off int64) (n int, err error) {
-	return node.dirb.Read(b, int(off))
+func (node *Node) Children() []*Node {
+	return node.children
 }
 
 func (node *Node) childrenMap() map[string]*Node {
@@ -206,7 +194,6 @@ func (node *Node) Ref(reason string) {
 	}).Debug("REF/UNREF")
 	for n := node; n != nil; n = n.parent {
 		n.refs++
-		n.D.Atime = uint32(time.Now().Unix())
 	}
 }
 
@@ -244,7 +231,7 @@ func (node *Node) Trim() {
 			}
 		}
 
-		age := now - node.D.Atime
+		age := now - node.D.Modified
 
 		le := log.WithFields(log.Fields{
 			"path":  node.Path(),
@@ -264,7 +251,6 @@ func (node *Node) Trim() {
 		node.D.Name = ""
 		node.blocks = nil
 		node.children = nil
-		node.dirb.Reset()
 	}
 
 	trim(node)
@@ -288,26 +274,17 @@ func (node *Node) removeChild(name string) (removedCount int) {
 }
 
 func (node *Node) updateMTime() {
-	node.D.Mtime = uint32(time.Now().Unix())
+	node.D.Modified = uint32(time.Now().Unix())
 	node.markDirty()
 }
 
 func (node *Node) SetMTime(mtime uint32) {
-	node.D.Mtime = mtime
+	node.D.Modified = mtime
 	node.markDirty()
 }
 
-func (node *Node) SameKind(other *Node) bool {
-	return (node.D.Mode&p.DMDIR != 0 && other.D.Mode&p.DMDIR != 0) ||
-		(node.D.Mode&p.DMDIR == 0 && other.D.Mode&p.DMDIR == 0)
-}
-
 func (node *Node) IsRoot() bool {
-	return node.D.Mode&p.DMDIR != 0 && node.parent == nil
-}
-
-func (node *Node) IsFile() bool {
-	return node.D.Mode&p.DMDIR == 0
+	return node.D.Mode&DMDIR != 0 && node.parent == nil
 }
 
 func (node *Node) SetMode(mode uint32) {
@@ -326,9 +303,9 @@ func (node *Node) Truncate(requestedSize uint64) error {
 		return errors.New("impossible to truncate a directory")
 	}
 	var err error
-	if requestedSize == node.D.Length {
+	if requestedSize == node.D.Size {
 		return nil
-	} else if requestedSize > node.D.Length {
+	} else if requestedSize > node.D.Size {
 		err = node.grow(requestedSize)
 	} else {
 		err = node.shrink(requestedSize)
@@ -336,7 +313,7 @@ func (node *Node) Truncate(requestedSize uint64) error {
 	if err != nil {
 		return err
 	}
-	node.D.Length = requestedSize
+	node.D.Size = requestedSize
 	node.updateMTime()
 	node.D.Qid.Version++
 	return nil
@@ -355,7 +332,7 @@ func (node *Node) grow(requestedSize uint64) (err error) {
 		return nil
 	}
 	blockSize := uint64(node.bsize)
-	q, r := node.D.Length/blockSize, int(node.D.Length%blockSize)
+	q, r := node.D.Size/blockSize, int(node.D.Size%blockSize)
 	nextq, nextr := requestedSize/blockSize, int(requestedSize%blockSize)
 	if q < nextq && r > 0 {
 		if err := node.blocks[q].Truncate(int(node.bsize)); err != nil {
@@ -423,7 +400,7 @@ func (node *Node) write(p []byte, off int64) error {
 	}
 	off -= off % bs
 	off += bs
-	node.D.Length += uint64(delta)
+	node.D.Size += uint64(delta)
 	return node.write(p[written:], off)
 }
 

@@ -4,42 +4,19 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/lionkov/go9p/p"
-	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/config"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestTreeAdd(t *testing.T) {
-	t.Run("added node's owner and group are inherited from the process", func(t *testing.T) {
-		t.Logf("nodeUID=%s nodeGID=%s", nodeUID, nodeGID)
-		if nodeUID == "" || nodeGID == "" {
-			t.Fatal("nodeUID or nodeGID not set")
-		}
-		parent := &Node{}
-		tree := newTestTree(t)
-		child, err := tree.Add(parent, "file", 0666)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got, want := child.D.Uid, nodeUID; got != want {
-			t.Errorf("got %v, want %v", got, want)
-		}
-		if got, want := child.D.Gid, nodeGID; got != want {
-			t.Errorf("got %v, want %v", got, want)
-		}
-	})
-}
 
 func TestTreeRemove(t *testing.T) {
 	t.Run("removing the root is not allowed", func(t *testing.T) {
 		tree := newTestTree(t)
 		// The root is just the directory with no parent.
 		parent := &Node{}
-		parent.D.Mode = p.DMDIR
+		parent.D.Mode = DMDIR
 		err := tree.Remove(parent)
-		if !errors.Is(err, srv.Eperm) {
-			t.Errorf("got %v, want a wrapper of %v", err, srv.Eperm)
+		if !errors.Is(err, ErrPermission) {
+			t.Errorf("got %v, want a wrapper of %v", err, ErrPermission)
 		}
 	})
 	t.Run("removing a non-empty directory is not allowed", func(t *testing.T) {
@@ -49,8 +26,8 @@ func TestTreeRemove(t *testing.T) {
 			t.Fatal(err)
 		}
 		err := tree.Remove(parent)
-		if !errors.Is(err, srv.Enotempty) {
-			t.Errorf("got %v, want a wrapper of %v", err, srv.Enotempty)
+		if !errors.Is(err, ErrNotEmpty) {
+			t.Errorf("got %v, want a wrapper of %v", err, ErrNotEmpty)
 		}
 	})
 }

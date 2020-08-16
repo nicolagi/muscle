@@ -4,7 +4,6 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +23,6 @@ func TestLatestCodecForNodes(t *testing.T) {
 		f := func(
 			name string,
 			flags uint8,
-			qidType uint8,
 			qidPath uint64,
 			qidVersion uint32,
 			bsize uint32,
@@ -38,15 +36,12 @@ func TestLatestCodecForNodes(t *testing.T) {
 			input := &Node{}
 			input.flags = nodeFlags(flags) & ^(loaded | dirty)
 			input.bsize = bsize
-			input.D.Qid = p.Qid{
-				Type:    qidType,
-				Path:    qidPath,
-				Version: qidVersion,
-			}
+			input.D.Qid.Path = qidPath
+			input.D.Qid.Version = qidVersion
 			input.D.Name = name
 			input.D.Mode = mode
-			input.D.Mtime = mtime
-			input.D.Length = length
+			input.D.Modified = mtime
+			input.D.Size = length
 			for _, b := range children {
 				input.children = append(input.children, &Node{
 					pointer: storage.NewPointer(b),
@@ -80,13 +75,11 @@ func TestLatestCodecForNodes(t *testing.T) {
 			}
 
 			// Normalize
-			input.D.Atime = mtime
 			for _, c := range input.children {
 				c.parent = input
 			}
-			if input.D.Mode&p.DMDIR != 0 {
-				input.D.Qid.Type = p.QTDIR
-				input.D.Length = 0
+			if input.D.Mode&DMDIR != 0 {
+				input.D.Size = 0
 			}
 			// This would only be needed on the output node, but adding it here as well for comparison.
 			input.blockFactory = factory

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
@@ -83,7 +82,7 @@ func (f *Factory) NewTree(options ...factoryOption) (*Tree, error) {
 	}
 	if t.root == nil {
 		parent := &Node{blockFactory: f.blockFactory}
-		root, err := t.Add(parent, "root", 0700|p.DMDIR)
+		root, err := t.Add(parent, "root", 0700|DMDIR)
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +91,7 @@ func (f *Factory) NewTree(options ...factoryOption) (*Tree, error) {
 		t.root.parent = nil
 	}
 	// Fix mode for roots created before mode was used...
-	t.root.D.Mode |= 0700 | p.DMDIR
+	t.root.D.Mode |= 0700 | DMDIR
 	if !t.readOnly {
 		t.blockSize = f.blockSize
 	}

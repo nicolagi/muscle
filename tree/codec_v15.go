@@ -3,7 +3,6 @@ package tree
 import (
 	"fmt"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 )
@@ -24,15 +23,16 @@ func (codecV15) encodeNode(node *Node) ([]byte, error) {
 	buf := make([]byte, size)
 	ptr := buf
 	ptr = pint8(15, ptr)
-	ptr = pint8(node.D.Qid.Type, ptr)
+	// The QID type (file or directory) is derived from the mode (DMDIR flag).
+	ptr = pint8(0, ptr)
 	ptr = pint64(node.D.Qid.Path, ptr)
 	ptr = pint32(node.D.Qid.Version, ptr)
 	ptr = pstr(node.D.Name, ptr)
 	ptr = pint8(uint8(node.flags & ^(loaded|dirty)), ptr)
 	ptr = pint32(node.bsize, ptr)
 	ptr = pint32(node.D.Mode, ptr)
-	ptr = pint64(node.D.Length, ptr)
-	ptr = pint32(node.D.Mtime, ptr)
+	ptr = pint64(node.D.Size, ptr)
+	ptr = pint32(node.D.Modified, ptr)
 	ptr = pint32(0, ptr)
 	ptr = pint32(uint32(len(node.children)), ptr)
 	for _, c := range node.children {
@@ -56,7 +56,8 @@ func (codecV15) decodeNode(data []byte, dest *Node) error {
 	var u8 uint8
 	var u32 uint32
 
-	dest.D.Qid.Type, ptr = gint8(ptr)
+	// The QID type (file or directory) is derived from the mode (DMDIR flag).
+	_, ptr = gint8(ptr)
 	dest.D.Qid.Path, ptr = gint64(ptr)
 	dest.D.Qid.Version, ptr = gint32(ptr)
 	dest.D.Name, ptr = gstr(ptr)
@@ -64,15 +65,13 @@ func (codecV15) decodeNode(data []byte, dest *Node) error {
 	dest.flags = nodeFlags(u8)
 	dest.bsize, ptr = gint32(ptr)
 	dest.D.Mode, ptr = gint32(ptr)
-	if dest.D.Mode&p.DMDIR != 0 {
-		dest.D.Qid.Type = p.QTDIR
+	if dest.D.Mode&DMDIR != 0 {
 		// Ignore the length, it's 0 for directories, see stat(9p) or stat(5).
 		_, ptr = gint64(ptr)
 	} else {
-		dest.D.Length, ptr = gint64(ptr)
+		dest.D.Size, ptr = gint64(ptr)
 	}
-	dest.D.Mtime, ptr = gint32(ptr)
-	dest.D.Atime = dest.D.Mtime
+	dest.D.Modified, ptr = gint32(ptr)
 
 	u32, ptr = gint32(ptr)
 	if u32 > 0 {
