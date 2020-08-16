@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 )
@@ -37,8 +36,8 @@ func (codecV14) decodeNode(data []byte, dest *Node) error {
 		dest.bsize = v14DefaultBlockCapacity
 	}
 	dest.D.Mode, ptr = gint32(ptr)
-	if dest.D.Mode&p.DMDIR != 0 {
-		dest.D.Qid.Type = p.QTDIR
+	if dest.D.Mode&DMDIR != 0 {
+		dest.D.Qid.Type = QTDIR
 		// Ignore the length, it's 0 for directories, see stat(9p) or stat(5).
 		_, ptr = gint64(ptr)
 	} else {

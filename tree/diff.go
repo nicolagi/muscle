@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/diff"
 )
 
@@ -257,7 +256,7 @@ func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
 	if err != nil {
 		return err
 	}
-	if output != "" || a == nil || b == nil || a.D.Qid.Type&p.QTDIR != b.D.Qid.Type&p.QTDIR {
+	if output != "" || a == nil || b == nil || a.D.Qid.Type&QTDIR != b.D.Qid.Type&QTDIR {
 		if opts.namesOnly {
 			_, _ = fmt.Fprintln(opts.output, commonp)
 		} else {

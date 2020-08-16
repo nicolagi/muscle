@@ -10,7 +10,6 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/google/go-cmp/cmp"
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
@@ -85,7 +84,7 @@ func TestWalk(t *testing.T) {
 		assert.NotNil(t, err)
 	})
 	t.Run("successfully walking two steps", func(t *testing.T) {
-		root := &Node{pointer: storage.RandomPointer(), D: p.Dir{Name: "root"}}
+		root := &Node{pointer: storage.RandomPointer(), D: Dir{Name: "root"}}
 		usr := &Node{pointer: storage.RandomPointer()}
 		bin := &Node{pointer: storage.RandomPointer()}
 		root.add(usr)
@@ -107,9 +106,9 @@ func TestWalk(t *testing.T) {
 	})
 
 	t.Run("walk to parent", func(t *testing.T) {
-		root := &Node{pointer: storage.RandomPointer(), D: p.Dir{Name: "root"}}
-		usr := &Node{pointer: storage.RandomPointer(), D: p.Dir{Name: "usr"}}
-		bin := &Node{pointer: storage.RandomPointer(), D: p.Dir{Name: "bin"}}
+		root := &Node{pointer: storage.RandomPointer(), D: Dir{Name: "root"}}
+		usr := &Node{pointer: storage.RandomPointer(), D: Dir{Name: "usr"}}
+		bin := &Node{pointer: storage.RandomPointer(), D: Dir{Name: "bin"}}
 		root.add(usr)
 		usr.add(bin)
 		visited, err := oak.walk(bin, func(node *Node) error {
@@ -144,7 +143,7 @@ func TestGrow(t *testing.T) {
 	})
 	t.Run("growing a node with only one child, loaded", func(t *testing.T) {
 		a := Node{
-			children: []*Node{{flags: loaded, D: p.Dir{Name: "boot"}}},
+			children: []*Node{{flags: loaded, D: Dir{Name: "boot"}}},
 		}
 		assert.Nil(t, oak.grow(&a, nil))
 		assert.Equal(t, "boot", a.children[0].D.Name)
@@ -212,7 +211,7 @@ func TestGrow(t *testing.T) {
 	})
 	t.Run("duplicate arising when first node is loaded and second is not", func(t *testing.T) {
 		a := new(Node)
-		a.add(&Node{flags: loaded, D: p.Dir{Name: "home"}})
+		a.add(&Node{flags: loaded, D: Dir{Name: "home"}})
 		a.add(new(Node))
 		callCount := 0
 		assert.Nil(t, oak.grow(a, func(node *Node) error {

@@ -7,7 +7,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/storage"
@@ -81,9 +80,9 @@ type Node struct {
 	// to tell two nodes are the same.
 	pointer storage.Pointer
 
-	// 9P structure containing the node's metadata, e.g., name, size,
+	// Fields containing the node's metadata, e.g., name, size,
 	// permissions, modification time...
-	D p.Dir
+	D Dir
 
 	// Only one of the two will be relevant, based on the node type.  The
 	// children field is relevant for directories, the blocks field is
@@ -140,7 +139,7 @@ func (node *Node) Path() string {
 }
 
 func (node *Node) IsDir() bool {
-	return node.D.Mode&p.DMDIR != 0
+	return node.D.Mode&DMDIR != 0
 }
 
 func (node *Node) String() string {
@@ -298,7 +297,7 @@ func (node *Node) SetMTime(mtime uint32) {
 }
 
 func (node *Node) IsRoot() bool {
-	return node.D.Mode&p.DMDIR != 0 && node.parent == nil
+	return node.D.Mode&DMDIR != 0 && node.parent == nil
 }
 
 func (node *Node) SetMode(mode uint32) {

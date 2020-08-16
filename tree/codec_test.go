@@ -4,7 +4,6 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/stretchr/testify/assert"
@@ -38,11 +37,9 @@ func TestLatestCodecForNodes(t *testing.T) {
 			input := &Node{}
 			input.flags = nodeFlags(flags) & ^(loaded | dirty)
 			input.bsize = bsize
-			input.D.Qid = p.Qid{
-				Type:    qidType,
-				Path:    qidPath,
-				Version: qidVersion,
-			}
+			input.D.Qid.Type = qidType
+			input.D.Qid.Path = qidPath
+			input.D.Qid.Version = qidVersion
 			input.D.Name = name
 			input.D.Mode = mode
 			input.D.Mtime = mtime
@@ -84,8 +81,8 @@ func TestLatestCodecForNodes(t *testing.T) {
 			for _, c := range input.children {
 				c.parent = input
 			}
-			if input.D.Mode&p.DMDIR != 0 {
-				input.D.Qid.Type = p.QTDIR
+			if input.D.Mode&DMDIR != 0 {
+				input.D.Qid.Type = QTDIR
 				input.D.Length = 0
 			}
 			// This would only be needed on the output node, but adding it here as well for comparison.

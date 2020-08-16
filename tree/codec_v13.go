@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 )
@@ -30,8 +29,8 @@ func (codec codecV13) decodeNode(data []byte, dest *Node) error {
 
 	dest.D.Name, ptr = gstr(ptr)
 	dest.D.Mode, ptr = gint32(ptr)
-	if dest.D.Mode&p.DMDIR != 0 {
-		dest.D.Qid.Type = p.QTDIR
+	if dest.D.Mode&DMDIR != 0 {
+		dest.D.Qid.Type = QTDIR
 		// Read and ignore the length. I used to calculate and store directory lengths
 		// (length of the serialized dir entries) but I later learned that the size is conventionally 0.
 		_, ptr = gint64(ptr)

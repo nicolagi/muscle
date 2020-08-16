@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lionkov/go9p/p"
-	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -52,7 +50,7 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 		blockFactory: node.blockFactory,
 		bsize:        uint32(tree.blockSize),
 		parent:       node,
-		D: p.Dir{
+		D: Dir{
 			Name: name,
 			Mode: perm,
 			Uid:  nodeUID,
@@ -62,11 +60,11 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	child.D.Qid.Path = uint64(time.Now().UnixNano())
 	child.D.Qid.Version = 1
 	child.updateMTime()
-	if perm&p.DMDIR != 0 {
-		child.D.Qid.Type = p.QTDIR
+	if perm&DMDIR != 0 {
+		child.D.Qid.Type = QTDIR
 	}
 	if added := node.add(child); !added {
-		return nil, srv.Eexist
+		return nil, Eexist
 	}
 	node.SetMTime(child.D.Mtime)
 	child.markDirty()
@@ -75,12 +73,12 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 
 func (tree *Tree) Remove(node *Node) error {
 	if node.IsRoot() {
-		return errors.Wrapf(srv.Eperm, "removing the file system root is not allowed")
+		return errors.Wrapf(Eperm, "removing the file system root is not allowed")
 	}
 	if len(node.children) > 0 {
 		// Don't wrap the error, don't add stack trace.
 		// We don't want to log it.
-		return srv.Enotempty
+		return Enotempty
 	}
 	node.parent.removeChild(node.D.Name)
 	node.parent.markDirty()
@@ -170,7 +168,7 @@ func (tree *Tree) Graft(parent *Node, child *Node) error {
 		}
 		return nil
 	}
-	return srv.Eexist
+	return Eexist
 }
 
 func (tree *Tree) Rename(source, target string) error {

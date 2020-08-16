@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -138,7 +137,7 @@ func TestNodeRead(t *testing.T) {
 
 func TestTruncateDirPrevented(t *testing.T) {
 	n := &Node{}
-	n.D.Mode = p.DMDIR
+	n.D.Mode = DMDIR
 	assert.NotNil(t, n.Truncate(42))
 }
 
