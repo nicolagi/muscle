@@ -8,24 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTreeAdd(t *testing.T) {
-	t.Run("added node's owner and group are inherited from the process", func(t *testing.T) {
-		t.Logf("nodeUID=%s nodeGID=%s", nodeUID, nodeGID)
-		if nodeUID == "" || nodeGID == "" {
-			t.Fatal("nodeUID or nodeGID not set")
-		}
-		parent := &Node{}
-		tree := newTestTree(t)
-		child, err := tree.Add(parent, "file", 0666)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got, want := child.D.Owner, nodeUID; got != want {
-			t.Errorf("got %v, want %v", got, want)
-		}
-	})
-}
-
 func TestTreeRemove(t *testing.T) {
 	t.Run("removing the root is not allowed", func(t *testing.T) {
 		tree := newTestTree(t)

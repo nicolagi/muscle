@@ -58,7 +58,6 @@ Dir.Mode %d
 Dir.Mtime %s
 Dir.Length %d
 Dir.Name %q
-Dir.Uid %q
 `,
 		node.n.pointer.Hex(),
 		node.n.D.Qid.Version,
@@ -67,7 +66,6 @@ Dir.Uid %q
 		time.Unix(int64(node.n.D.Modified), 0).UTC().Format(time.RFC3339),
 		node.n.D.Size,
 		node.n.D.Name,
-		node.n.D.Owner,
 	)
 	_, _ = fmt.Fprintf(&output, "blocks:\n")
 	for _, b := range node.n.blocks {

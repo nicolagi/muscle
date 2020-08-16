@@ -42,7 +42,7 @@ func nodeDir(node *tree.Node) (dir p.Dir) {
 	dir.Mtime = node.D.Modified
 	dir.Atime = node.D.Modified
 	dir.Name = node.D.Name
-	dir.Uid = node.D.Owner
+	dir.Uid = owner.Name()
 	return
 }
 

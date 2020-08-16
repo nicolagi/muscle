@@ -162,7 +162,6 @@ func (s *Store) LoadNode(dst *Node) error {
 	if err := s.codec.decodeNode(encoded, dst); err != nil {
 		return errw(err)
 	}
-	dst.D.Owner = nodeUID
 	dst.flags |= loaded
 	return nil
 }

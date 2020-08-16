@@ -26,6 +26,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var nodeUID string
+
 var nodeGID string
 
 func init() {
@@ -33,6 +35,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("could not get current user: %v", err)
 	}
+	nodeUID = u.Username
 	g, err := user.LookupGroupId(u.Gid)
 	if err != nil {
 		log.Fatalf("could not get group %v: %v", u.Gid, err)
@@ -74,7 +77,7 @@ func nodeDir(node *tree.Node) (dir p.Dir) {
 	dir.Mtime = node.D.Modified
 	dir.Atime = node.D.Modified
 	dir.Name = node.D.Name
-	dir.Uid = node.D.Owner
+	dir.Uid = nodeUID
 	return
 }
 
@@ -697,7 +700,7 @@ func main() {
 	ops.c.D.Mtime = uint32(now.Unix())
 	ops.c.D.Atime = ops.c.D.Mtime
 	ops.c.D.Name = "ctl"
-	ops.c.D.Uid = root.D.Owner
+	ops.c.D.Uid = nodeUID
 	ops.c.D.Gid = nodeGID
 
 	/* Best-effort clean-up, for when the control file used to be part of the tree. */

@@ -10,7 +10,6 @@ type Qid struct {
 type Dir struct {
 	Qid
 
-	Owner    string
 	Name     string
 	Size     uint64
 	Mode     uint32

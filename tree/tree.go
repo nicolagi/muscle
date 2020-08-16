@@ -51,9 +51,8 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 		bsize:        uint32(tree.blockSize),
 		parent:       node,
 		D: Dir{
-			Name:  name,
-			Mode:  perm,
-			Owner: nodeUID,
+			Name: name,
+			Mode: perm,
 		},
 	}
 	child.D.Qid.Path = uint64(time.Now().UnixNano())

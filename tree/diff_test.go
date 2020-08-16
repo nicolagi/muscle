@@ -105,7 +105,6 @@ Dir.Mode 0
 Dir.Mtime 1970-01-01T00:00:00Z
 Dir.Length 0
 Dir.Name ""
-Dir.Uid ""
 blocks:
 `, content)
 	})
@@ -118,7 +117,6 @@ blocks:
 		a.n.D.Modified = 9
 		a.n.D.Size = 10
 		a.n.D.Name = "carl"
-		a.n.D.Owner = "perkins"
 		ref1, _ := block.NewRef([]byte{222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13})
 		ref2, _ := block.NewRef([]byte{139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239})
 		b1 := newBlock(t, bf, ref1)
@@ -133,7 +131,6 @@ Dir.Mode 7
 Dir.Mtime 1970-01-01T00:00:09Z
 Dir.Length 10
 Dir.Name "carl"
-Dir.Uid "perkins"
 blocks:
 	deadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00d
 	8badf00ddeadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00ddeadbeef
