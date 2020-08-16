@@ -36,8 +36,8 @@ func TestTreeRemove(t *testing.T) {
 		parent := &Node{}
 		parent.D.Mode = DMDIR
 		err := tree.Remove(parent)
-		if !errors.Is(err, Eperm) {
-			t.Errorf("got %v, want a wrapper of %v", err, Eperm)
+		if !errors.Is(err, ErrPermission) {
+			t.Errorf("got %v, want a wrapper of %v", err, ErrPermission)
 		}
 	})
 	t.Run("removing a non-empty directory is not allowed", func(t *testing.T) {
@@ -47,8 +47,8 @@ func TestTreeRemove(t *testing.T) {
 			t.Fatal(err)
 		}
 		err := tree.Remove(parent)
-		if !errors.Is(err, Enotempty) {
-			t.Errorf("got %v, want a wrapper of %v", err, Enotempty)
+		if !errors.Is(err, ErrNotEmpty) {
+			t.Errorf("got %v, want a wrapper of %v", err, ErrNotEmpty)
 		}
 	})
 }

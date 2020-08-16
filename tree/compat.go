@@ -1,9 +1,6 @@
 package tree
 
-import (
-	"github.com/lionkov/go9p/p"
-	"github.com/lionkov/go9p/p/srv"
-)
+import "fmt"
 
 type Qid struct {
 	Path    uint64
@@ -28,12 +25,12 @@ type Dir struct {
 }
 
 const (
-	DMDIR = p.DMDIR
-	QTDIR = p.QTDIR
+	DMDIR = 0x80000000
+	QTDIR = 0x80
 )
 
 var (
-	Eexist    = srv.Eexist
-	Enotempty = srv.Enotempty
-	Eperm     = srv.Eperm
+	ErrExists     = fmt.Errorf("file already exists")
+	ErrNotEmpty   = fmt.Errorf("directory not empty")
+	ErrPermission = fmt.Errorf("permission denied")
 )

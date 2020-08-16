@@ -64,7 +64,7 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 		child.D.Qid.Type = QTDIR
 	}
 	if added := node.add(child); !added {
-		return nil, Eexist
+		return nil, ErrExists
 	}
 	node.SetMTime(child.D.Mtime)
 	child.markDirty()
@@ -73,12 +73,12 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 
 func (tree *Tree) Remove(node *Node) error {
 	if node.IsRoot() {
-		return errors.Wrapf(Eperm, "removing the file system root is not allowed")
+		return errors.Wrapf(ErrPermission, "removing the file system root is not allowed")
 	}
 	if len(node.children) > 0 {
 		// Don't wrap the error, don't add stack trace.
 		// We don't want to log it.
-		return Enotempty
+		return ErrNotEmpty
 	}
 	node.parent.removeChild(node.D.Name)
 	node.parent.markDirty()
@@ -165,7 +165,7 @@ func (tree *Tree) Graft(parent *Node, child *Node) error {
 		parent.markDirty()
 		return nil
 	}
-	return Eexist
+	return ErrExists
 }
 
 func (tree *Tree) Rename(source, target string) error {

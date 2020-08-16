@@ -503,7 +503,7 @@ func (ops *ops) Remove(r *srv.Req) {
 		if err != nil {
 			var perr *p.Error
 			if errors.As(err, &perr) {
-				if perr != srv.Enotempty {
+				if perr != tree.ErrNotEmpty {
 					log.Printf("%s: %+v", node.Path(), err)
 				}
 				r.RespondError(perr)
