@@ -264,18 +264,20 @@ func (node *Node) removeChild(name string) (removedCount int) {
 	}
 	node.children = newChildren
 	if removedCount > 0 {
-		node.updateMTime()
+		node.touchNow()
 	}
 	return
 }
 
-func (node *Node) updateMTime() {
+func (node *Node) touchNow() {
 	node.D.Modified = uint32(time.Now().Unix())
 	node.markDirty()
 }
 
-func (node *Node) SetMTime(mtime uint32) {
-	node.D.Modified = mtime
+// Touch updates the modification timestamp of the node and marks the node dirty,
+// so that it is later flushed to disk.
+func (node *Node) Touch(seconds uint32) {
+	node.D.Modified = seconds
 	node.markDirty()
 }
 
@@ -313,7 +315,7 @@ func (node *Node) Truncate(requestedSize uint64) error {
 		return err
 	}
 	node.D.Size = requestedSize
-	node.updateMTime()
+	node.touchNow()
 	node.D.Qid.Version++
 	return nil
 }
@@ -383,7 +385,7 @@ func (node *Node) WriteAt(p []byte, off int64) error {
 	if err != nil {
 		return err
 	}
-	node.updateMTime()
+	node.touchNow()
 	node.D.Qid.Version++
 	return nil
 }

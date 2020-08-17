@@ -57,11 +57,11 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	}
 	child.D.Qid.Path = uint64(time.Now().UnixNano())
 	child.D.Qid.Version = 1
-	child.updateMTime()
+	child.touchNow()
 	if added := node.add(child); !added {
 		return nil, ErrExists
 	}
-	node.SetMTime(child.D.Modified)
+	node.touchNow()
 	child.markDirty()
 	return child, nil
 }
@@ -105,7 +105,7 @@ func (tree *Tree) RemoveForMerge(node *Node) error {
 	if removedCount > 1 {
 		log.WithField("count", removedCount).Error("Removed more than one child")
 	}
-	parent.updateMTime()
+	parent.touchNow()
 	return nil
 }
 

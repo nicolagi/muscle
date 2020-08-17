@@ -612,7 +612,7 @@ func (ops *ops) Wstat(r *srv.Req) {
 			node.Rename(dir.Name)
 		}
 		if dir.ChangeMtime() {
-			node.SetMTime(dir.Mtime)
+			node.Touch(dir.Mtime)
 		}
 
 		if dir.ChangeMode() {
