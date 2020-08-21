@@ -620,7 +620,7 @@ func (ops *ops) Wstat(r *srv.Req) {
 				r.RespondError(err)
 				return
 			}
-			node.SetMode(dir.Mode)
+			node.SetPerm(dir.Mode)
 		}
 
 		// TODO: Not sure it's best to 'pretend' it works, or fail.

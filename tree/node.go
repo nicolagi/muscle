@@ -287,8 +287,11 @@ func (node *Node) IsRoot() bool {
 	return node.D.Mode&DMDIR != 0 && node.parent == nil
 }
 
-func (node *Node) SetMode(mode uint32) {
-	node.D.Mode = mode
+// SetPerm sets the Unix permission bits.
+// All bits other than 0777 are silently ignored.
+func (node *Node) SetPerm(perm uint32) {
+	node.D.Mode &= 0xfffffe00
+	node.D.Mode |= (0x000001ff & perm)
 	node.markDirty()
 }
 
