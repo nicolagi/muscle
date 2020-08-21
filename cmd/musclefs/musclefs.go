@@ -25,6 +25,51 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var (
+	unsupportedModes = map[uint32]error{
+		p.DMAPPEND:    fmt.Errorf("append-only files are not supported"),
+		p.DMEXCL:      fmt.Errorf("exclusive-use files are not supported"),
+		p.DMMOUNT:     fmt.Errorf("mounted channels are not supported"),
+		p.DMAUTH:      fmt.Errorf("authentication files are not supported"),
+		p.DMTMP:       fmt.Errorf("temporary files are not supported"),
+		p.DMSYMLINK:   fmt.Errorf("symbolic links are not supported"),
+		p.DMLINK:      fmt.Errorf("hard links are not supported"),
+		p.DMDEVICE:    fmt.Errorf("device files are not supported"),
+		p.DMNAMEDPIPE: fmt.Errorf("named pipes are not supported"),
+		p.DMSOCKET:    fmt.Errorf("sockets are not supported"),
+		p.DMSETUID:    fmt.Errorf("setuid files are not supported"),
+		p.DMSETGID:    fmt.Errorf("setgid files are not supported"),
+	}
+	knownModes uint32
+)
+
+func init() {
+	knownModes = 0777 | p.DMDIR
+	for mode := range unsupportedModes {
+		knownModes |= mode
+	}
+}
+
+func checkMode(node *tree.Node, mode uint32) error {
+	if node != nil {
+		if node.D.Mode&tree.DMDIR != 0 && mode&p.DMDIR == 0 {
+			return fmt.Errorf("a directory cannot become a regular file")
+		}
+		if node.D.Mode&tree.DMDIR == 0 && mode&p.DMDIR != 0 {
+			return fmt.Errorf("a regular file cannot become a directory")
+		}
+	}
+	for bit, err := range unsupportedModes {
+		if mode&bit != 0 {
+			return err
+		}
+	}
+	if extra := mode &^ knownModes; extra != 0 {
+		return fmt.Errorf("unrecognized mode bits: %b", extra)
+	}
+	return nil
+}
+
 type fsNode struct {
 	*tree.Node
 
@@ -173,6 +218,10 @@ func (ops *ops) Create(r *srv.Req) {
 		parent := r.Fid.Aux.(*fsNode)
 		if parent.Unlinked() {
 			r.RespondError(Eunlinked)
+			return
+		}
+		if err := checkMode(nil, r.Tc.Perm); err != nil {
+			r.RespondError(err)
 			return
 		}
 		node, err := ops.tree.Add(parent.Node, r.Tc.Name, r.Tc.Perm)
@@ -567,6 +616,10 @@ func (ops *ops) Wstat(r *srv.Req) {
 		}
 
 		if dir.ChangeMode() {
+			if err := checkMode(node.Node, dir.Mode); err != nil {
+				r.RespondError(err)
+				return
+			}
 			node.SetMode(dir.Mode)
 		}
 
