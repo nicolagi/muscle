@@ -3,10 +3,12 @@ package block
 import (
 	"bytes"
 	"math/rand"
+	"strings"
 	"testing"
 	"testing/quick"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nicolagi/muscle/storage"
 )
 
 func TestBlockTruncate(t *testing.T) {
@@ -156,4 +158,36 @@ func TestBlockWriting(t *testing.T) {
 	if diff := cmp.Diff("foolishness", string(block.value)); diff != "" {
 		t.Error(diff)
 	}
+}
+
+func TestCorruptedBlockHandling(t *testing.T) {
+	index := &storage.InMemory{}
+	key := make([]byte, 16)
+	rand.Read(key)
+	factory, err := NewFactory(index, nil, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("empty block", func(t *testing.T) {
+		ref, err := NewRef(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = index.Put(ref.Key(), []byte{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		block, err := factory.New(ref, 8192)
+		if err != nil {
+			t.Fatal(err)
+		}
+		buf := make([]byte, 1)
+		n, err := block.Read(buf, 0)
+		if got, want := n, 0; got != want {
+			t.Errorf("got %v, want %v", got, want)
+		}
+		if got, want := err.Error(), "0 bytes"; !strings.Contains(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
 }

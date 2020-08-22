@@ -1,11 +1,11 @@
 package block
 
 import (
-	"errors"
 	"fmt"
 	"log"
 
 	"github.com/nicolagi/muscle/storage"
+	"github.com/pkg/errors"
 )
 
 type state uint8
@@ -264,6 +264,9 @@ func (block *Block) load() (err error) {
 	}
 	if err != nil {
 		return err
+	}
+	if l, min := len(ciphertext), block.cipher.BlockSize(); l < min {
+		return errors.Errorf("%v is %d bytes long; it's expected to be at least %d bytes long", block.ref.Key(), l, min)
 	}
 	block.value = block.cipher.decrypt(ciphertext)
 	block.state = clean

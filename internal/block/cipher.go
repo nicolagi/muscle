@@ -24,6 +24,8 @@ func (c *blockCipher) encrypt(cleartext []byte) (ciphertext []byte, err error) {
 	return append(iv, c.xor(cleartext, iv)...), nil
 }
 
+// decrypt expects the ciphertext to contain at least the initialization vector.
+// It will panic if the ciphertext is shorter than the AES block size (16).
 func (c *blockCipher) decrypt(ciphertext []byte) (cleartext []byte) {
 	iv := ciphertext[:c.BlockSize()]
 	ciphertext = ciphertext[c.BlockSize():]
