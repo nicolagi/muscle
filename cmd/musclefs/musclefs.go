@@ -449,7 +449,7 @@ func runCommand(ops *ops, cmd string) error {
 		_, _ = fmt.Fprintln(outputBuffer, "push: sealed")
 
 		_, localroot := ops.tree.Root()
-		revision := tree.NewRevision(localroot.Key(), remotebase)
+		revision := tree.NewRevision(localroot, remotebase)
 		if err := ops.treeStore.StoreRevision(revision); err != nil {
 			return output(err)
 		}

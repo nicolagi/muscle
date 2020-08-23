@@ -2,12 +2,10 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/nicolagi/muscle/config"
@@ -347,11 +345,17 @@ func main() {
 		}
 
 	case "history":
-		cmdlog := log.WithField("op", cmd)
-		rev := mustParseRevision(cmdlog, treeStore, "base", "base")
+		pointer, err := treeStore.RemoteBasePointer()
+		if err != nil {
+			log.Fatalf("could not read base pointer: %+v", err)
+		}
+		rev, err := treeStore.LoadRevisionByKey(pointer)
+		if err != nil {
+			log.Fatalf("could not load revision %v: %+v", pointer, err)
+		}
 		rr, err := treeStore.History(historyContext.count, rev)
 		if err != nil {
-			cmdlog.WithField("cause", err).Warn("History possibly truncated")
+			log.Printf("history may be truncated: %+v", err)
 		}
 		for i := 0; i < len(rr); i++ {
 			this := rr[i]
@@ -372,7 +376,7 @@ func main() {
 					tree.DiffTreesMaxSize(historyContext.maxSize),
 				)
 				if err != nil {
-					cmdlog.WithField("cause", err).Fatal("Could not diff against remote tree for history")
+					log.Printf("could not diff against remote tree: %+v", err)
 				}
 				fmt.Println()
 			}
@@ -427,52 +431,4 @@ func main() {
 	default:
 		panic("not reached")
 	}
-}
-
-var hexRE = regexp.MustCompile("^[0-9a-f]+$")
-
-func parseRevision(store *tree.Store, localInstance string, descriptor string) (*tree.Revision, error) {
-	switch {
-	case descriptor == "local":
-		// The local revision is a fiction. It is a revision whose root is the current
-		// local root (according to the root key file) and whose only parent is
-		// the remote revision, if it exists.
-		rootKey, err := store.LocalRootKey()
-		if err != nil {
-			return nil, err
-		}
-		if rootKey == nil {
-			return nil, nil
-		}
-		parentKey, err := store.RemoteBasePointer()
-		if err != nil && !errors.Is(err, storage.ErrNotFound) {
-			return nil, err
-		}
-		return tree.NewRevision(rootKey, parentKey), nil
-	case hexRE.MatchString(descriptor):
-		revisionKey, err := storage.NewPointerFromHex(descriptor)
-		if err != nil {
-			return nil, err
-		}
-		return store.LoadRevisionByKey(revisionKey)
-	default:
-		revisionKey, err := store.RemoteBasePointer()
-		if err != nil {
-
-			return nil, err
-
-		}
-		return store.LoadRevisionByKey(revisionKey)
-	}
-}
-
-func mustParseRevision(logger *log.Entry, store *tree.Store, localInstance string, descriptor string) *tree.Revision {
-	r, err := parseRevision(store, localInstance, descriptor)
-	if err != nil {
-		logger.WithFields(log.Fields{
-			"revision": descriptor,
-			"cause":    err,
-		}).Fatal("could not parse revision")
-	}
-	return r
 }

@@ -19,14 +19,14 @@ type Revision struct {
 	when    int64  // When the snapshot was taken (in seconds).
 }
 
-func NewRevision(rootKey storage.Pointer, parent storage.Pointer) *Revision {
+func NewRevision(root *Node, parent storage.Pointer) *Revision {
 	host, err := os.Hostname()
 	if err != nil {
 		host = "(unknown)"
 	}
 	return &Revision{
 		parent:  parent,
-		rootKey: rootKey,
+		rootKey: root.Key(),
 		host:    host,
 		when:    time.Now().Unix(),
 	}

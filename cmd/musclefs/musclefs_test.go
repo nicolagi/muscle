@@ -184,7 +184,7 @@ func Test(t *testing.T) {
 		_, err = donor.Add(donorRoot, "music", 0666)
 		require.Nil(t, err)
 		require.Nil(t, donor.Flush())
-		revision := tree.NewRevision(donorRoot.Key(), nil)
+		revision := tree.NewRevision(donorRoot, nil)
 		err = treeStore.StoreRevision(revision)
 		require.Nil(t, err)
 		donor.SetRevision(revision)
