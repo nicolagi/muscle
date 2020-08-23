@@ -119,10 +119,6 @@ func (node *Node) add(newChild *Node) bool {
 	return true
 }
 
-func (node *Node) Key() storage.Pointer {
-	return node.pointer
-}
-
 // Path returns the full path name to this node.
 func (node *Node) Path() string {
 	if node == nil {

@@ -15,7 +15,7 @@ func (tree *Tree) Seal() error {
 	if err := tree.seal(tree.root); err != nil {
 		return err
 	}
-	return tree.store.updateLocalRootPointer(tree.root.Key())
+	return tree.store.updateLocalRootPointer(tree.root.pointer)
 }
 
 func (tree *Tree) seal(node *Node) error {
@@ -69,7 +69,7 @@ func (tree *Tree) FlushIfNotDoneRecently() error {
 	if tree.readOnly {
 		return ErrReadOnly
 	}
-	err = tree.store.updateLocalRootPointer(tree.root.Key())
+	err = tree.store.updateLocalRootPointer(tree.root.pointer)
 	if err != nil {
 		return err
 	}

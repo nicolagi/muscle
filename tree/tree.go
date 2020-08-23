@@ -122,7 +122,7 @@ func (tree *Tree) reachableKeys(node *Node, accumulator map[string]struct{}) err
 	if node == nil {
 		return nil
 	}
-	key := node.Key()
+	key := node.pointer
 	accumulator[key.Hex()] = struct{}{}
 	for _, b := range node.blocks {
 		accumulator[string(b.Ref().Key())] = struct{}{}

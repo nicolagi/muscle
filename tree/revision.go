@@ -26,7 +26,7 @@ func NewRevision(root *Node, parent storage.Pointer) *Revision {
 	}
 	return &Revision{
 		parent:  parent,
-		rootKey: root.Key(),
+		rootKey: root.pointer,
 		host:    host,
 		when:    time.Now().Unix(),
 	}
