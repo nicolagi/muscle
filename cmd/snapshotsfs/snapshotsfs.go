@@ -29,6 +29,8 @@ type treenode struct {
 	tree *tree.Tree
 	node *tree.Node
 	dirb p9util.DirBuffer
+	// If non-empty, overrides the node's nameOverride.
+	nameOverride string
 }
 
 func (tn *treenode) prepareForReads() {
@@ -45,7 +47,11 @@ func (tn *treenode) qid() p.Qid {
 }
 
 func (tn *treenode) stat() p.Dir {
-	return p9util.NodeDir(tn.node)
+	dir := p9util.NodeDir(tn.node)
+	if tn.nameOverride != "" {
+		dir.Name = tn.nameOverride
+	}
+	return dir
 }
 
 func (tn *treenode) walk(name string) (child node, err error) {
@@ -90,13 +96,12 @@ func (tn *treenode) read(r *srv.Req) (n int, err error) {
 var _ node = (*treenode)(nil)
 
 type rootdir struct {
-	dir           p.Dir
-	dirb          p9util.DirBuffer
-	treeroots     []*treenode
-	treerootnames map[string]struct{}
-	treefactory   *tree.Factory
-	treestore     *tree.Store
-	loaded        time.Time
+	dir         p.Dir
+	dirb        p9util.DirBuffer
+	treeroots   map[string]*treenode
+	treefactory *tree.Factory
+	treestore   *tree.Store
+	loaded      time.Time
 }
 
 var _ node = (*rootdir)(nil)
@@ -106,12 +111,8 @@ func (root *rootdir) qid() p.Qid { return root.dir.Qid }
 func (root *rootdir) stat() p.Dir { return root.dir }
 
 func (root *rootdir) walk(name string) (child node, err error) {
-	if _, ok := root.treerootnames[name]; ok {
-		for _, n := range root.treeroots {
-			if n.node.D.Name == name {
-				return n, nil
-			}
-		}
+	if n, ok := root.treeroots[name]; ok {
+		return n, nil
 	}
 	// The name can't be looked up.
 	// Try to interpret it as a hash pointer pointing to a revision.
@@ -125,12 +126,11 @@ func (root *rootdir) walk(name string) (child node, err error) {
 	}
 	_, revroot := revtree.Root()
 	revnode := &treenode{
-		tree: revtree,
-		node: revroot,
+		tree:         revtree,
+		node:         revroot,
+		nameOverride: name,
 	}
-	revnode.node.D.Name = name
-	root.treerootnames[name] = struct{}{}
-	root.treeroots = append(root.treeroots, revnode)
+	root.treeroots[name] = revnode
 	root.preparedirentries()
 	return revnode, nil
 }
@@ -165,7 +165,7 @@ func (root *rootdir) reload() error {
 	added := 0
 	for _, revision := range revisions {
 		revname := revision.Time().Format("2006-01-02T15-04")
-		if _, ok := root.treerootnames[revname]; ok {
+		if _, ok := root.treeroots[revname]; ok {
 			continue
 		}
 		revtree, err := root.treefactory.NewTree(root.treefactory.WithRevisionKey(revision.Key()))
@@ -174,13 +174,11 @@ func (root *rootdir) reload() error {
 			continue
 		}
 		_, revroot := revtree.Root()
-		// Override "root" name with timestamp.
-		revroot.D.Name = revname
-		root.treerootnames[revname] = struct{}{}
-		root.treeroots = append(root.treeroots, &treenode{
-			tree: revtree,
-			node: revroot,
-		})
+		root.treeroots[revname] = &treenode{
+			tree:         revtree,
+			node:         revroot,
+			nameOverride: revname,
+		}
 		added++
 	}
 	if added > 0 {
@@ -360,9 +358,9 @@ func main() {
 	treefactory := tree.NewFactory(blockFactory, treestore, cfg)
 
 	root := &rootdir{
-		treefactory:   treefactory,
-		treestore:     treestore,
-		treerootnames: make(map[string]struct{}),
+		treefactory: treefactory,
+		treestore:   treestore,
+		treeroots:   make(map[string]*treenode),
 	}
 	root.dir.Name = "snapshots"
 	root.dir.Mode = 0700 | p.DMDIR
