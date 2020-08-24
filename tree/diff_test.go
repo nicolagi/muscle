@@ -111,8 +111,8 @@ blocks:
 	t.Run("meta node with non-zero node", func(t *testing.T) {
 		a := nodeMeta{n: &Node{}}
 		a.n.pointer, _ = storage.NewPointerFromHex("f00df00df00df00df00df00df00df00df00df00df00df00df00df00df00df00d")
-		a.n.D.Qid.Version = 5
-		a.n.D.Qid.Path = 6
+		a.n.D.Version = 5
+		a.n.D.ID = 6
 		a.n.D.Mode = 7
 		a.n.D.Modified = 9
 		a.n.D.Size = 10

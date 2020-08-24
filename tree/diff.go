@@ -60,8 +60,8 @@ Dir.Length %d
 Dir.Name %q
 `,
 		node.n.pointer.Hex(),
-		node.n.D.Qid.Version,
-		node.n.D.Qid.Path,
+		node.n.D.Version,
+		node.n.D.ID,
 		node.n.D.Mode,
 		time.Unix(int64(node.n.D.Modified), 0).UTC().Format(time.RFC3339),
 		node.n.D.Size,

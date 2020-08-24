@@ -25,8 +25,8 @@ func (codecV14) decodeNode(data []byte, dest *Node) error {
 	var u32 uint32
 
 	// This data was not saved with v14.
-	dest.D.Qid.Path = uint64(time.Now().UnixNano())
-	dest.D.Qid.Version = 1
+	dest.D.ID = uint64(time.Now().UnixNano())
+	dest.D.Version = 1
 
 	dest.D.Name, ptr = gstr(ptr)
 	u8, ptr = gint8(ptr)

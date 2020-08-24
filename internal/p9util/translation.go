@@ -32,8 +32,8 @@ func NodeQID(node *tree.Node) (qid p.Qid) {
 }
 
 func NodeQIDVar(node *tree.Node, qid *p.Qid) {
-	qid.Path = node.D.Qid.Path
-	qid.Version = node.D.Qid.Version
+	qid.Path = node.D.ID
+	qid.Version = node.D.Version
 	if node.D.Mode&tree.DMDIR != 0 {
 		qid.Type = p.QTDIR
 	} else {

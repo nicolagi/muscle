@@ -78,7 +78,7 @@ type Node struct {
 
 	// Fields containing the node's metadata, e.g., name, size,
 	// permissions, modification time...
-	D Dir
+	D NodeInfo
 
 	// Only one of the two will be relevant, based on the node type.  The
 	// children field is relevant for directories, the blocks field is
@@ -386,7 +386,7 @@ func (node *Node) WriteAt(p []byte, off int64) error {
 		return err
 	}
 	node.touchNow()
-	node.D.Qid.Version++
+	node.D.Version++
 	return nil
 }
 

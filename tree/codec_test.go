@@ -36,8 +36,8 @@ func TestLatestCodecForNodes(t *testing.T) {
 			input := &Node{}
 			input.flags = nodeFlags(flags) & ^(loaded | dirty)
 			input.bsize = bsize
-			input.D.Qid.Path = qidPath
-			input.D.Qid.Version = qidVersion
+			input.D.ID = qidPath
+			input.D.Version = qidVersion
 			input.D.Name = name
 			input.D.Mode = mode
 			input.D.Modified = mtime

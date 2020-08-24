@@ -50,13 +50,13 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 		blockFactory: node.blockFactory,
 		bsize:        uint32(tree.blockSize),
 		parent:       node,
-		D: Dir{
+		D: NodeInfo{
 			Name: name,
 			Mode: perm,
 		},
 	}
-	child.D.Qid.Path = uint64(time.Now().UnixNano())
-	child.D.Qid.Version = 1
+	child.D.ID = uint64(time.Now().UnixNano())
+	child.D.Version = 1
 	child.touchNow()
 	if added := node.add(child); !added {
 		return nil, ErrExists

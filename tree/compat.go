@@ -4,14 +4,9 @@ import (
 	"fmt"
 )
 
-type Qid struct {
-	Path    uint64
-	Version uint32
-}
-
-type Dir struct {
-	Qid
-
+type NodeInfo struct {
+	ID       uint64
+	Version  uint32
 	Name     string
 	Size     uint64
 	Mode     uint32

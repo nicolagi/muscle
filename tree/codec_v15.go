@@ -25,8 +25,8 @@ func (codecV15) encodeNode(node *Node) ([]byte, error) {
 	ptr = pint8(15, ptr)
 	// The QID type (file or directory) is derived from the mode (DMDIR flag).
 	ptr = pint8(0, ptr)
-	ptr = pint64(node.D.Qid.Path, ptr)
-	ptr = pint32(node.D.Qid.Version, ptr)
+	ptr = pint64(node.D.ID, ptr)
+	ptr = pint32(node.D.Version, ptr)
 	ptr = pstr(node.D.Name, ptr)
 	ptr = pint8(uint8(node.flags & ^(loaded|dirty)), ptr)
 	ptr = pint32(node.bsize, ptr)
@@ -58,8 +58,8 @@ func (codecV15) decodeNode(data []byte, dest *Node) error {
 
 	// The QID type (file or directory) is derived from the mode (DMDIR flag).
 	_, ptr = gint8(ptr)
-	dest.D.Qid.Path, ptr = gint64(ptr)
-	dest.D.Qid.Version, ptr = gint32(ptr)
+	dest.D.ID, ptr = gint64(ptr)
+	dest.D.Version, ptr = gint32(ptr)
 	dest.D.Name, ptr = gstr(ptr)
 	u8, ptr = gint8(ptr)
 	dest.flags = nodeFlags(u8)
