@@ -316,7 +316,7 @@ func (node *Node) Truncate(requestedSize uint64) error {
 	}
 	node.D.Size = requestedSize
 	node.touchNow()
-	node.D.Qid.Version++
+	node.D.Version++
 	return nil
 }
 

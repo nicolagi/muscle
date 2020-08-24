@@ -147,17 +147,18 @@ func (tree *Tree) Flush() error {
 // Graft is a low-level operation. The child may come from a historical tree.
 // The parent from the local tree. We will make the child a child of
 // the parent.
-func (tree *Tree) Graft(parent *Node, child *Node) error {
+func (tree *Tree) Graft(parent *Node, child *Node, childName string) error {
 	if e := tree.Grow(parent); e != nil {
 		return e
 	}
-	if node, found := parent.followBranch(child.D.Name); found {
+	if node, found := parent.followBranch(childName); found {
 		if err := tree.RemoveForMerge(node); err != nil {
 			return fmt.Errorf("tree.Tree.Graft: parent: %v: %w", parent, err)
 		}
 	}
 	if added := parent.add(child); added {
-		parent.markDirty()
+		child.D.Name = childName
+		child.markDirty()
 		return nil
 	}
 	return ErrExists

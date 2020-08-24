@@ -372,8 +372,7 @@ func runCommand(ops *ops, cmd string) error {
 		historicalChild := hNodes[len(hNodes)-1]
 
 		fmt.Printf("Attempting graft of %s into %s\n", historicalChild, localParent)
-		historicalChild.D.Name = localBaseName
-		err = ops.tree.Graft(localParent, historicalChild)
+		err = ops.tree.Graft(localParent, historicalChild, localBaseName)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"receiver": localParent,
