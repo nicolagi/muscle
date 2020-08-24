@@ -140,7 +140,7 @@ func (node *Node) Unlinked() bool {
 
 func (node *Node) markUnlinked(pathname string) {
 	node.flags |= unlinked
-	pathname = filepath.Join(pathname, node.D.Name)
+	pathname = filepath.Join(pathname, node.info.Name)
 	for _, child := range node.children {
 		child.markUnlinked(pathname)
 	}

@@ -137,7 +137,7 @@ func TestNodeRead(t *testing.T) {
 
 func TestTruncateDirPrevented(t *testing.T) {
 	n := &Node{}
-	n.D.Mode = DMDIR
+	n.info.Mode = DMDIR
 	assert.NotNil(t, n.Truncate(42))
 }
 
@@ -146,7 +146,7 @@ func TestTruncateExtendEmptyNode(t *testing.T) {
 	bf := blockFactory(t, nil)
 	n := &Node{blockFactory: bf, bsize: bsize}
 	require.Nil(t, n.Truncate(42))
-	assert.Equal(t, uint64(42), n.D.Size)
+	assert.Equal(t, uint64(42), n.info.Size)
 	assert.Len(t, n.blocks, 1)
 	size, err := n.blocks[0].Size()
 	if err != nil {
@@ -183,11 +183,11 @@ func TestTruncateExtends(t *testing.T) {
 			// size. All blocks that remain are in clean or dirty state (in other words, they need to have been loaded). The
 			// remaining content is a prefix of the original content. All blocks but the last should be the same size as the
 			// block size. (In a separate oracle test, in case of an error loading, the truncate operation fails.)
-			assert.Equal(t, uint64(requestedLength), node.D.Size)
+			assert.Equal(t, uint64(requestedLength), node.info.Size)
 
 			// Prepare a buffer larger than needed to see if we have more bytes than expected.
 			extendedContent := make([]byte, requestedLength+10)
-			t.Logf("node length: %d", node.D.Size)
+			t.Logf("node length: %d", node.info.Size)
 			n, err := node.ReadAt(extendedContent, 0)
 			if err != nil {
 				t.Fatal(err)
@@ -233,7 +233,7 @@ func TestTruncateProperties(t *testing.T) {
 			// remaining content is a prefix of the original content. All blocks but the last should be the same size as the
 			// block size. (In a separate oracle test, in case of an error loading, the truncate operation fails.)
 
-			assert.Equal(t, uint64(requestedLength), node.D.Size)
+			assert.Equal(t, uint64(requestedLength), node.info.Size)
 
 			// Prepare a buffer larger than needed to see if we have more bytes than expected.
 			truncatedContent := make([]byte, requestedLength+10)

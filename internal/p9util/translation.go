@@ -32,9 +32,10 @@ func NodeQID(node *tree.Node) (qid p.Qid) {
 }
 
 func NodeQIDVar(node *tree.Node, qid *p.Qid) {
-	qid.Path = node.D.ID
-	qid.Version = node.D.Version
-	if node.D.Mode&tree.DMDIR != 0 {
+	ni := node.Info()
+	qid.Path = ni.ID
+	qid.Version = ni.Version
+	if ni.Mode&tree.DMDIR != 0 {
 		qid.Type = p.QTDIR
 	} else {
 		qid.Type = 0
@@ -47,12 +48,19 @@ func NodeDir(node *tree.Node) (dir p.Dir) {
 }
 
 func NodeDirVar(node *tree.Node, dir *p.Dir) {
-	NodeQIDVar(node, &dir.Qid)
+	ni := node.Info()
+	dir.Qid.Path = ni.ID
+	dir.Qid.Version = ni.Version
+	if ni.Mode&tree.DMDIR != 0 {
+		dir.Qid.Type = p.QTDIR
+	} else {
+		dir.Qid.Type = 0
+	}
 	dir.Uid = NodeUID
 	dir.Gid = NodeGID
-	dir.Length = node.D.Size
-	dir.Mode = node.D.Mode
-	dir.Mtime = node.D.Modified
-	dir.Atime = node.D.Modified
-	dir.Name = node.D.Name
+	dir.Length = ni.Size
+	dir.Mode = ni.Mode
+	dir.Mtime = ni.Modified
+	dir.Atime = ni.Modified
+	dir.Name = ni.Name
 }

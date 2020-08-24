@@ -66,13 +66,13 @@ func (tree *Tree) grow(parent *Node, load func(*Node) error) error {
 			if err := load(child); err != nil {
 				if errors.Is(err, storage.ErrNotFound) {
 					log.WithField("key", child.pointer.Hex()).Error("Child not found in storage")
-					child.D.Name = "vanished"
+					child.info.Name = "vanished"
 					child.markDirty()
 				} else if errors.Is(err, errNoCodec) {
-					child.D.Name = "nocodec"
+					child.info.Name = "nocodec"
 					child.markDirty()
 				} else {
-					return fmt.Errorf("tree.Tree.grow: parent %q child %q: %w", parent.D.Name, child.D.Name, err)
+					return fmt.Errorf("tree.Tree.grow: parent %q child %q: %w", parent.info.Name, child.info.Name, err)
 				}
 			}
 			return nil
@@ -89,23 +89,23 @@ func makeChildNamesUnique(parent *Node) {
 		if child.flags&loaded == 0 {
 			continue
 		}
-		if _, nameTaken := names[child.D.Name]; nameTaken {
+		if _, nameTaken := names[child.info.Name]; nameTaken {
 			dupes = append(dupes, child)
 		} else {
-			names[child.D.Name] = struct{}{}
+			names[child.info.Name] = struct{}{}
 		}
 	}
 	for _, child := range dupes {
 		// Expensive in case of multiple duplicates.
 		// In any realistic scenario that I can conceive, it won't be a problem.
 		for i := 0; ; i++ {
-			newName := fmt.Sprintf("%s.dupe%d", child.D.Name, i)
+			newName := fmt.Sprintf("%s.dupe%d", child.info.Name, i)
 			if _, newNameTaken := names[newName]; !newNameTaken {
-				child.D.Name = newName
+				child.info.Name = newName
 				child.markDirty()
 				break
 			}
 		}
-		names[child.D.Name] = struct{}{}
+		names[child.info.Name] = struct{}{}
 	}
 }

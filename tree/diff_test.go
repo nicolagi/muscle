@@ -111,12 +111,12 @@ blocks:
 	t.Run("meta node with non-zero node", func(t *testing.T) {
 		a := nodeMeta{n: &Node{}}
 		a.n.pointer, _ = storage.NewPointerFromHex("f00df00df00df00df00df00df00df00df00df00df00df00df00df00df00df00d")
-		a.n.D.Version = 5
-		a.n.D.ID = 6
-		a.n.D.Mode = 7
-		a.n.D.Modified = 9
-		a.n.D.Size = 10
-		a.n.D.Name = "carl"
+		a.n.info.Version = 5
+		a.n.info.ID = 6
+		a.n.info.Mode = 7
+		a.n.info.Modified = 9
+		a.n.info.Size = 10
+		a.n.info.Name = "carl"
 		ref1, _ := block.NewRef([]byte{222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13})
 		ref2, _ := block.NewRef([]byte{139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239, 139, 173, 240, 13, 222, 173, 190, 239})
 		b1 := newBlock(t, bf, ref1)
@@ -202,7 +202,7 @@ func TestTreeNodeContent(t *testing.T) {
 		a := &treeNode{maxSize: 1024}
 		a.t = &Tree{}
 		a.n = &Node{bsize: bsize}
-		a.n.D.Size = 42
+		a.n.info.Size = 42
 		content, err := a.Content()
 		assert.Equal(t, "", content)
 		assert.NotNil(t, err)
@@ -210,7 +210,7 @@ func TestTreeNodeContent(t *testing.T) {
 	})
 	t.Run("get contents for too large a node", func(t *testing.T) {
 		a := &treeNode{n: &Node{blockFactory: bf, bsize: bsize}, maxSize: 1024}
-		a.n.D.Size = 1025
+		a.n.info.Size = 1025
 		content, err := a.Content()
 		assert.Equal(t, "", content)
 		assert.NotNil(t, err)
@@ -220,7 +220,7 @@ func TestTreeNodeContent(t *testing.T) {
 		a := &treeNode{t: &Tree{}, n: &Node{blockFactory: bf, bsize: bsize}, maxSize: 1024}
 
 		// Pretend the node has some content to load from the store.
-		a.n.D.Size = 1
+		a.n.info.Size = 1
 		ref, err := block.NewRef(nil)
 		if err != nil {
 			t.Fatal(err)

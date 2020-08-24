@@ -50,13 +50,13 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 		blockFactory: node.blockFactory,
 		bsize:        uint32(tree.blockSize),
 		parent:       node,
-		D: NodeInfo{
+		info: NodeInfo{
 			Name: name,
 			Mode: perm,
 		},
 	}
-	child.D.ID = uint64(time.Now().UnixNano())
-	child.D.Version = 1
+	child.info.ID = uint64(time.Now().UnixNano())
+	child.info.Version = 1
 	child.touchNow()
 	if added := node.add(child); !added {
 		return nil, ErrExists
@@ -75,7 +75,7 @@ func (tree *Tree) Remove(node *Node) error {
 		// We don't want to log it.
 		return ErrNotEmpty
 	}
-	node.parent.removeChild(node.D.Name)
+	node.parent.removeChild(node.info.Name)
 	node.parent.markDirty()
 	node.discard()
 	return nil
@@ -97,15 +97,12 @@ func (tree *Tree) RemoveForMerge(node *Node) error {
 	if node.refs > 0 {
 		node.markUnlinked(node.Path())
 	}
-	parent := node.parent
-	removedCount := parent.removeChild(node.D.Name)
-	if removedCount == 0 {
-		return fmt.Errorf("node %q not found within %q", node.D.Name, parent.D.Name)
+	if removed := node.parent.removeChild(node.info.Name); removed == 0 {
+		log.Printf("warning: %q does not contain %q; remove is a no-op", node.parent.Path(), node.info.Name)
+	} else if removed > 1 {
+		log.Printf("warning: %q contained %d nodes named %q; removed them all", node.parent.Path(), removed, node.info.Name)
 	}
-	if removedCount > 1 {
-		log.WithField("count", removedCount).Error("Removed more than one child")
-	}
-	parent.touchNow()
+	node.parent.touchNow()
 	return nil
 }
 
@@ -157,7 +154,7 @@ func (tree *Tree) Graft(parent *Node, child *Node, childName string) error {
 		}
 	}
 	if added := parent.add(child); added {
-		child.D.Name = childName
+		child.info.Name = childName
 		child.markDirty()
 		return nil
 	}
@@ -199,7 +196,7 @@ func (tree *Tree) Rename(source, target string) error {
 	if err = tree.RemoveForMerge(nodeToMove); err != nil {
 		return err
 	}
-	nodeToMove.D.Name = newName
+	nodeToMove.info.Name = newName
 	if added := newParent.add(nodeToMove); added {
 		nodeToMove.markDirty()
 		return nil

@@ -11,7 +11,7 @@ type codecV15 struct{}
 
 func (codecV15) encodeNode(node *Node) ([]byte, error) {
 	size := 49
-	size += len(node.D.Name)
+	size += len(node.info.Name)
 	size += len(node.children)
 	size += len(node.blocks)
 	for _, ptr := range node.children {
@@ -25,14 +25,14 @@ func (codecV15) encodeNode(node *Node) ([]byte, error) {
 	ptr = pint8(15, ptr)
 	// The QID type (file or directory) is derived from the mode (DMDIR flag).
 	ptr = pint8(0, ptr)
-	ptr = pint64(node.D.ID, ptr)
-	ptr = pint32(node.D.Version, ptr)
-	ptr = pstr(node.D.Name, ptr)
+	ptr = pint64(node.info.ID, ptr)
+	ptr = pint32(node.info.Version, ptr)
+	ptr = pstr(node.info.Name, ptr)
 	ptr = pint8(uint8(node.flags & ^(loaded|dirty)), ptr)
 	ptr = pint32(node.bsize, ptr)
-	ptr = pint32(node.D.Mode, ptr)
-	ptr = pint64(node.D.Size, ptr)
-	ptr = pint32(node.D.Modified, ptr)
+	ptr = pint32(node.info.Mode, ptr)
+	ptr = pint64(node.info.Size, ptr)
+	ptr = pint32(node.info.Modified, ptr)
 	ptr = pint32(0, ptr)
 	ptr = pint32(uint32(len(node.children)), ptr)
 	for _, c := range node.children {
@@ -58,20 +58,20 @@ func (codecV15) decodeNode(data []byte, dest *Node) error {
 
 	// The QID type (file or directory) is derived from the mode (DMDIR flag).
 	_, ptr = gint8(ptr)
-	dest.D.ID, ptr = gint64(ptr)
-	dest.D.Version, ptr = gint32(ptr)
-	dest.D.Name, ptr = gstr(ptr)
+	dest.info.ID, ptr = gint64(ptr)
+	dest.info.Version, ptr = gint32(ptr)
+	dest.info.Name, ptr = gstr(ptr)
 	u8, ptr = gint8(ptr)
 	dest.flags = nodeFlags(u8)
 	dest.bsize, ptr = gint32(ptr)
-	dest.D.Mode, ptr = gint32(ptr)
-	if dest.D.Mode&DMDIR != 0 {
+	dest.info.Mode, ptr = gint32(ptr)
+	if dest.info.Mode&DMDIR != 0 {
 		// Ignore the length, it's 0 for directories, see stat(9p) or stat(5).
 		_, ptr = gint64(ptr)
 	} else {
-		dest.D.Size, ptr = gint64(ptr)
+		dest.info.Size, ptr = gint64(ptr)
 	}
-	dest.D.Modified, ptr = gint32(ptr)
+	dest.info.Modified, ptr = gint32(ptr)
 
 	u32, ptr = gint32(ptr)
 	if u32 > 0 {

@@ -78,13 +78,18 @@ type Node struct {
 
 	// Fields containing the node's metadata, e.g., name, size,
 	// permissions, modification time...
-	D NodeInfo
+	info NodeInfo
 
 	// Only one of the two will be relevant, based on the node type.  The
 	// children field is relevant for directories, the blocks field is
 	// relevant for regular files.
 	children []*Node
 	blocks   []*block.Block
+}
+
+// Info returns a copy of the node's information struct.
+func (node *Node) Info() NodeInfo {
+	return node.info
 }
 
 func (node *Node) followBranch(name string) (*Node, bool) {
@@ -99,7 +104,7 @@ func (node *Node) followBranch(name string) (*Node, bool) {
 		return node.parent, true
 	}
 	for _, c := range node.children {
-		if c.D.Name == name {
+		if c.info.Name == name {
 			return c, true
 		}
 	}
@@ -110,7 +115,7 @@ func (node *Node) followBranch(name string) (*Node, bool) {
 // get added.
 func (node *Node) add(newChild *Node) bool {
 	if newChild.flags&loaded != 0 {
-		if _, ok := node.followBranch(newChild.D.Name); ok {
+		if _, ok := node.followBranch(newChild.info.Name); ok {
 			return false
 		}
 	}
@@ -125,20 +130,20 @@ func (node *Node) Path() string {
 		return ""
 	}
 	if node.parent == nil {
-		return node.D.Name
+		return node.info.Name
 	}
-	return path.Join(node.parent.Path(), node.D.Name)
+	return path.Join(node.parent.Path(), node.info.Name)
 }
 
 func (node *Node) IsDir() bool {
-	return node.D.Mode&DMDIR != 0
+	return node.info.Mode&DMDIR != 0
 }
 
 func (node *Node) String() string {
 	if node == nil {
 		return "(nil node)"
 	}
-	return fmt.Sprintf("%s@%s", node.D.Name, node.pointer)
+	return fmt.Sprintf("%s@%s", node.info.Name, node.pointer)
 }
 
 func (node *Node) Children() []*Node {
@@ -148,7 +153,7 @@ func (node *Node) Children() []*Node {
 func (node *Node) childrenMap() map[string]*Node {
 	m := make(map[string]*Node)
 	for _, child := range node.children {
-		m[child.D.Name] = child
+		m[child.info.Name] = child
 	}
 	return m
 }
@@ -227,7 +232,7 @@ func (node *Node) Trim() {
 			}
 		}
 
-		age := now - node.D.Modified
+		age := now - node.info.Modified
 
 		le := log.WithFields(log.Fields{
 			"path":  node.Path(),
@@ -244,7 +249,7 @@ func (node *Node) Trim() {
 
 		le.Debug("Trimming")
 		node.flags &^= loaded
-		node.D.Name = ""
+		node.info.Name = ""
 		node.blocks = nil
 		node.children = nil
 	}
@@ -256,7 +261,7 @@ func (node *Node) Trim() {
 func (node *Node) removeChild(name string) (removedCount int) {
 	var newChildren []*Node
 	for _, child := range node.children {
-		if child.D.Name != name {
+		if child.info.Name != name {
 			newChildren = append(newChildren, child)
 		} else {
 			removedCount++
@@ -270,32 +275,32 @@ func (node *Node) removeChild(name string) (removedCount int) {
 }
 
 func (node *Node) touchNow() {
-	node.D.Modified = uint32(time.Now().Unix())
+	node.info.Modified = uint32(time.Now().Unix())
 	node.markDirty()
 }
 
 // Touch updates the modification timestamp of the node and marks the node dirty,
 // so that it is later flushed to disk.
 func (node *Node) Touch(seconds uint32) {
-	node.D.Modified = seconds
+	node.info.Modified = seconds
 	node.markDirty()
 }
 
 func (node *Node) IsRoot() bool {
-	return node.D.Mode&DMDIR != 0 && node.parent == nil
+	return node.info.Mode&DMDIR != 0 && node.parent == nil
 }
 
 // SetPerm sets the Unix permission bits.
 // All bits other than 0777 are silently ignored.
 func (node *Node) SetPerm(perm uint32) {
-	node.D.Mode &= 0xfffffe00
-	node.D.Mode |= (0x000001ff & perm)
+	node.info.Mode &= 0xfffffe00
+	node.info.Mode |= (0x000001ff & perm)
 	node.markDirty()
 }
 
 func (node *Node) Rename(newName string) {
 	node.parent.removeChild(newName)
-	node.D.Name = newName
+	node.info.Name = newName
 	node.markDirty()
 }
 
@@ -304,9 +309,9 @@ func (node *Node) Truncate(requestedSize uint64) error {
 		return errors.New("impossible to truncate a directory")
 	}
 	var err error
-	if requestedSize == node.D.Size {
+	if requestedSize == node.info.Size {
 		return nil
-	} else if requestedSize > node.D.Size {
+	} else if requestedSize > node.info.Size {
 		err = node.grow(requestedSize)
 	} else {
 		err = node.shrink(requestedSize)
@@ -314,9 +319,9 @@ func (node *Node) Truncate(requestedSize uint64) error {
 	if err != nil {
 		return err
 	}
-	node.D.Size = requestedSize
+	node.info.Size = requestedSize
 	node.touchNow()
-	node.D.Version++
+	node.info.Version++
 	return nil
 }
 
@@ -333,7 +338,7 @@ func (node *Node) grow(requestedSize uint64) (err error) {
 		return nil
 	}
 	blockSize := uint64(node.bsize)
-	q, r := node.D.Size/blockSize, int(node.D.Size%blockSize)
+	q, r := node.info.Size/blockSize, int(node.info.Size%blockSize)
 	nextq, nextr := requestedSize/blockSize, int(requestedSize%blockSize)
 	if q < nextq && r > 0 {
 		if err := node.blocks[q].Truncate(int(node.bsize)); err != nil {
@@ -386,7 +391,7 @@ func (node *Node) WriteAt(p []byte, off int64) error {
 		return err
 	}
 	node.touchNow()
-	node.D.Version++
+	node.info.Version++
 	return nil
 }
 
@@ -401,7 +406,7 @@ func (node *Node) write(p []byte, off int64) error {
 	}
 	off -= off % bs
 	off += bs
-	node.D.Size += uint64(delta)
+	node.info.Size += uint64(delta)
 	return node.write(p[written:], off)
 }
 

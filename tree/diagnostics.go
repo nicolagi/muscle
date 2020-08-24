@@ -13,7 +13,7 @@ func (tree *Tree) DumpNodes() {
 }
 
 func (tree *Tree) dumpNodesFrom(node *Node, absolutePrefix, pathPrefix string) {
-	p := path.Join(pathPrefix, node.D.Name)
+	p := path.Join(pathPrefix, node.info.Name)
 	log.WithFields(log.Fields{
 		"prefix": absolutePrefix,
 		"path":   p,
@@ -32,7 +32,7 @@ func (tree *Tree) ListNodesInUse() (paths []string) {
 		if node.refs == 0 {
 			return
 		}
-		p := path.Join(prefix, node.D.Name)
+		p := path.Join(prefix, node.info.Name)
 		paths = append(paths, p)
 		for _, c := range node.children {
 			list(c, p)

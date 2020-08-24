@@ -57,10 +57,10 @@ func TestCodecV13(t *testing.T) {
 			t.Fatal("Should not be able to expand further")
 		}
 		// Verify the QID.
-		if got, want := node.D.Version, uint32(1); got != want {
+		if got, want := node.info.Version, uint32(1); got != want {
 			t.Errorf("got %v, want %v as the version", got, want)
 		}
-		if got, want := node.D.ID, uint64(time.Now().UnixNano()); time.Duration(want-got) > time.Second {
+		if got, want := node.info.ID, uint64(time.Now().UnixNano()); time.Duration(want-got) > time.Second {
 			t.Errorf("got %v, want value within 1 second of %v", got, want)
 		}
 	})

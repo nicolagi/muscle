@@ -52,10 +52,10 @@ func init() {
 
 func checkMode(node *tree.Node, mode uint32) error {
 	if node != nil {
-		if node.D.Mode&tree.DMDIR != 0 && mode&p.DMDIR == 0 {
+		if node.IsDir() && mode&p.DMDIR == 0 {
 			return fmt.Errorf("a directory cannot become a regular file")
 		}
-		if node.D.Mode&tree.DMDIR == 0 && mode&p.DMDIR != 0 {
+		if !node.IsDir() && mode&p.DMDIR != 0 {
 			return fmt.Errorf("a regular file cannot become a directory")
 		}
 	}

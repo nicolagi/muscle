@@ -60,14 +60,14 @@ func TestWalk(t *testing.T) {
 		called := false
 		visited, err := oak.walk(a, func(node *Node) error {
 			if !called {
-				node.children[0].D.Name = "usr"
+				node.children[0].info.Name = "usr"
 				called = true
 				return nil
 			}
 			return errors.New("really unexpected")
 		}, "usr", "local")
 		assert.Len(t, visited, 1)
-		assert.Equal(t, "usr", visited[0].D.Name)
+		assert.Equal(t, "usr", visited[0].info.Name)
 		assert.NotNil(t, err)
 	})
 	t.Run("interrupting walk at second step", func(t *testing.T) {
@@ -75,16 +75,16 @@ func TestWalk(t *testing.T) {
 		a.add(new(Node))
 		visited, err := oak.walk(a, func(node *Node) error {
 			if len(node.children) == 1 {
-				node.children[0].D.Name = "usr"
+				node.children[0].info.Name = "usr"
 			}
 			return nil
 		}, "usr", "local")
 		assert.Len(t, visited, 1)
-		assert.Equal(t, "usr", visited[0].D.Name)
+		assert.Equal(t, "usr", visited[0].info.Name)
 		assert.NotNil(t, err)
 	})
 	t.Run("successfully walking two steps", func(t *testing.T) {
-		root := &Node{pointer: storage.RandomPointer(), D: NodeInfo{Name: "root"}}
+		root := &Node{pointer: storage.RandomPointer(), info: NodeInfo{Name: "root"}}
 		usr := &Node{pointer: storage.RandomPointer()}
 		bin := &Node{pointer: storage.RandomPointer()}
 		root.add(usr)
@@ -93,22 +93,22 @@ func TestWalk(t *testing.T) {
 			child := node.children[0]
 			switch child.pointer.Hex() {
 			case usr.pointer.Hex():
-				child.D.Name = "usr"
+				child.info.Name = "usr"
 			case bin.pointer.Hex():
-				child.D.Name = "bin"
+				child.info.Name = "bin"
 			}
 			return nil
 		}, "usr", "bin")
 		assert.Len(t, visited, 2)
-		assert.Equal(t, "usr", visited[0].D.Name)
-		assert.Equal(t, "bin", visited[1].D.Name)
+		assert.Equal(t, "usr", visited[0].info.Name)
+		assert.Equal(t, "bin", visited[1].info.Name)
 		assert.Nil(t, err)
 	})
 
 	t.Run("walk to parent", func(t *testing.T) {
-		root := &Node{pointer: storage.RandomPointer(), D: NodeInfo{Name: "root"}}
-		usr := &Node{pointer: storage.RandomPointer(), D: NodeInfo{Name: "usr"}}
-		bin := &Node{pointer: storage.RandomPointer(), D: NodeInfo{Name: "bin"}}
+		root := &Node{pointer: storage.RandomPointer(), info: NodeInfo{Name: "root"}}
+		usr := &Node{pointer: storage.RandomPointer(), info: NodeInfo{Name: "usr"}}
+		bin := &Node{pointer: storage.RandomPointer(), info: NodeInfo{Name: "bin"}}
 		root.add(usr)
 		usr.add(bin)
 		visited, err := oak.walk(bin, func(node *Node) error {
@@ -116,7 +116,7 @@ func TestWalk(t *testing.T) {
 		}, "..")
 		assert.Nil(t, err)
 		assert.Len(t, visited, 1)
-		assert.Equal(t, "usr", visited[0].D.Name)
+		assert.Equal(t, "usr", visited[0].info.Name)
 	})
 }
 
@@ -136,17 +136,17 @@ func TestGrow(t *testing.T) {
 			children: []*Node{{}},
 		}
 		assert.Nil(t, oak.grow(&a, func(node *Node) error {
-			node.D.Name = "etc"
+			node.info.Name = "etc"
 			return nil
 		}))
-		assert.Equal(t, "etc", a.children[0].D.Name)
+		assert.Equal(t, "etc", a.children[0].info.Name)
 	})
 	t.Run("growing a node with only one child, loaded", func(t *testing.T) {
 		a := Node{
-			children: []*Node{{flags: loaded, D: NodeInfo{Name: "boot"}}},
+			children: []*Node{{flags: loaded, info: NodeInfo{Name: "boot"}}},
 		}
 		assert.Nil(t, oak.grow(&a, nil))
-		assert.Equal(t, "boot", a.children[0].D.Name)
+		assert.Equal(t, "boot", a.children[0].info.Name)
 	})
 	t.Run("growing a node with only one child missing from storage", func(t *testing.T) {
 		a := Node{}
@@ -154,7 +154,7 @@ func TestGrow(t *testing.T) {
 		assert.Nil(t, oak.grow(&a, func(node *Node) error {
 			return storage.ErrNotFound
 		}))
-		assert.Regexp(t, "vanished", a.children[0].D.Name)
+		assert.Regexp(t, "vanished", a.children[0].info.Name)
 		assert.Equal(t, dirty, a.children[0].flags&dirty)
 		assert.Equal(t, dirty, a.flags&dirty)
 	})
@@ -163,15 +163,15 @@ func TestGrow(t *testing.T) {
 		a.add(new(Node))
 		a.add(new(Node))
 		assert.Nil(t, oak.grow(a, func(node *Node) error {
-			node.D.Name = "usr"
+			node.info.Name = "usr"
 			node.flags |= loaded
 			return nil
 		}))
 		sort.Slice(a.children, func(i, j int) bool {
-			return a.children[i].D.Name < a.children[j].D.Name
+			return a.children[i].info.Name < a.children[j].info.Name
 		})
-		assert.Equal(t, "usr", a.children[0].D.Name)
-		assert.Regexp(t, "usr\\.dupe[0-9]+", a.children[1].D.Name)
+		assert.Equal(t, "usr", a.children[0].info.Name)
+		assert.Regexp(t, "usr\\.dupe[0-9]+", a.children[1].info.Name)
 		assert.EqualValues(t, 0, a.children[0].flags&dirty)
 		assert.Equal(t, dirty, a.children[1].flags&dirty)
 		assert.Equal(t, dirty, a.flags&dirty)
@@ -192,18 +192,18 @@ func TestGrow(t *testing.T) {
 			}()
 			switch node.refs {
 			case 0:
-				node.D.Name = "var"
+				node.info.Name = "var"
 				return nil
 			case 1:
 				return errors.New("something unexpected")
 			default:
-				node.D.Name = "usr"
+				node.info.Name = "usr"
 				return nil
 			}
 		}))
-		firstName := a.children[0].D.Name
-		secondName := a.children[1].D.Name
-		thirdName := a.children[2].D.Name
+		firstName := a.children[0].info.Name
+		secondName := a.children[1].info.Name
+		thirdName := a.children[2].info.Name
 		assert.Equal(t, "var", firstName)
 		assert.Equal(t, "", secondName)
 		assert.Equal(t, "usr", thirdName)
@@ -211,17 +211,17 @@ func TestGrow(t *testing.T) {
 	})
 	t.Run("duplicate arising when first node is loaded and second is not", func(t *testing.T) {
 		a := new(Node)
-		a.add(&Node{flags: loaded, D: NodeInfo{Name: "home"}})
+		a.add(&Node{flags: loaded, info: NodeInfo{Name: "home"}})
 		a.add(new(Node))
 		callCount := 0
 		assert.Nil(t, oak.grow(a, func(node *Node) error {
-			node.D.Name = "home"
+			node.info.Name = "home"
 			node.flags |= loaded
 			callCount++
 			return nil
 		}))
-		assert.Equal(t, "home", a.children[0].D.Name)
-		assert.Regexp(t, "home\\.dupe[0-9]+", a.children[1].D.Name)
+		assert.Equal(t, "home", a.children[0].info.Name)
+		assert.Regexp(t, "home\\.dupe[0-9]+", a.children[1].info.Name)
 		assert.EqualValues(t, 0, a.children[0].flags&dirty)
 		assert.Equal(t, dirty, a.children[1].flags&dirty)
 		assert.Equal(t, dirty, a.flags&dirty)
@@ -235,16 +235,16 @@ func TestChildNamesAreMadeUnique(t *testing.T) {
 		for _, name := range names {
 			child := &Node{}
 			child.flags = loaded
-			child.D.Name = name
+			child.info.Name = name
 			parent.children = append(parent.children, child)
 		}
 		return parent
 	}
 	extractChildNames := func(parent *Node) (allChildren []string, dirtyChildren []string) {
 		for _, child := range parent.children {
-			allChildren = append(allChildren, child.D.Name)
+			allChildren = append(allChildren, child.info.Name)
 			if child.flags&dirty != 0 {
-				dirtyChildren = append(dirtyChildren, child.D.Name)
+				dirtyChildren = append(dirtyChildren, child.info.Name)
 			}
 		}
 		return

@@ -13,7 +13,7 @@ func TestTreeRemove(t *testing.T) {
 		tree := newTestTree(t)
 		// The root is just the directory with no parent.
 		parent := &Node{}
-		parent.D.Mode = DMDIR
+		parent.info.Mode = DMDIR
 		err := tree.Remove(parent)
 		if !errors.Is(err, ErrPermission) {
 			t.Errorf("got %v, want a wrapper of %v", err, ErrPermission)
@@ -46,7 +46,7 @@ func TestTreeWalking(t *testing.T) {
 	child, _ := tree.Add(root, "foo", 0700)
 	assert.Equal(t, child.Path(), "root/foo")
 	assert.Equal(t, child.parent, root)
-	assert.Equal(t, child.D.Name, "foo")
+	assert.Equal(t, child.info.Name, "foo")
 
 	// Walk to it.
 	nodes, err = tree.Walk(root, "foo")

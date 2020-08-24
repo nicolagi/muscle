@@ -25,24 +25,24 @@ func (codecV14) decodeNode(data []byte, dest *Node) error {
 	var u32 uint32
 
 	// This data was not saved with v14.
-	dest.D.ID = uint64(time.Now().UnixNano())
-	dest.D.Version = 1
+	dest.info.ID = uint64(time.Now().UnixNano())
+	dest.info.Version = 1
 
-	dest.D.Name, ptr = gstr(ptr)
+	dest.info.Name, ptr = gstr(ptr)
 	u8, ptr = gint8(ptr)
 	dest.flags = nodeFlags(u8)
 	dest.bsize, ptr = gint32(ptr)
 	if dest.bsize == 0 {
 		dest.bsize = v14DefaultBlockCapacity
 	}
-	dest.D.Mode, ptr = gint32(ptr)
-	if dest.D.Mode&DMDIR != 0 {
+	dest.info.Mode, ptr = gint32(ptr)
+	if dest.info.Mode&DMDIR != 0 {
 		// Ignore the length, it's 0 for directories, see stat(9p) or stat(5).
 		_, ptr = gint64(ptr)
 	} else {
-		dest.D.Size, ptr = gint64(ptr)
+		dest.info.Size, ptr = gint64(ptr)
 	}
-	dest.D.Modified, ptr = gint32(ptr)
+	dest.info.Modified, ptr = gint32(ptr)
 
 	u32, ptr = gint32(ptr)
 	if u32 > 0 {

@@ -60,12 +60,12 @@ Dir.Length %d
 Dir.Name %q
 `,
 		node.n.pointer.Hex(),
-		node.n.D.Version,
-		node.n.D.ID,
-		node.n.D.Mode,
-		time.Unix(int64(node.n.D.Modified), 0).UTC().Format(time.RFC3339),
-		node.n.D.Size,
-		node.n.D.Name,
+		node.n.info.Version,
+		node.n.info.ID,
+		node.n.info.Mode,
+		time.Unix(int64(node.n.info.Modified), 0).UTC().Format(time.RFC3339),
+		node.n.info.Size,
+		node.n.info.Name,
 	)
 	_, _ = fmt.Fprintf(&output, "blocks:\n")
 	for _, b := range node.n.blocks {
@@ -99,16 +99,16 @@ func (node treeNode) Content() (string, error) {
 	if node.n == nil {
 		return "", nil
 	}
-	if node.n.D.Size > uint64(node.maxSize) {
-		return "", fmt.Errorf("%d: %w", node.n.D.Size, errTreeNodeLarge)
+	if node.n.info.Size > uint64(node.maxSize) {
+		return "", fmt.Errorf("%d: %w", node.n.info.Size, errTreeNodeLarge)
 	}
-	content := make([]byte, node.n.D.Size)
+	content := make([]byte, node.n.info.Size)
 	n, err := node.n.ReadAt(content, 0)
 	if err != nil {
 		return "", err
 	}
-	if uint64(n) != node.n.D.Size {
-		return "", fmt.Errorf("got %d out of %d bytes: %w", n, node.n.D.Size, errTreeNodeTruncated)
+	if uint64(n) != node.n.info.Size {
+		return "", fmt.Errorf("got %d out of %d bytes: %w", n, node.n.info.Size, errTreeNodeTruncated)
 	}
 	return string(content), err
 }
@@ -240,7 +240,7 @@ func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
 	if err != nil {
 		return err
 	}
-	if output != "" || a == nil || b == nil || a.D.Mode&DMDIR != b.D.Mode&DMDIR {
+	if output != "" || a == nil || b == nil || a.info.Mode&DMDIR != b.info.Mode&DMDIR {
 		if opts.namesOnly {
 			_, _ = fmt.Fprintln(opts.output, commonp)
 		} else {

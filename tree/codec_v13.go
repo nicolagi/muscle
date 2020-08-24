@@ -24,19 +24,19 @@ func (codec codecV13) decodeNode(data []byte, dest *Node) error {
 	var u32 uint32
 
 	// This data was not saved with v13.
-	dest.D.ID = uint64(time.Now().UnixNano())
-	dest.D.Version = 1
+	dest.info.ID = uint64(time.Now().UnixNano())
+	dest.info.Version = 1
 
-	dest.D.Name, ptr = gstr(ptr)
-	dest.D.Mode, ptr = gint32(ptr)
-	if dest.D.Mode&DMDIR != 0 {
+	dest.info.Name, ptr = gstr(ptr)
+	dest.info.Mode, ptr = gint32(ptr)
+	if dest.info.Mode&DMDIR != 0 {
 		// Read and ignore the length. I used to calculate and store directory lengths
 		// (length of the serialized dir entries) but I later learned that the size is conventionally 0.
 		_, ptr = gint64(ptr)
 	} else {
-		dest.D.Size, ptr = gint64(ptr)
+		dest.info.Size, ptr = gint64(ptr)
 	}
-	dest.D.Modified, ptr = gint32(ptr)
+	dest.info.Modified, ptr = gint32(ptr)
 
 	u32, ptr = gint32(ptr)
 	if u32 > 0 {

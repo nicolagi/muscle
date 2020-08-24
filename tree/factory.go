@@ -91,7 +91,7 @@ func (f *Factory) NewTree(options ...factoryOption) (*Tree, error) {
 		t.root.parent = nil
 	}
 	// Fix mode for roots created before mode was used...
-	t.root.D.Mode |= 0700 | DMDIR
+	t.root.info.Mode |= 0700 | DMDIR
 	if !t.readOnly {
 		t.blockSize = f.blockSize
 	}
