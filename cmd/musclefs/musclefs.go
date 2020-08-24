@@ -100,14 +100,24 @@ type ops struct {
 
 var (
 	_ srv.ReqOps = (*ops)(nil)
+	_ srv.FidOps = (*ops)(nil)
 
 	Eunlinked error = &p.Error{Err: "fid points to unlinked node", Errornum: p.EINVAL}
 )
+
+func (ops *ops) FidDestroy(fid *srv.Fid) {
+	if fid.Aux == nil || fid.Aux == ops.c {
+		return
+	}
+	node := fid.Aux.(*fsNode)
+	node.Unref("FidDestroy")
+}
 
 func (ops *ops) Attach(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	root := ops.tree.Attach()
+	root.Ref("Attach")
 	r.Fid.Aux = &fsNode{Node: root}
 	qid := p9util.NodeQID(root)
 	r.RespondRattach(&qid)
@@ -501,13 +511,6 @@ func (ops *ops) Write(r *srv.Req) {
 func (ops *ops) Clunk(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	switch {
-	case r.Fid.Aux == ops.c:
-	default:
-		node := r.Fid.Aux.(*fsNode)
-		/*  Respond with Rclunk even if unlinked. Caller won't care. */
-		defer node.Unref("clunk")
-	}
 	r.RespondRclunk()
 }
 
@@ -523,7 +526,6 @@ func (ops *ops) Remove(r *srv.Req) {
 			r.RespondError(Eunlinked)
 			return
 		}
-		node.Unref("remove")
 		err := ops.tree.Remove(node.Node)
 		if err != nil {
 			if errors.Is(err, tree.ErrNotEmpty) {
