@@ -2,7 +2,6 @@ package tree
 
 import (
 	"fmt"
-	"path/filepath"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -138,10 +137,9 @@ func (node *Node) Unlinked() bool {
 	return node.flags&unlinked != 0
 }
 
-func (node *Node) markUnlinked(pathname string) {
+func (node *Node) markUnlinked() {
 	node.flags |= unlinked
-	pathname = filepath.Join(pathname, node.info.Name)
 	for _, child := range node.children {
-		child.markUnlinked(pathname)
+		child.markUnlinked()
 	}
 }

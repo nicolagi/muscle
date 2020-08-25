@@ -95,7 +95,7 @@ func (tree *Tree) RemoveForMerge(node *Node) error {
 		return errors.New("the root cannot be removed")
 	}
 	if node.refs > 0 {
-		node.markUnlinked(node.Path())
+		node.markUnlinked()
 	}
 	if removed := node.parent.removeChild(node.info.Name); removed == 0 {
 		log.Printf("warning: %q does not contain %q; remove is a no-op", node.parent.Path(), node.info.Name)
