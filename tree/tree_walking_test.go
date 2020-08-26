@@ -79,8 +79,8 @@ func TestWalk(t *testing.T) {
 		if got, want := visited[0].info.Name, "usr"; got != want {
 			t.Errorf("got %v, want %v nodes", got, want)
 		}
-		if !errors.Is(err, ErrNotFound) {
-			t.Errorf("got %v, want %w", err, ErrNotFound)
+		if !errors.Is(err, ErrNotExist) {
+			t.Errorf("got %v, want %w", err, ErrNotExist)
 		}
 	})
 	t.Run("successfully walking two steps", func(t *testing.T) {

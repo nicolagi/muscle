@@ -10,8 +10,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var ErrNotFound = errors.New("node not found")
-
 // Walk navigates the tree starting from the given node following the given branches in sequence.
 func (tree *Tree) Walk(sourceNode *Node, branchNames ...string) (visitedNodes []*Node, err error) {
 	return tree.walk(sourceNode, tree.Grow, branchNames...)
@@ -30,7 +28,7 @@ func (tree *Tree) walk(sourceNode *Node, growFn func(*Node) error, branchNames .
 		if n, err = n.followBranch(name); err != nil {
 			break
 		} else if n == nil {
-			err = fmt.Errorf("child %q: %w", name, ErrNotFound)
+			err = fmt.Errorf("child %q: %w", name, ErrNotExist)
 			break
 		}
 		visitedNodes = append(visitedNodes, n)

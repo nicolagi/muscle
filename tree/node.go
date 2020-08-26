@@ -135,7 +135,7 @@ func (node *Node) addChild(newChild *Node) error {
 	if cn, err := node.followBranch(newChild.info.Name); err != nil {
 		return err
 	} else if cn != nil {
-		return errors.Wrapf(ErrExists, "%q within %q", newChild.info.Name, node.Path())
+		return errors.Wrapf(ErrExist, "%q within %q", newChild.info.Name, node.Path())
 	}
 	newChild.parent = node
 	node.children = append(node.children, newChild)

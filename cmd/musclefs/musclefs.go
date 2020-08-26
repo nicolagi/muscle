@@ -144,7 +144,7 @@ func (ops *ops) Walk(r *srv.Req) {
 		}
 		// TODO test scenario: nwqids != 0 but < nwname
 		nodes, err := ops.tree.Walk(node.Node, r.Tc.Wname...)
-		if errors.Is(err, tree.ErrNotFound) {
+		if errors.Is(err, tree.ErrNotExist) {
 			if len(nodes) == 0 {
 				r.RespondError(srv.Enoent)
 				return

@@ -20,8 +20,9 @@ var (
 	RemoteRootKeyPrefix = "remote.root."
 	ErrReadOnly         = baseErr("read-only")
 
-	ErrExists     = baseErr("exists")
+	ErrExist      = baseErr("exists")
 	ErrNotEmpty   = baseErr("not empty")
+	ErrNotExist   = baseErr("does not exist")
 	ErrPermission = baseErr("permission denied")
 
 	// ErrPhase indicates that the caller didn't use this package as

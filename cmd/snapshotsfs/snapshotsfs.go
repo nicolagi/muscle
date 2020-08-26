@@ -57,7 +57,7 @@ func (tn *treenode) stat() p.Dir {
 func (tn *treenode) walk(name string) (child node, err error) {
 	nodes, err := tn.tree.Walk(tn.node, name)
 	if err != nil {
-		if errors.Is(err, tree.ErrNotFound) {
+		if errors.Is(err, tree.ErrNotExist) {
 			return nil, nil
 		}
 		return nil, err

@@ -40,7 +40,7 @@ func TestTreeWalking(t *testing.T) {
 	// Walk to inexistent file.
 	nodes, err := tree.Walk(root, "foo")
 	assert.Len(t, nodes, 0)
-	assert.True(t, errors.Is(err, ErrNotFound))
+	assert.True(t, errors.Is(err, ErrNotExist))
 
 	// Add such file.
 	child, _ := tree.Add(root, "foo", 0700)
@@ -57,12 +57,12 @@ func TestTreeWalking(t *testing.T) {
 	// Walk to non-existent from child.
 	nodes, err = tree.Walk(child, "bar")
 	assert.Len(t, nodes, 0)
-	assert.True(t, errors.Is(err, ErrNotFound))
+	assert.True(t, errors.Is(err, ErrNotExist))
 
 	// Walk to non-existent from root.
 	nodes, err = tree.Walk(root, "foo", "bar")
 	assert.Len(t, nodes, 1)
-	assert.True(t, errors.Is(err, ErrNotFound))
+	assert.True(t, errors.Is(err, ErrNotExist))
 	assert.Equal(t, nodes[0], child)
 
 	// Create nested child and walk to it.
