@@ -37,10 +37,10 @@ func TestNodePath(t *testing.T) {
 	b.info.Name = "child"
 	c.info.Name = "rosemary"
 
-	if _, err := a.add(b); err != nil {
+	if err := a.add(b); err != nil {
 		t.Fatalf("%+v", err)
 	}
-	if _, err := b.add(c); err != nil {
+	if err := b.add(c); err != nil {
 		t.Fatalf("%+v", err)
 	}
 

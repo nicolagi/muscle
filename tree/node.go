@@ -115,17 +115,17 @@ func (node *Node) followBranch(name string) (*Node, error) {
 
 // Returns whether the child was added. If it is already present, it does not
 // get added.
-func (node *Node) add(newChild *Node) (bool, error) {
+func (node *Node) add(newChild *Node) error {
 	if newChild.flags&loaded != 0 {
 		if cn, err := node.followBranch(newChild.info.Name); err != nil {
-			return false, err
+			return err
 		} else if cn != nil {
-			return false, nil
+			return errors.Wrapf(ErrExists, "%q within %q", newChild.info.Name, node.Path())
 		}
 	}
 	newChild.parent = node
 	node.children = append(node.children, newChild)
-	return true, nil
+	return nil
 }
 
 // Path returns the full path name to this node.
@@ -302,8 +302,16 @@ func (node *Node) SetPerm(perm uint32) {
 	node.markDirty()
 }
 
+// Rename changes the node's name. If the parent already contains a
+// child with the new name, that child is removed first. stat(5) says
+// that renaming should fail in that case, but conforming to the
+// manual page makes it impossible to use git (which rename
+// 'index.lock' to an already existing 'index', for example) under
+// both 9pfuse and v9fs.
 func (node *Node) Rename(newName string) {
-	node.parent.removeChild(newName)
+	if node.parent != nil {
+		node.parent.removeChild(newName)
+	}
 	node.info.Name = newName
 	node.markDirty()
 }

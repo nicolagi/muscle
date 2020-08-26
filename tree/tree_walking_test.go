@@ -36,7 +36,7 @@ func TestWalk(t *testing.T) {
 	t.Run("grow error at second step", func(t *testing.T) {
 		var a, b Node
 		b.info.Name = "usr"
-		if _, err := a.add(&b); err != nil {
+		if err := a.add(&b); err != nil {
 			t.Fatalf("%+v", err)
 		}
 		called := false
@@ -62,7 +62,7 @@ func TestWalk(t *testing.T) {
 	t.Run("interrupting walk at second step", func(t *testing.T) {
 		var a, b Node
 		b.info.Name = "usr"
-		if _, err := a.add(&b); err != nil {
+		if err := a.add(&b); err != nil {
 			t.Fatalf("%+v", err)
 		}
 		visited, err := oak.walk(&a, func(node *Node) error {
@@ -83,10 +83,10 @@ func TestWalk(t *testing.T) {
 		root := &Node{pointer: storage.RandomPointer(), info: NodeInfo{Name: "root"}}
 		usr := &Node{pointer: storage.RandomPointer()}
 		bin := &Node{pointer: storage.RandomPointer()}
-		if _, err := root.add(usr); err != nil {
+		if err := root.add(usr); err != nil {
 			t.Fatalf("%+v", err)
 		}
-		if _, err := usr.add(bin); err != nil {
+		if err := usr.add(bin); err != nil {
 			t.Fatalf("%+v", err)
 		}
 		visited, err := oak.walk(root, func(node *Node) error {
@@ -109,10 +109,10 @@ func TestWalk(t *testing.T) {
 		root := &Node{pointer: storage.RandomPointer(), info: NodeInfo{Name: "root"}}
 		usr := &Node{pointer: storage.RandomPointer(), info: NodeInfo{Name: "usr"}}
 		bin := &Node{pointer: storage.RandomPointer(), info: NodeInfo{Name: "bin"}}
-		if _, err := root.add(usr); err != nil {
+		if err := root.add(usr); err != nil {
 			t.Fatalf("%+v", err)
 		}
-		if _, err := usr.add(bin); err != nil {
+		if err := usr.add(bin); err != nil {
 			t.Fatalf("%+v", err)
 		}
 		visited, err := oak.walk(bin, func(node *Node) error {
@@ -155,7 +155,7 @@ func TestGrow(t *testing.T) {
 	})
 	t.Run("growing a node with only one child missing from storage", func(t *testing.T) {
 		a := Node{}
-		if _, err := a.add(new(Node)); err != nil {
+		if err := a.add(new(Node)); err != nil {
 			t.Fatalf("%+v", err)
 		}
 		assert.Nil(t, oak.grow(&a, func(node *Node) error {
@@ -167,10 +167,10 @@ func TestGrow(t *testing.T) {
 	})
 	t.Run("growing a node with two children with same name once loaded", func(t *testing.T) {
 		a := new(Node)
-		if _, err := a.add(new(Node)); err != nil {
+		if err := a.add(new(Node)); err != nil {
 			t.Fatalf("%+v", err)
 		}
-		if _, err := a.add(new(Node)); err != nil {
+		if err := a.add(new(Node)); err != nil {
 			t.Fatalf("%+v", err)
 		}
 		assert.Nil(t, oak.grow(a, func(node *Node) error {
@@ -194,7 +194,7 @@ func TestGrow(t *testing.T) {
 			node := new(Node)
 			// Something to track which node it is, to correlate assertions
 			node.refs = i
-			if _, err := a.add(node); err != nil {
+			if err := a.add(node); err != nil {
 				t.Fatalf("%+v", err)
 			}
 		}
@@ -225,11 +225,11 @@ func TestGrow(t *testing.T) {
 	t.Run("duplicate arising when first node is loaded and second is not", func(t *testing.T) {
 		a := new(Node)
 		a.flags |= loaded
-		if _, err := a.add(&Node{flags: loaded, info: NodeInfo{Name: "home"}}); err != nil {
+		if err := a.add(&Node{flags: loaded, info: NodeInfo{Name: "home"}}); err != nil {
 			t.Fatalf("%+v", err)
 		}
 		a.flags &^= loaded
-		if _, err := a.add(new(Node)); err != nil {
+		if err := a.add(new(Node)); err != nil {
 			t.Fatalf("%+v", err)
 		}
 		callCount := 0
