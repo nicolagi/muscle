@@ -37,8 +37,12 @@ func TestNodePath(t *testing.T) {
 	b.info.Name = "child"
 	c.info.Name = "rosemary"
 
-	a.add(b)
-	b.add(c)
+	if _, err := a.add(b); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	if _, err := b.add(c); err != nil {
+		t.Fatalf("%+v", err)
+	}
 
 	assert.Equal(t, "root", a.Path())
 	assert.Equal(t, "root/child", b.Path())

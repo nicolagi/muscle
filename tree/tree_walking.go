@@ -25,11 +25,11 @@ func (tree *Tree) walk(sourceNode *Node, growFn func(*Node) error, branchNames .
 	n := sourceNode
 	for _, name := range branchNames {
 		if err = growFn(n); err != nil {
-			log.Error(err.Error())
 			break
 		}
-		var found bool
-		if n, found = n.followBranch(name); !found {
+		if n, err = n.followBranch(name); err != nil {
+			break
+		} else if n == nil {
 			err = fmt.Errorf("child %q: %w", name, ErrNotFound)
 			break
 		}

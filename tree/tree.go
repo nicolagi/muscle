@@ -58,7 +58,9 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	child.info.ID = uint64(time.Now().UnixNano())
 	child.info.Version = 1
 	child.touchNow()
-	if added := node.add(child); !added {
+	if added, err := node.add(child); err != nil {
+		return nil, err
+	} else if !added {
 		return nil, ErrExists
 	}
 	node.touchNow()
@@ -148,12 +150,16 @@ func (tree *Tree) Graft(parent *Node, child *Node, childName string) error {
 	if e := tree.Grow(parent); e != nil {
 		return e
 	}
-	if node, found := parent.followBranch(childName); found {
+	if node, err := parent.followBranch(childName); err != nil {
+		return err
+	} else if node != nil {
 		if err := tree.RemoveForMerge(node); err != nil {
 			return fmt.Errorf("tree.Tree.Graft: parent: %v: %w", parent, err)
 		}
 	}
-	if added := parent.add(child); added {
+	if added, err := parent.add(child); err != nil {
+		return err
+	} else if added {
 		child.info.Name = childName
 		child.markDirty()
 		return nil
@@ -190,14 +196,18 @@ func (tree *Tree) Rename(source, target string) error {
 	if err = tree.Grow(newParent); err != nil {
 		return err
 	}
-	if _, found := newParent.followBranch(newName); found {
+	if cn, err := newParent.followBranch(newName); err != nil {
+		return err
+	} else if cn != nil {
 		return fmt.Errorf("new name already taken")
 	}
 	if err = tree.RemoveForMerge(nodeToMove); err != nil {
 		return err
 	}
 	nodeToMove.info.Name = newName
-	if added := newParent.add(nodeToMove); added {
+	if added, err := newParent.add(nodeToMove); err != nil {
+		return err
+	} else if added {
 		nodeToMove.markDirty()
 		return nil
 	}

@@ -2,13 +2,13 @@ package tree
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"path"
 	"time"
 
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -92,36 +92,40 @@ func (node *Node) Info() NodeInfo {
 	return node.info
 }
 
-func (node *Node) followBranch(name string) (*Node, bool) {
+func (node *Node) followBranch(name string) (*Node, error) {
+	if node.flags&loaded == 0 {
+		return nil, errors.Wrapf(ErrInvariant, "looking up %q within %q, which hasn't been loaded", name, node.Path())
+	}
 	if name == "" {
-		panic("should not be looking for a child with no name")
+		return nil, errors.Wrapf(ErrInvariant, "looking up child with no name within %q", node.Path())
 	}
 	if name == ".." {
 		if node.parent == nil {
-			// We're at the root.
-			return node, true
+			return node, nil
 		}
-		return node.parent, true
+		return node.parent, nil
 	}
 	for _, c := range node.children {
 		if c.info.Name == name {
-			return c, true
+			return c, nil
 		}
 	}
-	return nil, false
+	return nil, nil
 }
 
 // Returns whether the child was added. If it is already present, it does not
 // get added.
-func (node *Node) add(newChild *Node) bool {
+func (node *Node) add(newChild *Node) (bool, error) {
 	if newChild.flags&loaded != 0 {
-		if _, ok := node.followBranch(newChild.info.Name); ok {
-			return false
+		if cn, err := node.followBranch(newChild.info.Name); err != nil {
+			return false, err
+		} else if cn != nil {
+			return false, nil
 		}
 	}
 	newChild.parent = node
 	node.children = append(node.children, newChild)
-	return true
+	return true, nil
 }
 
 // Path returns the full path name to this node.

@@ -20,7 +20,9 @@ func TestMarkDirty(t *testing.T) {
 	t.Run("node with parent", func(t *testing.T) {
 		inner := new(Node)
 		outer := new(Node)
-		outer.add(inner)
+		if _, err := outer.add(inner); err != nil {
+			t.Fatal(err)
+		}
 		inner.markDirty()
 		assert.Equal(t, dirty, inner.flags&dirty)
 		assert.Equal(t, dirty, outer.flags&dirty)

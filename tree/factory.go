@@ -81,7 +81,7 @@ func (f *Factory) NewTree(options ...factoryOption) (*Tree, error) {
 		}
 	}
 	if t.root == nil {
-		parent := &Node{blockFactory: f.blockFactory}
+		parent := &Node{blockFactory: f.blockFactory, flags: loaded}
 		root, err := t.Add(parent, "root", 0700|DMDIR)
 		if err != nil {
 			return nil, err

@@ -21,7 +21,7 @@ func TestTreeRemove(t *testing.T) {
 	})
 	t.Run("removing a non-empty directory is not allowed", func(t *testing.T) {
 		tree := newTestTree(t)
-		parent := &Node{}
+		parent := &Node{flags: loaded}
 		if _, err := tree.Add(parent, "file", 0666); err != nil {
 			t.Fatal(err)
 		}
@@ -76,11 +76,12 @@ func TestTreeWalking(t *testing.T) {
 }
 
 func newTestTree(t *testing.T) *Tree {
+	t.Helper()
 	tree, err := NewFactory(newTestBlockFactory(t), newTestStore(t), &config.C{
 		BlockSize: 8192,
 	}).NewTree()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("%+v", err)
 	}
 	return tree
 }
