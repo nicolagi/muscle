@@ -35,7 +35,7 @@ func TestTreeRemove(t *testing.T) {
 func TestTreeWalking(t *testing.T) {
 	tree := newTestTree(t)
 	_, root := tree.Root()
-	assert.Equal(t, root.Path(), "root")
+	assert.Equal(t, "/", root.Path())
 
 	// Walk to inexistent file.
 	nodes, err := tree.Walk(root, "foo")
@@ -44,7 +44,7 @@ func TestTreeWalking(t *testing.T) {
 
 	// Add such file.
 	child, _ := tree.Add(root, "foo", 0700)
-	assert.Equal(t, child.Path(), "root/foo")
+	assert.Equal(t, child.Path(), "/foo")
 	assert.Equal(t, child.parent, root)
 	assert.Equal(t, child.info.Name, "foo")
 
@@ -67,12 +67,12 @@ func TestTreeWalking(t *testing.T) {
 
 	// Create nested child and walk to it.
 	nested, _ := tree.Add(child, "bar", 0700)
-	assert.Equal(t, "root/foo/bar", nested.Path())
+	assert.Equal(t, "/foo/bar", nested.Path())
 	nodes, err = tree.Walk(root, "foo", "bar")
 	assert.Nil(t, err)
 	assert.Len(t, nodes, 2)
-	assert.Equal(t, "root/foo", nodes[0].Path())
-	assert.Equal(t, "root/foo/bar", nodes[1].Path())
+	assert.Equal(t, "/foo", nodes[0].Path())
+	assert.Equal(t, "/foo/bar", nodes[1].Path())
 }
 
 func newTestTree(t *testing.T) *Tree {

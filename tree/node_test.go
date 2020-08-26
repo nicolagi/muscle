@@ -44,9 +44,9 @@ func TestNodePath(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 
-	assert.Equal(t, "root", a.Path())
-	assert.Equal(t, "root/child", b.Path())
-	assert.Equal(t, "root/child/rosemary", c.Path())
+	assert.Equal(t, "/", a.Path())
+	assert.Equal(t, "/child", b.Path())
+	assert.Equal(t, "/child/rosemary", c.Path())
 
 	assert.Equal(t, "", (*Node)(nil).Path())
 }

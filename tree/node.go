@@ -3,7 +3,6 @@ package tree
 import (
 	"bytes"
 	"fmt"
-	"path"
 	"time"
 
 	"github.com/nicolagi/muscle/internal/block"
@@ -142,26 +141,48 @@ func (node *Node) addChild(newChild *Node) error {
 	return nil
 }
 
-// Path returns the full path name to this node.
+// Path returns the full path to the node, e.g.,
+// "/src/muscle/tree/node.go". A non-loaded node is represented by an
+// asterisk; as a consequence, a path can take the form
+// "/src/muscle/tree/*".
 func (node *Node) Path() string {
 	if node == nil {
 		return ""
 	}
 	if node.parent == nil {
-		return node.info.Name
+		return "/"
 	}
-	return path.Join(node.parent.Path(), node.info.Name)
+	var stk []*Node
+	for n := node; n != nil; n = n.parent {
+		stk = append(stk, n)
+	}
+	var buf bytes.Buffer
+	for i := len(stk) - 2; i >= 0; i-- {
+		if stk[i].flags&loaded != 0 {
+			buf.WriteRune('/')
+			buf.WriteString(stk[i].info.Name)
+		} else {
+			buf.WriteString("/*")
+		}
+	}
+	return buf.String()
 }
 
 func (node *Node) IsDir() bool {
 	return node.info.Mode&DMDIR != 0
 }
 
+// String returns the path to the node and its hash pointer, plus a
+// "-dirty" suffix if the node hasn't been flushed to disk.
 func (node *Node) String() string {
-	if node == nil {
-		return "(nil node)"
+	switch {
+	case node == nil:
+		return "nil"
+	case node.flags&dirty != 0:
+		return fmt.Sprintf("%s@%s-dirty", node.Path(), node.pointer)
+	default:
+		return fmt.Sprintf("%s@%s", node.Path(), node.pointer)
 	}
-	return fmt.Sprintf("%s@%s", node.info.Name, node.pointer)
 }
 
 func (node *Node) Children() []*Node {

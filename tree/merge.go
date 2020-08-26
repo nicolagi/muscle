@@ -98,7 +98,7 @@ func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node,
 		} else {
 			p = remote.Path()
 		}
-		p = strings.TrimPrefix(p, "root/")
+		p = strings.TrimPrefix(p, "/")
 		if remote != nil {
 			_, _ = fmt.Fprintf(output, "graft %s/%s %s\n", remoteRev, p, p)
 		} else {
@@ -112,7 +112,7 @@ func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node,
 	// Otherwise, we can try recursion (losing metadata diffs for the directories, but it's something I can stand at the moment).
 
 	if remote != nil {
-		resolved := localTree.isIgnored(remoteRev, strings.TrimPrefix(remote.Path(), "root/"))
+		resolved := localTree.isIgnored(remoteRev, strings.TrimPrefix(remote.Path(), "/"))
 		if resolved {
 			log.Printf("There was a conflict at path %q but it is marked as locally resolved\n", remote.Path())
 			return nil
@@ -126,8 +126,8 @@ func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node,
 		}
 		if remote != nil {
 			p := remote.Path()
+			p = strings.TrimPrefix(p, "/")
 			_, _ = fmt.Fprintf(output, "%s/%s\n", remoteRev, p)
-			p = strings.TrimPrefix(p, "root/")
 			_, _ = fmt.Fprintf(output, "# graft %s/%s %s\n", remoteRev, p, p+".merge-conflict")
 			_, _ = fmt.Fprintf(output, "# graft %s/%s %s\n", remoteRev, p, p)
 			localVersion := filepath.Join(
