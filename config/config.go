@@ -11,11 +11,11 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
 
-	"9fans.net/go/plan9/client"
 	"github.com/pkg/errors"
 )
 
@@ -123,10 +123,10 @@ func Load(base string) (*C, error) {
 		c.SnapshotsListenNet = "unix"
 	}
 	if c.ListenNet == "unix" && c.ListenAddr == "" {
-		c.ListenAddr = fmt.Sprintf("%s/muscle", client.Namespace())
+		c.ListenAddr = fmt.Sprintf("%s/muscle", clientNamespace())
 	}
 	if c.SnapshotsListenNet == "unix" && c.SnapshotsListenAddr == "" {
-		c.SnapshotsListenAddr = fmt.Sprintf("%s/snapshots", client.Namespace())
+		c.SnapshotsListenAddr = fmt.Sprintf("%s/snapshots", clientNamespace())
 	}
 	return c, err
 }
@@ -270,4 +270,33 @@ func Initialize(baseDir string) error {
 		return fmt.Errorf("could not write generated configuration to %q: %w", path, err)
 	}
 	return nil
+}
+
+var dotZero = regexp.MustCompile(`\A(.*:\d+)\.0\z`)
+
+// clientNamespace returns the path to the name space directory.
+func clientNamespace() string {
+	ns := os.Getenv("NAMESPACE")
+	if ns != "" {
+		return ns
+	}
+
+	disp := os.Getenv("DISPLAY")
+	if disp == "" {
+		// No $DISPLAY? Use :0.0 for non-X11 GUI (OS X).
+		disp = ":0.0"
+	}
+
+	// Canonicalize: xxx:0.0 => xxx:0.
+	if m := dotZero.FindStringSubmatch(disp); m != nil {
+		disp = m[1]
+	}
+
+	// Turn /tmp/launch/:0 into _tmp_launch_:0 (OS X 10.5).
+	disp = strings.Replace(disp, "/", "_", -1)
+
+	// NOTE: plan9port creates this directory on demand.
+	// Maybe someday we'll need to do that.
+
+	return fmt.Sprintf("/tmp/ns.%s.%s", os.Getenv("USER"), disp)
 }
