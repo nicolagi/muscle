@@ -29,18 +29,18 @@ func TestNodeFlagsString(t *testing.T) {
 }
 
 func TestNodePath(t *testing.T) {
-	a := new(Node)
-	b := new(Node)
-	c := new(Node)
+	a := &Node{flags: loaded}
+	b := &Node{flags: loaded}
+	c := &Node{flags: loaded}
 
 	a.info.Name = "root"
 	b.info.Name = "child"
 	c.info.Name = "rosemary"
 
-	if err := a.add(b); err != nil {
+	if err := a.addChild(b); err != nil {
 		t.Fatalf("%+v", err)
 	}
-	if err := b.add(c); err != nil {
+	if err := b.addChild(c); err != nil {
 		t.Fatalf("%+v", err)
 	}
 

@@ -113,15 +113,29 @@ func (node *Node) followBranch(name string) (*Node, error) {
 	return nil, nil
 }
 
-// Returns whether the child was added. If it is already present, it does not
-// get added.
-func (node *Node) add(newChild *Node) error {
-	if newChild.flags&loaded != 0 {
-		if cn, err := node.followBranch(newChild.info.Name); err != nil {
-			return err
-		} else if cn != nil {
-			return errors.Wrapf(ErrExists, "%q within %q", newChild.info.Name, node.Path())
-		}
+func (node *Node) addChildPointer(p storage.Pointer) error {
+	if node.flags&loaded != 0 {
+		return errors.Wrapf(ErrInvariant, "add pointer %v to loaded node %v", p, node)
+	}
+	var stub Node
+	stub.parent = node
+	stub.pointer = p
+	node.children = append(node.children, &stub)
+	return nil
+}
+
+// addChild fails if the node already has a child with matching name.
+func (node *Node) addChild(newChild *Node) error {
+	if node.flags&loaded == 0 {
+		return errors.Wrapf(ErrInvariant, "add child %v to node %v, which wasn't loaded", newChild, node)
+	}
+	if newChild.flags&loaded == 0 {
+		return errors.Wrapf(ErrInvariant, "add child %v, which wasn't loaded, to node %v", newChild, node)
+	}
+	if cn, err := node.followBranch(newChild.info.Name); err != nil {
+		return err
+	} else if cn != nil {
+		return errors.Wrapf(ErrExists, "%q within %q", newChild.info.Name, node.Path())
 	}
 	newChild.parent = node
 	node.children = append(node.children, newChild)

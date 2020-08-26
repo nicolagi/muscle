@@ -58,7 +58,7 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	child.info.ID = uint64(time.Now().UnixNano())
 	child.info.Version = 1
 	child.touchNow()
-	if err := node.add(child); err != nil {
+	if err := node.addChild(child); err != nil {
 		return nil, err
 	}
 	node.touchNow()
@@ -155,7 +155,7 @@ func (tree *Tree) Graft(parent *Node, child *Node, childName string) error {
 			return fmt.Errorf("tree.Tree.Graft: parent: %v: %w", parent, err)
 		}
 	}
-	if err := parent.add(child); err != nil {
+	if err := parent.addChild(child); err != nil {
 		return err
 	}
 	child.info.Name = childName
@@ -201,7 +201,7 @@ func (tree *Tree) Rename(source, target string) error {
 		return err
 	}
 	nodeToMove.info.Name = newName
-	if err := newParent.add(nodeToMove); err != nil {
+	if err := newParent.addChild(nodeToMove); err != nil {
 		return err
 	}
 	nodeToMove.markDirty()

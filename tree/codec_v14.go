@@ -52,7 +52,7 @@ func (codecV14) decodeNode(data []byte, dest *Node) error {
 	u32, ptr = gint32(ptr)
 	for i := uint32(0); i < u32; i++ {
 		u8, ptr = gint8(ptr)
-		if err := dest.add(&Node{pointer: storage.NewPointer(ptr[:u8])}); err != nil {
+		if err := dest.addChildPointer(storage.NewPointer(ptr[:u8])); err != nil {
 			return err
 		}
 		ptr = ptr[u8:]

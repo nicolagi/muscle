@@ -18,9 +18,10 @@ func TestMarkDirty(t *testing.T) {
 		assert.Nil(t, a.pointer)
 	})
 	t.Run("node with parent", func(t *testing.T) {
-		inner := new(Node)
-		outer := new(Node)
-		if err := outer.add(inner); err != nil {
+		inner := &Node{flags: loaded}
+		inner.info.Name = "inner"
+		outer := &Node{flags: loaded}
+		if err := outer.addChild(inner); err != nil {
 			t.Fatal(err)
 		}
 		inner.markDirty()
