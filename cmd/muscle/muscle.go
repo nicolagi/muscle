@@ -8,10 +8,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/lionkov/go9p/p"
+	"github.com/lionkov/go9p/p/clnt"
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -95,6 +98,13 @@ Commands:
 		- Compare with ls -lR of main musclefs (which whould also use cache files that might have been erroneuously
 		removed from the remote).
 
+* control
+
+Reads commands line by line from standard input and sends them to
+musclefs via its contro file /ctl. It prints responses to standard
+output. An example usage is "muco pull | muco" where "muco" is
+defined as "fn muco { muscle control $* ; }".
+
 	diff: compare local tree to the remote tree
 	history: shows the history of the tree
 	init: initializes configuration given the base directory
@@ -152,6 +162,8 @@ func main() {
 			cleanFlags.Usage()
 			os.Exit(2)
 		}
+	case "control":
+		_ = emptyFlags.Parse(os.Args[2:])
 	case "diff":
 		_ = diffFlags.Parse(os.Args[2:])
 		if narg := diffFlags.NArg(); narg != 0 {
@@ -232,6 +244,15 @@ func main() {
 			fmt.Println(c)
 		}
 		os.Exit(0)
+	}
+
+	if os.Args[1] == "control" {
+		if err := doControl(cfg, os.Args[2:]); err != nil {
+			log.Printf("control: %+v", err)
+			os.Exit(1)
+		} else {
+			os.Exit(0)
+		}
 	}
 
 	stagingStore := storage.NewDiskStore(cfg.StagingDirectoryPath())
@@ -431,4 +452,46 @@ func main() {
 	default:
 		panic("not reached")
 	}
+}
+
+func doControl(c *config.C, args []string) error {
+	user := p.OsUsers.Uid2User(os.Getuid())
+	fs, err := clnt.Mount(c.ListenNet, c.ListenAddr, "", 8192, user)
+	if err != nil {
+		return errors.Wrapf(err, "connecting to %s", c.ListenAddr)
+	}
+	defer fs.Unmount()
+	ctl, err := fs.FOpen("ctl", p.ORDWR)
+	if err != nil {
+		return errors.Wrap(err, "opening control file")
+	}
+	defer func() {
+		if err := ctl.Close(); err != nil {
+			log.Printf("warning: closing control file: %v", err)
+		}
+	}()
+
+	var s *bufio.Scanner
+	if len(args) > 0 {
+		s = bufio.NewScanner(strings.NewReader(strings.Join(args, " ")))
+	} else {
+		s = bufio.NewScanner(os.Stdin)
+	}
+	for s.Scan() {
+		if _, err := ctl.Write(s.Bytes()); err != nil {
+			return errors.Wrapf(err, "writing command %q", s.Bytes())
+		}
+		if _, err := ctl.Seek(0, 0); err != nil {
+			return errors.Wrapf(err, "seeking to beginning of control file")
+		}
+		if response, err := ioutil.ReadAll(ctl); err != nil {
+			return errors.Wrapf(err, "reading response for command %q", s.Bytes())
+		} else if _, err := os.Stdout.Write(response); err != nil {
+			return errors.Wrapf(err, "writing response to standard output for command %q", s.Bytes())
+		}
+	}
+	if err := s.Err(); err != nil {
+		return errors.Wrap(err, "scanning input")
+	}
+	return nil
 }
