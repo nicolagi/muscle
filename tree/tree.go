@@ -27,6 +27,37 @@ type Tree struct {
 	lastFlushed time.Time
 }
 
+// NewTree constructs a new tree object using the given store, and
+// according to the given options (see the TreeOption section).
+func NewTree(store *Store, opts ...TreeOption) (*Tree, error) {
+	t := &Tree{
+		store:    store,
+		readOnly: true,
+	}
+	for _, o := range opts {
+		if err := o(t); err != nil {
+			return nil, err
+		}
+	}
+	if t.root == nil {
+		parent := &Node{
+			blockFactory: store.blockFactory,
+			flags:        loaded,
+		}
+		root, err := t.Add(parent, "root", 0700|DMDIR)
+		if err != nil {
+			return nil, err
+		}
+		t.root = root
+		// Clear out the fake parent,
+		// which was only introduced to re-use the logic in tree.Add.
+		t.root.parent = nil
+	}
+	// TODO when does it exit?
+	go t.trimPeriodically()
+	return t, nil
+}
+
 func (tree *Tree) Attach() *Node {
 	return tree.root
 }

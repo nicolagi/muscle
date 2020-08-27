@@ -86,7 +86,6 @@ func (node *fsNode) prepareForReads() {
 }
 
 type ops struct {
-	factory   *tree.Factory
 	treeStore *tree.Store
 
 	// Serializes access to the tree.
@@ -350,7 +349,7 @@ func runCommand(ops *ops, cmd string) error {
 		if err != nil {
 			return fmt.Errorf("%q: %w", revision, err)
 		}
-		historicalTree, err := ops.factory.NewTree(ops.factory.WithRevisionKey(key))
+		historicalTree, err := tree.NewTree(ops.treeStore, tree.WithRevision(key))
 		if err != nil {
 			return fmt.Errorf("could not load tree %q: %v", revision, err)
 		}
@@ -402,11 +401,11 @@ func runCommand(ops *ops, cmd string) error {
 			_, _ = fmt.Fprintln(outputBuffer, "local base matches remote base, pull is a no-op")
 			return nil
 		}
-		localbasetree, err := ops.factory.NewTree(ops.factory.WithRevisionKey(localbase))
+		localbasetree, err := tree.NewTree(ops.treeStore, tree.WithRevision(localbase))
 		if err != nil {
 			return output(err)
 		}
-		remotebasetree, err := ops.factory.NewTree(ops.factory.WithRevisionKey(remotebase))
+		remotebasetree, err := tree.NewTree(ops.treeStore, tree.WithRevision(remotebase))
 		if err != nil {
 			return output(err)
 		}
@@ -686,14 +685,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	factory := tree.NewFactory(blockFactory, treeStore, cfg)
-	tt, err := factory.NewTree(factory.WithRootKey(rootKey), factory.Mutable())
+	tt, err := tree.NewTree(treeStore, tree.WithRoot(rootKey), tree.WithMutable(cfg.BlockSize))
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
 
 	ops := &ops{
-		factory:   factory,
 		treeStore: treeStore,
 		tree:      tt,
 		c:         new(ctl),

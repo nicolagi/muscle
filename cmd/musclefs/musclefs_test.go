@@ -63,7 +63,7 @@ func TestComformsToManualPages(t *testing.T) {
 	// convention directories contain no explicit entry for ..  or . (dot).  The parent of the root directory of a
 	// server's tree is itself.
 	t.Run("walk to .. from root gives root", func(t *testing.T) {
-		client, _, _, tearDown := setUp(t)
+		client, _, tearDown := setUp(t)
 		defer tearDown(t)
 		newfid := client.FidAlloc()
 		qids, err := client.Walk(client.Root, newfid, []string{".."})
@@ -75,7 +75,7 @@ func TestComformsToManualPages(t *testing.T) {
 		assert.Equal(t, "root", dir.Name)
 	})
 	t.Run("walk to .. from dir gives parent", func(t *testing.T) {
-		client, _, _, tearDown := setUp(t)
+		client, _, tearDown := setUp(t)
 		defer tearDown(t)
 		must := &mustHelpers{t: t, c: client}
 
@@ -99,7 +99,7 @@ func TestComformsToManualPages(t *testing.T) {
 }
 
 func Test(t *testing.T) {
-	client, treeStore, factory, tearDown := setUp(t)
+	client, treeStore, tearDown := setUp(t)
 	defer tearDown(t)
 	t.Run("the root is a directory", func(t *testing.T) {
 		must := &mustHelpers{t: t, c: client}
@@ -178,7 +178,7 @@ func Test(t *testing.T) {
 	t.Run("graft /music while /music/song is open", func(t *testing.T) {
 		// Outside of the file server, we must create a "donor" tree that will "donate"
 		// a path that will be grafted onto the running tree.
-		donor, err := factory.NewTree(factory.Mutable())
+		donor, err := tree.NewTree(treeStore, tree.WithMutable(8192))
 		require.Nil(t, err)
 		_, donorRoot := donor.Root()
 		_, err = donor.Add(donorRoot, "music", 0666)
@@ -288,7 +288,7 @@ func Test(t *testing.T) {
 // The tree factory is configured to write to the same storage as the musclefs process,
 // therefore it can be used to build fixture data that the musclefs process can use, e.g.,
 // for the graft command.
-func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Factory, tearDown func(*testing.T)) {
+func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, tearDown func(*testing.T)) {
 	// dir will store what is usually in $HOME/lib/musclefs.
 	dir, err := ioutil.TempDir("", "musclefs")
 	if err != nil {
@@ -346,13 +346,10 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, factory *tree.Fa
 	require.Nil(t, err)
 	store, err = tree.NewStore(blockFactory, nil, nestedBase)
 	require.Nil(t, err)
-	factory = tree.NewFactory(blockFactory, store, &config.C{
-		BlockSize: 8192,
-	})
 
 	// TODO: Should do the cleean up only if the test is successful, leave other wise
 	// process and temporary files around for debugging.
-	return client, store, factory, func(t *testing.T) {
+	return client, store, func(t *testing.T) {
 		// Can't use command.Process.Kill() because that would kill go run, not its child.
 		//ng        9368  9353  0 18:52 ?        00:00:00 go run -race . -base ./config.test
 		//ng        9477  9368  0 18:52 ?        00:00:00 /tmp/go-build420765022/b001/exe/musclefs -base ./config.test

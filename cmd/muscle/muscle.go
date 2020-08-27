@@ -286,8 +286,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	treeFactory := tree.NewFactory(blockFactory, treeStore, cfg)
-	localTree, err := treeFactory.NewTree(treeFactory.WithRootKey(rootKey))
+	localTree, err := tree.NewTree(treeStore, tree.WithRoot(rootKey))
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -350,7 +349,7 @@ func main() {
 		if err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not load remote revision key")
 		}
-		remoteTree, err := treeFactory.NewTree(treeFactory.WithRevisionKey(remoteRevisionKey))
+		remoteTree, err := tree.NewTree(treeStore, tree.WithRevision(remoteRevisionKey))
 		if err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not load remote tree")
 		}
@@ -383,11 +382,11 @@ func main() {
 			fmt.Println(this)
 			if historyContext.diff && i < len(rr)-1 {
 				var a, b *tree.Tree
-				a, _ = treeFactory.NewTree(treeFactory.WithRevisionKey(rr[i+1].Key()))
+				a, _ = tree.NewTree(treeStore, tree.WithRevision(rr[i+1].Key()))
 				if i == 0 && this.Key().IsNull() {
-					b, _ = treeFactory.NewTree(treeFactory.WithRootKey(rev.RootKey()))
+					b, _ = tree.NewTree(treeStore, tree.WithRoot(rev.RootKey()))
 				} else {
-					b, _ = treeFactory.NewTree(treeFactory.WithRevisionKey(this.Key()))
+					b, _ = tree.NewTree(treeStore, tree.WithRevision(this.Key()))
 				}
 				err := tree.DiffTrees(a, b, tree.DiffTreesOutput(os.Stdout),
 					tree.DiffTreesInitialPath(historyContext.prefix),
@@ -431,7 +430,8 @@ func main() {
 			if err != nil {
 				cmdlog.WithField("cause", err).Fatal("Could not parse key")
 			}
-			t, err := treeFactory.NewTree(treeFactory.WithRevisionKey(key))
+			log.Printf("reachable: examining revision %q", key)
+			t, err := tree.NewTree(treeStore, tree.WithRevision(key))
 			if err != nil {
 				cmdlog.WithField("cause", err).Fatal("Could not construct tree")
 			}

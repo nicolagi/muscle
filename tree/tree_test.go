@@ -4,7 +4,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/nicolagi/muscle/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -77,9 +76,8 @@ func TestTreeWalking(t *testing.T) {
 
 func newTestTree(t *testing.T) *Tree {
 	t.Helper()
-	tree, err := NewFactory(newTestBlockFactory(t), newTestStore(t), &config.C{
-		BlockSize: 8192,
-	}).NewTree()
+	treeStore := newTestStore(t)
+	tree, err := NewTree(treeStore)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}

@@ -96,12 +96,11 @@ func (tn *treenode) read(r *srv.Req) (n int, err error) {
 var _ node = (*treenode)(nil)
 
 type rootdir struct {
-	dir         p.Dir
-	dirb        p9util.DirBuffer
-	treeroots   map[string]*treenode
-	treefactory *tree.Factory
-	treestore   *tree.Store
-	loaded      time.Time
+	dir       p.Dir
+	dirb      p9util.DirBuffer
+	treeroots map[string]*treenode
+	treestore *tree.Store
+	loaded    time.Time
 }
 
 var _ node = (*rootdir)(nil)
@@ -120,7 +119,7 @@ func (root *rootdir) walk(name string) (child node, err error) {
 	if err != nil {
 		return nil, nil
 	}
-	revtree, err := root.treefactory.NewTree(root.treefactory.WithRevisionKey(revpointer))
+	revtree, err := tree.NewTree(root.treestore, tree.WithRevision(revpointer))
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +167,7 @@ func (root *rootdir) reload() error {
 		if _, ok := root.treeroots[revname]; ok {
 			continue
 		}
-		revtree, err := root.treefactory.NewTree(root.treefactory.WithRevisionKey(revision.Key()))
+		revtree, err := tree.NewTree(root.treestore, tree.WithRevision(revision.Key()))
 		if err != nil {
 			log.Println(err)
 			continue
@@ -355,12 +354,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	treefactory := tree.NewFactory(blockFactory, treestore, cfg)
 
 	root := &rootdir{
-		treefactory: treefactory,
-		treestore:   treestore,
-		treeroots:   make(map[string]*treenode),
+		treestore: treestore,
+		treeroots: make(map[string]*treenode),
 	}
 	root.dir.Name = "snapshots"
 	root.dir.Mode = 0700 | p.DMDIR
