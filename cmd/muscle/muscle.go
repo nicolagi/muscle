@@ -5,8 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/lionkov/go9p/p"
 	"github.com/lionkov/go9p/p/clnt"
@@ -15,7 +19,7 @@ import (
 	"github.com/nicolagi/muscle/storage"
 	"github.com/nicolagi/muscle/tree"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -61,7 +65,7 @@ func newFlagSet(name string) *flag.FlagSet {
 	fs := flag.NewFlagSet(name, flag.ExitOnError)
 	fs.StringVar(&globalContext.base, "base", config.DefaultBaseDirectoryPath, "`directory` for caches, configuration, logs, etc.")
 	var levels []string
-	for _, l := range log.AllLevels {
+	for _, l := range logrus.AllLevels {
 		levels = append(levels, l.String())
 	}
 	fs.StringVar(&globalContext.logLevel, "verbosity", "warning", "sets the log `level`, among "+strings.Join(levels, ", "))
@@ -110,6 +114,19 @@ defined as "fn muco { muscle control $* ; }".
 	init: initializes configuration given the base directory
 	list: list all keys in remote store
 	reachable: reads a list of line-separated revision keys from standard input and lists all keys reachable from them to standard output
+
+* upload
+
+The “upload” command reads a list of 64-digit hexadecimal keys
+from standard input and propagates them from the cache to the
+permanent store using many goroutines. This command helps in case
+blocks are wrongly deleted from the permanent store, e.g., by
+improper use of the “reachable” and “clean” commands. Missing
+blocks, which you'd want to propagate from *another* host's cache,
+are reported in error messages (but you'll need to front muscle with
+a logging 9P proxy such as https://github.com/nicolagi/pine to see
+error messages in Linux).
+
 	version: show version information
 `, os.Args[0])
 	os.Exit(2)
@@ -199,6 +216,11 @@ func main() {
 		if narg := emptyFlags.NArg(); narg != 0 {
 			exitUsage(fmt.Sprintf("umount: no args expected, got %d", narg))
 		}
+	case "upload":
+		_ = emptyFlags.Parse(os.Args[2:])
+		if narg := emptyFlags.NArg(); narg != 0 {
+			exitUsage(fmt.Sprintf("upload: no args expected, got %d", narg))
+		}
 	case "version":
 		_ = emptyFlags.Parse(os.Args[2:])
 		if narg := emptyFlags.NArg(); narg != 0 {
@@ -208,13 +230,12 @@ func main() {
 		exitUsage(fmt.Sprintf("%q: command not recognized", cmd))
 	}
 
-	log.SetOutput(os.Stderr)
-	log.SetFormatter(&log.JSONFormatter{})
-	ll, err := log.ParseLevel(globalContext.logLevel)
+	logrus.SetFormatter(&logrus.JSONFormatter{})
+	ll, err := logrus.ParseLevel(globalContext.logLevel)
 	if err != nil {
 		log.Fatalf("Could not parse log level %q: %v", globalContext.logLevel, err)
 	}
-	log.SetLevel(ll)
+	logrus.SetLevel(ll)
 
 	// The init subcommand is special, because it must create configuration, not use it.
 	// Therefore it is handled outside of the big switch statement below.
@@ -308,7 +329,7 @@ func main() {
 			log.Fatalf("Error scanning file %q: %v", f.Name(), err)
 		}
 		_ = f.Close()
-		log.WithField("count", len(m)).Info("Found stored keys")
+		logrus.WithField("count", len(m)).Info("Found stored keys")
 		f, err = os.Open(cleanContext.neededKeys)
 		if err != nil {
 			log.Fatalf("Could not open file containing still needed keys %q: %v", cleanContext.neededKeys, err)
@@ -320,7 +341,7 @@ func main() {
 		if err := s.Err(); err != nil {
 			log.Fatalf("Error scanning file %q: %v", f.Name(), err)
 		}
-		log.WithField("count", len(m)).Info("Found stored keys that are no longer needed")
+		logrus.WithField("count", len(m)).Info("Found stored keys that are no longer needed")
 		i := 0
 		for keyHex := range m {
 			if keyHex == "base" || strings.HasPrefix(keyHex, tree.RemoteRootKeyPrefix) {
@@ -333,7 +354,7 @@ func main() {
 			err := remoteStore.Delete(key.Key())
 			if err != nil {
 				fmt.Print("O")
-				log.Error(err.Error())
+				logrus.Error(err.Error())
 			} else {
 				fmt.Print(".")
 			}
@@ -344,7 +365,7 @@ func main() {
 		}
 
 	case "diff":
-		cmdlog := log.WithFields(log.Fields{})
+		cmdlog := logrus.WithFields(logrus.Fields{})
 		remoteRevisionKey, err := treeStore.RemoteBasePointer()
 		if err != nil {
 			cmdlog.WithField("cause", err).Fatal("Could not load remote revision key")
@@ -421,7 +442,7 @@ func main() {
 		}
 
 	case "reachable":
-		cmdlog := log.WithField("op", cmd) // TODO adopt pattern for all commands
+		cmdlog := logrus.WithField("op", cmd) // TODO adopt pattern for all commands
 		m := make(map[string]struct{})
 		s := bufio.NewScanner(os.Stdin)
 		for s.Scan() {
@@ -445,6 +466,9 @@ func main() {
 		for k := range m {
 			fmt.Println(k)
 		}
+
+	case "upload":
+		doUpload(cacheStore, remoteStore)
 
 	case "version":
 		fmt.Println(version)
@@ -494,4 +518,47 @@ func doControl(c *config.C, args []string) error {
 		return errors.Wrap(err, "scanning input")
 	}
 	return nil
+}
+
+func doUpload(fromStore, toStore storage.Store) {
+	completed := uint32(0)
+	pending := make(chan storage.Key, 4096)
+	uploaders := sync.WaitGroup{}
+	// upload runs in a goroutine and uses the three variables above.
+	upload := func() {
+		for key := range pending {
+		get:
+			value, err := fromStore.Get(key)
+			if err != nil {
+				log.Printf("upload: error: Get: %v", err)
+				time.Sleep(time.Second)
+				goto get
+			}
+		put:
+			err = toStore.Put(key, value)
+			if err != nil {
+				log.Printf("upload: error: Put: %+v", err)
+				time.Sleep(time.Second)
+				goto put
+			}
+			if completedNew := atomic.AddUint32(&completed, 1); completedNew%100 == 0 {
+				log.Printf("upload: uploaded %d keys", completedNew)
+			}
+		}
+		uploaders.Done()
+	}
+	for i := 0; i < 64; i++ {
+		uploaders.Add(1)
+		go upload()
+	}
+	s := bufio.NewScanner(os.Stdin)
+	for s.Scan() {
+		pending <- storage.Key(s.Text())
+	}
+	if err := s.Err(); err != nil {
+		log.Fatalf("upload: error: could not scan keys from standard input: %v", err)
+	}
+	close(pending)
+	uploaders.Wait()
+	log.Printf("upload: uploaded %d keys", completed)
 }
