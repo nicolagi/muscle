@@ -1,13 +1,11 @@
 package tree
 
 import (
-	"sort"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/google/go-cmp/cmp"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -167,40 +165,6 @@ func TestGrow(t *testing.T) {
 		assert.Nil(t, oak.grow(&a, nil))
 		assert.Equal(t, "boot", a.children[0].info.Name)
 	})
-	t.Run("growing a node with only one child missing from storage", func(t *testing.T) {
-		a := Node{}
-		if err := a.addChildPointer(storage.RandomPointer()); err != nil {
-			t.Fatalf("%+v", err)
-		}
-		assert.Nil(t, oak.grow(&a, func(node *Node) error {
-			return storage.ErrNotFound
-		}))
-		assert.Regexp(t, "vanished", a.children[0].info.Name)
-		assert.Equal(t, dirty, a.children[0].flags&dirty)
-		assert.Equal(t, dirty, a.flags&dirty)
-	})
-	t.Run("growing a node with two children with same name once loaded", func(t *testing.T) {
-		a := &Node{}
-		if err := a.addChildPointer(storage.RandomPointer()); err != nil {
-			t.Fatalf("%+v", err)
-		}
-		if err := a.addChildPointer(storage.RandomPointer()); err != nil {
-			t.Fatalf("%+v", err)
-		}
-		assert.Nil(t, oak.grow(a, func(node *Node) error {
-			node.info.Name = "usr"
-			node.flags |= loaded
-			return nil
-		}))
-		sort.Slice(a.children, func(i, j int) bool {
-			return a.children[i].info.Name < a.children[j].info.Name
-		})
-		assert.Equal(t, "usr", a.children[0].info.Name)
-		assert.Regexp(t, "usr\\.dupe[0-9]+", a.children[1].info.Name)
-		assert.EqualValues(t, 0, a.children[0].flags&dirty)
-		assert.Equal(t, dirty, a.children[1].flags&dirty)
-		assert.Equal(t, dirty, a.flags&dirty)
-	})
 	t.Run("growing a node with three children and error for the second", func(t *testing.T) {
 		defer leaktest.Check(t)()
 		a := new(Node)
@@ -236,93 +200,6 @@ func TestGrow(t *testing.T) {
 		assert.Equal(t, "", secondName)
 		assert.Equal(t, "usr", thirdName)
 		assert.Equal(t, int32(3), atomic.LoadInt32(&loadCounter))
-	})
-	t.Run("duplicate arising when first node is loaded and second is not", func(t *testing.T) {
-		a := new(Node)
-		a.flags |= loaded
-		if err := a.addChild(&Node{flags: loaded, info: NodeInfo{Name: "home"}}); err != nil {
-			t.Fatalf("%+v", err)
-		}
-		a.flags &^= loaded
-		if err := a.addChildPointer(storage.RandomPointer()); err != nil {
-			t.Fatalf("%+v", err)
-		}
-		callCount := 0
-		assert.Nil(t, oak.grow(a, func(node *Node) error {
-			node.info.Name = "home"
-			node.flags |= loaded
-			callCount++
-			return nil
-		}))
-		assert.Equal(t, "home", a.children[0].info.Name)
-		assert.Regexp(t, "home\\.dupe[0-9]+", a.children[1].info.Name)
-		assert.EqualValues(t, 0, a.children[0].flags&dirty)
-		assert.Equal(t, dirty, a.children[1].flags&dirty)
-		assert.Equal(t, dirty, a.flags&dirty)
-		assert.Equal(t, 1, callCount)
-	})
-}
-
-func TestChildNamesAreMadeUnique(t *testing.T) {
-	newTestNode := func(names []string) *Node {
-		parent := &Node{}
-		for _, name := range names {
-			child := &Node{}
-			child.flags = loaded
-			child.info.Name = name
-			parent.children = append(parent.children, child)
-		}
-		return parent
-	}
-	extractChildNames := func(parent *Node) (allChildren []string, dirtyChildren []string) {
-		for _, child := range parent.children {
-			allChildren = append(allChildren, child.info.Name)
-			if child.flags&dirty != 0 {
-				dirtyChildren = append(dirtyChildren, child.info.Name)
-			}
-		}
-		return
-	}
-	testCases := []struct {
-		input  []string
-		output []string
-		dirty  []string // Children that should be marked dirty.
-	}{
-		{input: []string{}},
-		{input: []string{"one"}, output: []string{"one"}},
-		{input: []string{"one", "one"}, output: []string{"one", "one.dupe0"}, dirty: []string{"one.dupe0"}},
-		{input: []string{"one", "one", "one"}, output: []string{"one", "one.dupe0", "one.dupe1"}, dirty: []string{"one.dupe0", "one.dupe1"}},
-		{input: []string{"one", "two"}, output: []string{"one", "two"}},
-		{input: []string{"one", "two", "one", "two"}, output: []string{"one", "two", "one.dupe0", "two.dupe0"}, dirty: []string{"one.dupe0", "two.dupe0"}},
-		{input: []string{"one", "one.dupe1"}, output: []string{"one", "one.dupe1"}},
-		{input: []string{"one", "one", "one.dupe0"}, output: []string{"one", "one.dupe1", "one.dupe0"}, dirty: []string{"one.dupe1"}},
-	}
-	for _, tc := range testCases {
-		t.Run("", func(t *testing.T) {
-			parent := newTestNode(tc.input)
-			makeChildNamesUnique(parent)
-			all, dirty := extractChildNames(parent)
-			if diff := cmp.Diff(all, tc.output); diff != "" {
-				t.Errorf("Unexpected child names difference: %s", diff)
-			}
-			if diff := cmp.Diff(dirty, tc.dirty); diff != "" {
-				t.Errorf("Unexpected dirty child names difference: %s", diff)
-			}
-		})
-	}
-	t.Run("does not touch nodes that were never loaded", func(t *testing.T) {
-		parent := newTestNode([]string{"", ""})
-		for _, c := range parent.children {
-			c.flags &^= loaded
-		}
-		makeChildNamesUnique(parent)
-		all, dirty := extractChildNames(parent)
-		if diff := cmp.Diff(all, []string{"", ""}); diff != "" {
-			t.Errorf("Unexpected child names difference: %s", diff)
-		}
-		if diff := cmp.Diff(dirty, []string(nil)); diff != "" {
-			t.Errorf("Unexpected dirty child names difference: %s", diff)
-		}
 	})
 }
 

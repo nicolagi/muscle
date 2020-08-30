@@ -214,7 +214,6 @@ func (node *Node) hasEqualBlocks(other *Node) (bool, error) {
 			return false, err
 		}
 		if !same {
-			log.Printf("Difference at block %d: %v %v", i, node, other)
 			return false, nil
 		}
 	}

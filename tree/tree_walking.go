@@ -2,11 +2,9 @@ package tree
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/nicolagi/muscle/storage"
-	log "github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -62,48 +60,10 @@ func (tree *Tree) grow(parent *Node, load func(*Node) error) error {
 			semc <- struct{}{}
 			defer func() { <-semc }()
 			if err := load(child); err != nil {
-				if errors.Is(err, storage.ErrNotFound) {
-					log.WithField("key", child.pointer.Hex()).Error("Child not found in storage")
-					child.info.Name = "vanished"
-					child.markDirty()
-				} else if errors.Is(err, errNoCodec) {
-					child.info.Name = "nocodec"
-					child.markDirty()
-				} else {
-					return fmt.Errorf("tree.Tree.grow: parent %q child %q: %w", parent.info.Name, child.info.Name, err)
-				}
+				return errors.Wrapf(err, "tree.Tree.grow: loading a child of %q", parent.Path())
 			}
 			return nil
 		})
 	}
-	defer makeChildNamesUnique(parent)
 	return g.Wait()
-}
-
-func makeChildNamesUnique(parent *Node) {
-	names := make(map[string]struct{})
-	var dupes []*Node
-	for _, child := range parent.children {
-		if child.flags&loaded == 0 {
-			continue
-		}
-		if _, nameTaken := names[child.info.Name]; nameTaken {
-			dupes = append(dupes, child)
-		} else {
-			names[child.info.Name] = struct{}{}
-		}
-	}
-	for _, child := range dupes {
-		// Expensive in case of multiple duplicates.
-		// In any realistic scenario that I can conceive, it won't be a problem.
-		for i := 0; ; i++ {
-			newName := fmt.Sprintf("%s.dupe%d", child.info.Name, i)
-			if _, newNameTaken := names[newName]; !newNameTaken {
-				child.info.Name = newName
-				child.markDirty()
-				break
-			}
-		}
-		names[child.info.Name] = struct{}{}
-	}
 }
