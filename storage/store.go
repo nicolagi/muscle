@@ -43,7 +43,7 @@ func NewStore(c *config.C) (Store, error) {
 	case "null":
 		return NullStore{}, nil
 	case "s3":
-		return newS3Store(c), nil
+		return newS3Store(c)
 	default:
 		return nil, fmt.Errorf("%q: %w", c.Storage, ErrNotImplemented)
 	}

@@ -1,8 +1,9 @@
-package storage // import "github.com/nicolagi/muscle/storage"
+package storage
 
 import (
 	"bytes"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 
@@ -13,30 +14,32 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/nicolagi/muscle/config"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
+
+type s3Store struct {
+	client *s3.S3
+	bucket string
+}
 
 var _ Store = (*s3Store)(nil)
 
-type s3Store struct {
-	profile string
-	region  string
-	bucket  string
-	client  *s3.S3
-}
-
-func newS3Store(c *config.C) Store {
-	return &s3Store{
-		profile: c.S3Profile,
-		region:  c.S3Region,
-		bucket:  c.S3Bucket,
+func newS3Store(c *config.C) (Store, error) {
+	const maxRetries = 16 // I have  very bad connectivity.
+	sess, err := session.NewSession(&aws.Config{
+		Region:      aws.String(c.S3Region),
+		Credentials: credentials.NewSharedCredentials("", c.S3Profile),
+		MaxRetries:  aws.Int(maxRetries),
+	})
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
+	return &s3Store{
+		client: s3.New(sess),
+		bucket: c.S3Bucket,
+	}, nil
 }
 
 func (s *s3Store) Get(key Key) (contents Value, err error) {
-	if err := s.ensureClient(); err != nil {
-		return nil, err
-	}
 	output, err := s.client.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(string(key)),
@@ -51,42 +54,35 @@ func (s *s3Store) Get(key Key) (contents Value, err error) {
 	}
 	defer func() {
 		if err := output.Body.Close(); err != nil {
-			log.WithFields(log.Fields{
-				"op":  "get",
-				"key": key,
-			}).Warning("Could not close response body")
+			log.Printf("warning: storage.s3Store.Get: could not close response body: %v", err)
 		}
 	}()
 	return ioutil.ReadAll(output.Body)
 }
 
 func (s *s3Store) Put(key Key, value Value) (err error) {
-	err = s.ensureClient()
-	if err == nil {
-		_, err = s.client.PutObject(&s3.PutObjectInput{
-			Bucket: aws.String(s.bucket),
-			Key:    aws.String(string(key)),
-			Body:   bytes.NewReader(value),
-		})
+	_, err = s.client.PutObject(&s3.PutObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(string(key)),
+		Body:   bytes.NewReader(value),
+	})
+	if err != nil {
+		return errors.WithStack(err)
 	}
-	return
+	return nil
 }
 
 func (s *s3Store) Delete(key Key) error {
-	if err := s.ensureClient(); err != nil {
-		return err
-	}
-	_, err := s.client.DeleteObject(&s3.DeleteObjectInput{
+	if _, err := s.client.DeleteObject(&s3.DeleteObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(string(key)),
-	})
-	return err
+	}); err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 func (s *s3Store) List() (keys chan string, err error) {
-	if err := s.ensureClient(); err != nil {
-		return nil, err
-	}
 	keys = make(chan string)
 	go s.list(keys)
 	return keys, nil
@@ -102,7 +98,7 @@ func (s *s3Store) list(recv chan string) {
 	for {
 		output, err = s.client.ListObjects(input)
 		if err != nil {
-			log.WithField("cause", err.Error()).Error("Could not list")
+			log.Printf("warning: storage.s3Store.list: %v", err)
 			// Retry indefinitely.
 			time.Sleep(5 * time.Second)
 			continue
@@ -116,20 +112,4 @@ func (s *s3Store) list(recv chan string) {
 		input.Marker = output.NextMarker
 	}
 	close(recv)
-}
-
-func (s *s3Store) ensureClient() error {
-	if s.client != nil {
-		return nil
-	}
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(s.region),
-		Credentials: credentials.NewSharedCredentials("", s.profile),
-	})
-	if err != nil {
-		return err
-	}
-	client := s3.New(sess)
-	s.client = client
-	return nil
 }
