@@ -28,7 +28,6 @@ import (
 var (
 	unsupportedModes = map[uint32]error{
 		p.DMAPPEND:    fmt.Errorf("append-only files are not supported"),
-		p.DMEXCL:      fmt.Errorf("exclusive-use files are not supported"),
 		p.DMMOUNT:     fmt.Errorf("mounted channels are not supported"),
 		p.DMAUTH:      fmt.Errorf("authentication files are not supported"),
 		p.DMTMP:       fmt.Errorf("temporary files are not supported"),
@@ -44,7 +43,7 @@ var (
 )
 
 func init() {
-	knownModes = 0777 | p.DMDIR
+	knownModes = 0777 | p.DMDIR | p.DMEXCL
 	for mode := range unsupportedModes {
 		knownModes |= mode
 	}
@@ -618,7 +617,8 @@ func (ops *ops) Wstat(r *srv.Req) {
 				r.RespondError(err)
 				return
 			}
-			node.SetPerm(dir.Mode)
+			// TODO: Handle p.DMEXCL.
+			node.SetPerm(dir.Mode & 0777)
 		}
 
 		// TODO: Not sure it's best to 'pretend' it works, or fail.
