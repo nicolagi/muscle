@@ -1,4 +1,4 @@
-package main_test
+package main
 
 import (
 	"flag"
@@ -40,14 +40,19 @@ func init() {
 // even if the file is already opened more than once.
 // (This in CWFS. I haven't checked other file systems.)
 func TestDMEXCL(t *testing.T) {
-	if fsAddr == "" {
-		t.Skip()
-	}
-	rand.Seed(time.Now().UnixNano())
+	var c *clnt.Clnt
 	user := p.OsUsers.Uid2User(os.Getuid())
-	c, err := clnt.Mount("tcp", fsAddr, "", 8192, user)
-	require.NoError(t, err)
-	defer c.Unmount()
+	if fsAddr == "" {
+		client, _, tearDown := setUp(t)
+		defer tearDown(t)
+		c = client
+	} else {
+		rand.Seed(time.Now().UnixNano())
+		client, err := clnt.Mount("tcp", fsAddr, "", 8192, user)
+		require.NoError(t, err)
+		defer client.Unmount()
+		c = client
+	}
 	t.Run("it is okay to walk twice to a DMEXCL file, but it is not possible to open it twice", func(t *testing.T) {
 		r := require.New(t)
 		a := assert.New(t)

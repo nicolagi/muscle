@@ -73,6 +73,7 @@ type fsNode struct {
 	*tree.Node
 
 	dirb p9util.DirBuffer
+	lock *nodeLock // Only meaningful for DMEXCL files.
 }
 
 func (node *fsNode) prepareForReads() {
@@ -110,6 +111,10 @@ func (ops *ops) FidDestroy(fid *srv.Fid) {
 	}
 	node := fid.Aux.(*fsNode)
 	node.Unref("FidDestroy")
+	if node.lock != nil {
+		unlockNode(node.lock)
+		node.lock = nil
+	}
 }
 
 func (ops *ops) Attach(r *srv.Req) {
@@ -196,6 +201,15 @@ func (ops *ops) Open(r *srv.Req) {
 			r.RespondError(Eunlinked)
 			return
 		}
+		qid := p9util.NodeQID(node.Node)
+		if m := moreMode(qid.Path); m&p.DMEXCL != 0 {
+			node.lock = lockNode(r.Fid, node.Node)
+			if node.lock == nil {
+				r.RespondError("file already locked")
+				return
+			}
+			qid.Type |= p.QTEXCL
+		}
 		switch {
 		case node.IsDir():
 			if err := ops.tree.Grow(node.Node); err != nil {
@@ -211,7 +225,6 @@ func (ops *ops) Open(r *srv.Req) {
 				}
 			}
 		}
-		qid := p9util.NodeQID(node.Node)
 		r.RespondRopen(&qid, 0)
 	}
 }
@@ -239,8 +252,18 @@ func (ops *ops) Create(r *srv.Req) {
 		}
 		node.Ref("create")
 		parent.Unref("created child")
-		r.Fid.Aux = &fsNode{Node: node}
+		child := &fsNode{Node: node}
+		r.Fid.Aux = child
 		qid := p9util.NodeQID(node)
+		if r.Tc.Perm&p.DMEXCL != 0 {
+			setMoreMode(qid.Path, p.DMEXCL)
+			child.lock = lockNode(r.Fid, child.Node)
+			if child.lock == nil {
+				r.RespondError("out of locks")
+				return
+			}
+			qid.Type |= p.QTEXCL
+		}
 		r.RespondRcreate(&qid, 0)
 	}
 }
@@ -510,6 +533,13 @@ func (ops *ops) Write(r *srv.Req) {
 func (ops *ops) Clunk(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
+	if r.Fid.Aux != ops.c {
+		node := r.Fid.Aux.(*fsNode)
+		if node.lock != nil {
+			unlockNode(node.lock)
+			node.lock = nil
+		}
+	}
 	r.RespondRclunk()
 }
 
@@ -552,6 +582,13 @@ func (ops *ops) Stat(r *srv.Req) {
 			return
 		}
 		dir := p9util.NodeDir(node.Node)
+		if m := moreMode(dir.Qid.Path); m&p.DMEXCL != 0 {
+			dir.Mode |= p.DMEXCL
+			dir.Qid.Type |= p.QTEXCL
+		} else {
+			dir.Mode &^= p.DMEXCL
+			dir.Qid.Type &^= p.QTEXCL
+		}
 		r.RespondRstat(&dir)
 	}
 }
@@ -617,7 +654,12 @@ func (ops *ops) Wstat(r *srv.Req) {
 				r.RespondError(err)
 				return
 			}
-			// TODO: Handle p.DMEXCL.
+			qid := p9util.NodeQID(node.Node)
+			if dir.Mode&p.DMEXCL != 0 {
+				setMoreMode(qid.Path, p.DMEXCL)
+			} else {
+				setMoreMode(qid.Path, 0)
+			}
 			node.SetPerm(dir.Mode & 0777)
 		}
 

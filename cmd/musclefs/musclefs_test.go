@@ -1,4 +1,4 @@
-package main_test
+package main
 
 import (
 	"fmt"
@@ -37,7 +37,7 @@ size[4] remove(5) [2] fid[4]
 size[4] stat(5) [2] fid[4]
 size[4] wstat(5) [2] fid[4] stat[n]
 */
-func TestComformsToManualPages(t *testing.T) {
+func TestConformsToManualPages(t *testing.T) {
 	// From intro(5):
 	// The thirteen-byte qid fields hold a one-byte type, specifying whether the file is a directory, append-only
 	// file, etc., and two unsigned integers: first the four-byte qid version, then the eight-byte qid path.  The
@@ -328,6 +328,14 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, tearDown func(*t
 	user := p.OsUsers.Uid2User(os.Geteuid())
 	client, err = clnt.Mount("tcp", testAddress, user.Name(), 8192, user)
 	require.Nil(t, err)
+
+	// Create tmp dir, expected by newer tests.
+	r := require.New(t)
+	newfid := client.FidAlloc()
+	_, err = client.Walk(client.Root, newfid, []string{})
+	r.NoError(err)
+	r.NoError(client.Create(newfid, "tmp", 0777|p.DMDIR, p.OREAD, ""))
+	r.NoError(client.Clunk(newfid))
 
 	// dir is the based dir for musclefs.
 	// Let's get another nested temporary directory for the donor.
