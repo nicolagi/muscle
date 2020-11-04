@@ -1,9 +1,10 @@
 package config
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,39 +44,39 @@ type C struct {
 	// BlockSize is the capacity for blocks of new nodes. Existing nodes
 	// have their block size encoded within them (which is the value of this
 	// variable at the time the nodes were created).
-	BlockSize uint32 `json:"block-size,omitempty"`
+	BlockSize uint32
 
 	// Listen on localhost or a local-only network, e.g., one for
 	// containers hosted on your computer.  There is no
 	// authentication nor TLS so the file server must not be exposed on a
 	// public address.
-	ListenNet           string `json:"listen-net,omitempty"`
-	ListenAddr          string `json:"listen-addr,omitempty"`
-	SnapshotsListenNet  string `json:"snapshots-listen-net,omitempty"`
-	SnapshotsListenAddr string `json:"snapshots-listen-addr,omitempty"`
+	ListenNet           string
+	ListenAddr          string
+	SnapshotsListenNet  string
+	SnapshotsListenAddr string
 
-	MuscleFSMount    string `json:"musclefs-mount,omitempty"`
-	SnapshotsFSMount string `json:"snapshotsfs-mount,omitempty"`
+	MuscleFSMount    string
+	SnapshotsFSMount string
 
 	// 64 hex digits - do not lose this or you lose access to all
 	// data.
-	EncryptionKey string `json:"encryption-key,omitempty"`
+	EncryptionKey string
 
 	// Path to cache. Defaults to $HOME/lib/muscle/cache.
-	CacheDirectory string `json:"cache-directory,omitempty"`
+	CacheDirectory string
 
 	// Permanent storage type - can be "s3" or "null" at present.
-	Storage string `json:"storage,omitempty"`
+	Storage string
 
 	// These only make sense if the storage type is "s3".  The AWS
 	// profile is used for credentials.
-	S3Profile string `json:"s3-profile,omitempty"`
-	S3Region  string `json:"s3-region,omitempty"`
-	S3Bucket  string `json:"s3-bucket,omitempty"`
+	S3Profile string
+	S3Region  string
+	S3Bucket  string
 
 	// These only make sense if the storage type is "disk".
 	// If the path is relative, it will be assumed relative to the base dir.
-	DiskStoreDir string `json:"disk-store-dir,omitempty"`
+	DiskStoreDir string
 
 	// Directory holding muscle config file and other files.
 	// Other directories and files are derived from this.
@@ -87,21 +89,21 @@ type C struct {
 // Load loads the configuration from the file called "config" in the provided base
 // directory.
 func Load(base string) (*C, error) {
-	filename := path.Join(base, "config")
+	filename := filepath.Join(base, "config")
+	if fi, err := os.Stat(filename); err != nil {
+		return nil, fmt.Errorf("config.Load: %w", err)
+	} else if fi.Mode()&0077 != 0 {
+		return nil, fmt.Errorf("config.Load %q: mode is %#o, want at most %#o",
+			filename, fi.Mode()&0777, fi.Mode()&0700)
+	}
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
+		// Ignore error closing file opened only for reading.
 		_ = f.Close()
 	}()
-	fi, err := os.Stat(filename)
-	if err != nil {
-		return nil, err
-	}
-	if fi.Mode()&0077 != 0 {
-		return nil, fmt.Errorf("reading config: %s mode is %#o, want %#o", filename, fi.Mode()&0777, fi.Mode()&0700)
-	}
 	c, err := load(f)
 	if err == nil {
 		c.base = base
@@ -131,9 +133,59 @@ func Load(base string) (*C, error) {
 	return c, err
 }
 
-func load(r io.Reader) (c *C, err error) {
-	err = json.NewDecoder(r).Decode(&c)
-	return
+func load(f io.Reader) (*C, error) {
+	c := C{}
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		line := strings.TrimSpace(s.Text())
+		if len(line) == 0 || line[0] == '#' {
+			continue
+		}
+		i := strings.IndexAny(line, " 	")
+		if i == -1 {
+			return nil, fmt.Errorf("load: no separator in %q", line)
+		}
+		switch key, val := line[:i], strings.TrimSpace(line[i:]); key {
+		case "block-size":
+			if i, err := strconv.ParseUint(val, 10, 32); err != nil {
+				return nil, fmt.Errorf("load: %w", err)
+			} else {
+				c.BlockSize = uint32(i)
+			}
+		case "cache-directory":
+			c.CacheDirectory = val
+		case "disk-store-dir":
+			c.DiskStoreDir = val
+		case "encryption-key":
+			c.EncryptionKey = val
+		case "listen-addr":
+			c.ListenAddr = val
+		case "listen-net":
+			c.ListenNet = val
+		case "musclefs-mount":
+			c.MuscleFSMount = val
+		case "s3-bucket":
+			c.S3Bucket = val
+		case "s3-profile":
+			c.S3Profile = val
+		case "s3-region":
+			c.S3Region = val
+		case "snapshotsfs-mount":
+			c.SnapshotsFSMount = val
+		case "snapshots-listen-addr":
+			c.SnapshotsListenAddr = val
+		case "snapshots-listen-net":
+			c.SnapshotsListenNet = val
+		case "storage":
+			c.Storage = val
+		default:
+			return nil, fmt.Errorf("load: unknown key %q", key)
+		}
+	}
+	if err := s.Err(); err != nil {
+		return nil, fmt.Errorf("load: %w", err)
+	}
+	return &c, nil
 }
 
 func (c *C) CacheDirectoryPath() string {
@@ -240,16 +292,17 @@ func Initialize(baseDir string) error {
 	if !os.IsNotExist(err) {
 		return fmt.Errorf("%q: could not determine if it exists: %w", path, err)
 	}
-	var c C
-	c.BlockSize = defaultBlockSize
+
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "block-size %d\n", defaultBlockSize)
 	mathrand.Seed(time.Now().UnixNano())
 	port := 49152 + mathrand.Intn(65535-49152)
-	c.ListenNet = "tcp"
-	c.ListenAddr = fmt.Sprintf("127.0.0.1:%d", port)
-	c.SnapshotsListenNet = "tcp"
-	c.SnapshotsListenAddr = fmt.Sprintf("127.0.0.1:%d", port+1)
-	c.MuscleFSMount = "/mnt/muscle"
-	c.SnapshotsFSMount = "/mnt/snapshots"
+	buf.WriteString("listen-net tcp\n")
+	fmt.Fprintf(&buf, "listen-addr 127.0.0.1:%d\n", port)
+	buf.WriteString("snapshots-listen-net tcp\n")
+	fmt.Fprintf(&buf, "snapshots-listen-addr 127.0.0.1:%d\n", port+1)
+	buf.WriteString("musclefs-mount /mnt/muscle\n")
+	buf.WriteString("snapshotsfs-mount /mnt/snapshots\n")
 	b := make([]byte, 32)
 	n, err := rand.Read(b)
 	if err != nil {
@@ -258,16 +311,12 @@ func Initialize(baseDir string) error {
 	if n != 32 {
 		return fmt.Errorf("could not read 32 random bytes, got only %d", n)
 	}
-	c.EncryptionKey = hex.EncodeToString(b)
-	c.Storage = "disk"
-	c.DiskStoreDir = "permanent"
-	b, err = json.MarshalIndent(c, "", "	")
+	fmt.Fprintf(&buf, "encryption-key %02x\n", b)
+	buf.WriteString("storage disk\n")
+	buf.WriteString("disk-store-dir permanent\n")
+	err = ioutil.WriteFile(path, buf.Bytes(), 0600)
 	if err != nil {
-		return fmt.Errorf("could not marshal generated configuration: %w", err)
-	}
-	err = ioutil.WriteFile(path, b, 0600)
-	if err != nil {
-		return fmt.Errorf("could not write generated configuration to %q: %w", path, err)
+		return fmt.Errorf("config.Initialize %q: %w", path, err)
 	}
 	return nil
 }
