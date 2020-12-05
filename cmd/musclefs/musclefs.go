@@ -370,6 +370,55 @@ func runCommand(ops *ops, cmd string) error {
 			return errors.Errorf("walked %d path elements, required %d", len(nn), len(elems))
 		}
 		return ops.tree.RemoveForMerge(nn[len(nn)-1])
+	case "graft2":
+		{
+			// Usage: graft2 srcNodeHex/src/path dst/path
+			// e.g. graft2 50f6060602543d6825a84ed5b6bd215df6944cf1a41f283a9329d41c2c70c956 tmp/test
+			// or graft2 50f6060602543d6825a84ed5b6bd215df6944cf1a41f283a9329d41c2c70c956/foo/bar baz
+			// The srcNodeHex can refer to _any_ node, not necessarily a tree root node!
+			parts := strings.Split(args[0], "/")
+			srcNodeHex := parts[0]
+			srcPathElems := parts[1:]
+			dstPathElems := strings.Split(args[1], "/")
+			dstLeafNodeName := dstPathElems[len(dstPathElems)-1]
+			dstReceiverPathElems := dstPathElems[:len(dstPathElems)-1]
+			srcNodeKey, err := storage.NewPointerFromHex(srcNodeHex)
+			if err != nil {
+				return fmt.Errorf("graft2: parse pointer: %v", err)
+			}
+			srcTree, err := tree.NewTree(ops.treeStore, tree.WithRoot(srcNodeKey))
+			if err != nil {
+				return fmt.Errorf("graft2: load source tree: %v", err)
+			}
+			srcRoot := srcTree.Attach()
+			var srcLeafNode *tree.Node
+			if len(srcPathElems) > 0 {
+				wn, err := srcTree.Walk(srcRoot, srcPathElems...)
+				if err != nil || len(wn) != len(srcPathElems) {
+					return fmt.Errorf("graft2: walk to source: %v", err)
+				}
+				srcLeafNode = wn[len(wn)-1]
+			} else {
+				srcLeafNode = srcRoot
+			}
+			_, dstRoot := ops.tree.Root()
+			var dstReceiver *tree.Node
+			if len(dstReceiverPathElems) > 0 {
+				wn, err := ops.tree.Walk(dstRoot, dstReceiverPathElems...)
+				if err != nil {
+					return fmt.Errorf("graft2: walk to destination: %v", err)
+				}
+				dstReceiver = wn[len(wn)-1]
+			} else {
+				dstReceiver = dstRoot
+			}
+			fmt.Printf("Grafting %s into %s\n", srcLeafNode, dstReceiver)
+			err = ops.tree.Graft(dstReceiver, srcLeafNode, dstLeafNodeName)
+			if err != nil {
+				log.Printf("graft2: %v", err)
+				return srv.Eperm
+			}
+		}
 	case "graft":
 		parts := strings.Split(args[0], "/")
 		revision := parts[0]
