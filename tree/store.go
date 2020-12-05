@@ -3,6 +3,7 @@ package tree
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -161,6 +162,12 @@ func (s *Store) LoadNode(dst *Node) error {
 	}
 	if err := s.codec.decodeNode(encoded, dst); err != nil {
 		return errw(err)
+	}
+	// Once in a blue moon, a new bug manifests itself...
+	if dst.info.Name == "" {
+		b := make([]byte, 8)
+		rand.Read(b)
+		dst.info.Name = fmt.Sprintf("%x.%s", b, time.Now().UTC().Format(time.RFC3339))
 	}
 	dst.flags |= loaded
 	return nil
