@@ -102,19 +102,14 @@ func (pl *propagationLog) next(p []byte) {
 	}
 }
 
-func (pl *propagationLog) mark(state byte) error {
+func (pl *propagationLog) mark(state byte, off int64) error {
 	pl.mu.Lock()
-	n, err := pl.file.WriteAt([]byte{state}, pl.readOffset)
+	n, err := pl.file.WriteAt([]byte{state}, off)
 	pl.mu.Unlock()
-	pl.readOffset += logLineLength // Advance to next line.
 	if n != 1 {
 		return fmt.Errorf("wrote %d bytes instead of 1", n)
 	}
 	return err
-}
-
-func (pl *propagationLog) skip() {
-	pl.readOffset += logLineLength
 }
 
 func (pl *propagationLog) close() {
@@ -205,30 +200,37 @@ func (p *Paired) EnsureBackgroundPuts() {
 }
 
 func (p *Paired) propagate() {
-	line := make([]byte, logLineLength)
-	for {
-		p.log.next(line)
-		if state := line[0]; state != itemPending && state != itemMissing {
-			log.Warnf("skipping item with unexpected state: %d", state)
-			p.log.skip()
-			continue
-		}
-		key := Key(line[1:65])
+	sem := make(chan struct{}, 16)
+	up1 := func(key Key, off int64) {
 		value, err := p.fast.Get(key)
 		if err != nil {
 			// If we can't update it in the log, it will be re-processed (needless but idempotent).
-			_ = p.log.mark(itemMissing)
-			continue
+			_ = p.log.mark(itemMissing, off)
+			return
 		}
 		for {
 			if err = p.slow.Put(key, value); err == nil {
 				break
 			}
-			log.Warnf("failure to put %q to slow store (will retry): %v", key, err)
+			log.Printf("failure to put %q to slow store (will retry): %v", key, err)
 			time.Sleep(p.retryInterval)
 		}
 		// If we can't update it in the log, it will be re-processed (needless but idempotent).
-		_ = p.log.mark(itemDone)
+		_ = p.log.mark(itemDone, off)
+		<-sem
+	}
+	line := make([]byte, logLineLength)
+	for {
+		p.log.next(line)
+		k := Key(line[1:65])
+		off := p.log.readOffset
+		p.log.readOffset += logLineLength // Advance to next line.
+		if state := line[0]; state != itemPending && state != itemMissing {
+			log.Printf("skipping item with unexpected state: %d", state)
+			continue
+		}
+		sem <- struct{}{}
+		go up1(k, off)
 	}
 }
 

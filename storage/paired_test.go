@@ -20,24 +20,17 @@ import (
 // Any sequence of add(), next(), mark() can happen.
 func TestPropagationLogPreservesStateAcrossRestarts(t *testing.T) {
 	f := func(byteKeys [][32]byte, restart int) bool {
-		logFile, err := ioutil.TempFile("", "")
-		require.Nil(t, err)
-		defer func() {
-			_ = os.Remove(logFile.Name())
-			matches, _ := filepath.Glob(logFile.Name() + ".*")
-			for _, archived := range matches {
-				_ = os.Remove(archived)
-			}
-		}()
-		_ = logFile.Close()
-		log, err := newLog(logFile.Name())
-		require.Nil(t, err)
+		r := require.New(t)
+		dir := t.TempDir()
+		logFile := filepath.Join(dir, "logfile")
+		log, err := newLog(logFile)
+		r.NoError(err)
 
 		keys := make([]Key, len(byteKeys))
 		for i, raw := range byteKeys {
 			k := Key(fmt.Sprintf("%x", raw))
 			keys[i] = k
-			require.Nil(t, log.add(k))
+			r.NoError(log.add(k))
 		}
 		p := make([]byte, logLineLength)
 		i := 0
@@ -55,14 +48,15 @@ func TestPropagationLogPreservesStateAcrossRestarts(t *testing.T) {
 				t.Errorf("key mismatch, got %q, want %q", nextKey, keys[i])
 				return false
 			}
-			require.Nil(t, log.mark(itemDone))
+			r.NoError(log.mark(itemDone, log.readOffset))
+			log.readOffset += logLineLength
 		}
 		// Shutdown.
 		log.close()
 
 		// Restart and process the rest.
-		log, err = newLog(logFile.Name())
-		require.Nil(t, err)
+		log, err = newLog(logFile)
+		r.NoError(err)
 		for ; i < len(byteKeys); i++ {
 			log.next(p)
 			if strings.IndexByte("pmd", p[0]) == -1 {
@@ -73,7 +67,8 @@ func TestPropagationLogPreservesStateAcrossRestarts(t *testing.T) {
 				t.Errorf("key mismatch, got %q, want %q", nextKey, keys[i])
 				return false
 			}
-			require.Nil(t, log.mark(itemDone))
+			r.NoError(log.mark(itemDone, log.readOffset))
+			log.readOffset += logLineLength
 		}
 
 		return true
