@@ -2,7 +2,6 @@ package tree
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 	"time"
 
@@ -53,24 +52,11 @@ func NewTree(store *Store, opts ...TreeOption) (*Tree, error) {
 		// which was only introduced to re-use the logic in tree.Add.
 		t.root.parent = nil
 	}
-	// TODO when does it exit?
-	go t.trimPeriodically()
 	return t, nil
 }
 
 func (tree *Tree) Attach() *Node {
 	return tree.root
-}
-
-func (tree *Tree) trimPeriodically() {
-	for {
-		time.Sleep(time.Minute)
-		// This, I think, is the only protection against loading large files temporarily.
-		// The problem with large files is that they take up a lot of memory and changes the
-		// GC target too much. This is the only way to free up that memory.
-		tree.root.Trim()
-		runtime.GC()
-	}
 }
 
 func (tree *Tree) Root() (storage.Pointer, *Node) { return tree.revision, tree.root }

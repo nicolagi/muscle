@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -464,8 +465,13 @@ func runCommand(ops *ops, cmd string) error {
 			return srv.Eperm
 		}
 	case "trim":
+		// This, I think, is the only protection against loading large
+		// files temporarily. The problem with large files is that they
+		// take up a lot of memory and changes the GC target too much. This
+		// is the only way to free up that memory.
 		_, root := ops.tree.Root()
 		root.Trim()
+		runtime.GC()
 	case "flush":
 		if err := ops.tree.Flush(); err != nil {
 			return fmt.Errorf("could not flush: %v", err)
