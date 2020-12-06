@@ -90,8 +90,9 @@ type ops struct {
 	treeStore *tree.Store
 
 	// Serializes access to the tree.
-	mu   sync.Mutex
-	tree *tree.Tree
+	mu      sync.Mutex
+	tree    *tree.Tree
+	trimmed time.Time
 
 	// Control node
 	c *ctl
@@ -593,6 +594,12 @@ func (ops *ops) Clunk(r *srv.Req) {
 		if node.lock != nil {
 			unlockNode(node.lock)
 			node.lock = nil
+		}
+		if time.Since(ops.trimmed) > time.Minute {
+			_, root := ops.tree.Root()
+			root.Trim()
+			runtime.GC()
+			ops.trimmed = time.Now()
 		}
 	}
 	r.RespondRclunk()
