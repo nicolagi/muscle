@@ -59,6 +59,7 @@ func (tree *Tree) PullWorklog(cfg *config.C, baseTree *Tree, remoteTree *Tree) (
 		remoteTree.root,
 		baseTree.revision.Hex(),
 		remoteTree.revision.Hex(),
+		remoteTree.root.pointer.Hex(),
 		cfg,
 		&buf,
 	)
@@ -70,7 +71,7 @@ func (tree *Tree) PullWorklog(cfg *config.C, baseTree *Tree, remoteTree *Tree) (
 	return
 }
 
-func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node, baseRev, remoteRev string, cfg *config.C, output io.Writer) error {
+func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node, baseRev, remoteRev string, remoteRoot string, cfg *config.C, output io.Writer) error {
 	if sameKeyOrBothNil(local, remote) {
 		return nil
 	}
@@ -100,7 +101,7 @@ func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node,
 		}
 		p = strings.TrimPrefix(p, "/")
 		if remote != nil {
-			_, _ = fmt.Fprintf(output, "graft %s/%s %s\n", remoteRev, p, p)
+			_, _ = fmt.Fprintf(output, "graft2 %s/%s %s\n", remoteRoot, p, p)
 		} else {
 			_, _ = fmt.Fprintf(output, "unlink %s\n", p)
 		}
@@ -112,7 +113,7 @@ func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node,
 	// Otherwise, we can try recursion (losing metadata diffs for the directories, but it's something I can stand at the moment).
 
 	if remote != nil {
-		resolved := localTree.isIgnored(remoteRev, strings.TrimPrefix(remote.Path(), "/"))
+		resolved := localTree.isIgnored(remoteRoot, strings.TrimPrefix(remote.Path(), "/"))
 		if resolved {
 			log.Printf("There was a conflict at path %q but it is marked as locally resolved\n", remote.Path())
 			return nil
@@ -127,9 +128,9 @@ func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node,
 		if remote != nil {
 			p := remote.Path()
 			p = strings.TrimPrefix(p, "/")
-			_, _ = fmt.Fprintf(output, "%s/%s\n", remoteRev, p)
-			_, _ = fmt.Fprintf(output, "# graft %s/%s %s\n", remoteRev, p, p+".merge-conflict")
-			_, _ = fmt.Fprintf(output, "# graft %s/%s %s\n", remoteRev, p, p)
+			_, _ = fmt.Fprintf(output, "%s/%s\n", remoteRoot, p)
+			_, _ = fmt.Fprintf(output, "# graft2 %s/%s %s\n", remoteRoot, p, p+".merge-conflict")
+			_, _ = fmt.Fprintf(output, "# graft2 %s/%s %s\n", remoteRoot, p, p)
 			localVersion := filepath.Join(
 				cfg.MuscleFSMount,
 				p,
@@ -145,7 +146,7 @@ func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node,
 				p,
 			)
 			_, _ = fmt.Fprintf(output, "meld %s %s %s\n", localVersion, baseVersion, remoteVersion)
-			_, _ = fmt.Fprintf(output, "# keep-local-for %s/%s\n", remoteRev, p)
+			_, _ = fmt.Fprintf(output, "# keep-local-for %s/%s\n", remoteRoot, p)
 		}
 		_, _ = fmt.Fprintln(output, "EOE")
 		return nil
@@ -176,7 +177,7 @@ func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node,
 	}
 
 	for name := range mergeNames {
-		if err := merge3way(localTree, baseTree, remoteTree, getChild(localChildren, name), getChild(baseChildren, name), getChild(remoteChildren, name), baseRev, remoteRev, cfg, output); err != nil {
+		if err := merge3way(localTree, baseTree, remoteTree, getChild(localChildren, name), getChild(baseChildren, name), getChild(remoteChildren, name), baseRev, remoteRev, remoteRoot, cfg, output); err != nil {
 			return err
 		}
 	}
