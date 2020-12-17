@@ -104,8 +104,14 @@ var (
 	_ srv.ReqOps = (*ops)(nil)
 	_ srv.FidOps = (*ops)(nil)
 
-	Eunlinked error = &p.Error{Err: "fid points to unlinked node", Errornum: p.EINVAL}
+	Eperm     = "permission denied"
+	Eunlinked = "fid points to unlinked node"
 )
+
+func logRespondError(r *srv.Req, err string) {
+	log.Printf("Rerror: %s", err)
+	r.RespondError(err)
+}
 
 func (ops *ops) FidDestroy(fid *srv.Fid) {
 	if fid.Aux == nil || fid.Aux == ops.c {
@@ -138,12 +144,12 @@ func (ops *ops) Walk(r *srv.Req) {
 			r.Newfid.Aux = ops.c
 			r.RespondRwalk(nil)
 		} else {
-			r.RespondError(srv.Eperm)
+			logRespondError(r, Eperm)
 		}
 	default:
 		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
-			r.RespondError(Eunlinked)
+			logRespondError(r, Eunlinked)
 			return
 		}
 		if len(r.Tc.Wname) == 0 {
@@ -161,18 +167,14 @@ func (ops *ops) Walk(r *srv.Req) {
 		nodes, err := ops.tree.Walk(node.Node, r.Tc.Wname...)
 		if errors.Is(err, tree.ErrNotExist) {
 			if len(nodes) == 0 {
-				r.RespondError(srv.Enoent)
+				logRespondError(r, "file not found")
 				return
 			}
 			// Clear the error if it was of type "not found" and we could walk at least a node.
 			err = nil
 		}
 		if err != nil {
-			log.WithFields(log.Fields{
-				"path":  node.Path(),
-				"cause": err.Error(),
-			}).Error("Could not walk")
-			r.RespondError(srv.Eperm)
+			logRespondError(r, err.Error())
 			return
 		}
 		var qids []p.Qid
@@ -192,7 +194,7 @@ func (ops *ops) Open(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	if r.Tc.Mode&p.ORCLOSE != 0 {
-		r.RespondError(srv.Eperm)
+		logRespondError(r, Eperm)
 	}
 	switch {
 	case r.Fid.Aux == ops.c:
@@ -200,14 +202,14 @@ func (ops *ops) Open(r *srv.Req) {
 	default:
 		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
-			r.RespondError(Eunlinked)
+			logRespondError(r, Eunlinked)
 			return
 		}
 		qid := p9util.NodeQID(node.Node)
 		if m := moreMode(qid.Path); m&p.DMEXCL != 0 {
 			node.lock = lockNode(r.Fid, node.Node)
 			if node.lock == nil {
-				r.RespondError("file already locked")
+				logRespondError(r, "file already locked")
 				return
 			}
 			qid.Type |= p.QTEXCL
@@ -215,14 +217,14 @@ func (ops *ops) Open(r *srv.Req) {
 		switch {
 		case node.IsDir():
 			if err := ops.tree.Grow(node.Node); err != nil {
-				r.RespondError(err)
+				logRespondError(r, err.Error())
 				return
 			}
 			node.prepareForReads()
 		default:
 			if r.Tc.Mode&p.OTRUNC != 0 {
 				if err := node.Truncate(0); err != nil {
-					r.RespondError(err)
+					logRespondError(r, err.Error())
 					return
 				}
 			}
@@ -236,20 +238,20 @@ func (ops *ops) Create(r *srv.Req) {
 	defer ops.mu.Unlock()
 	switch {
 	case r.Fid.Aux == ops.c:
-		r.RespondError(srv.Eperm)
+		logRespondError(r, Eperm)
 	default:
 		parent := r.Fid.Aux.(*fsNode)
 		if parent.Unlinked() {
-			r.RespondError(Eunlinked)
+			logRespondError(r, Eunlinked)
 			return
 		}
 		if err := checkMode(nil, r.Tc.Perm); err != nil {
-			r.RespondError(err)
+			logRespondError(r, err.Error())
 			return
 		}
 		node, err := ops.tree.Add(parent.Node, r.Tc.Name, r.Tc.Perm)
 		if err != nil {
-			r.RespondError(err)
+			logRespondError(r, err.Error())
 			return
 		}
 		node.Ref("create")
@@ -261,7 +263,7 @@ func (ops *ops) Create(r *srv.Req) {
 			setMoreMode(qid.Path, p.DMEXCL)
 			child.lock = lockNode(r.Fid, child.Node)
 			if child.lock == nil {
-				r.RespondError("out of locks")
+				logRespondError(r, "out of locks")
 				return
 			}
 			qid.Type |= p.QTEXCL
@@ -274,7 +276,7 @@ func (ops *ops) Read(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	if err := p.InitRread(r.Rc, r.Tc.Count); err != nil {
-		r.RespondError(err)
+		logRespondError(r, err.Error())
 		return
 	}
 	switch {
@@ -285,7 +287,7 @@ func (ops *ops) Read(r *srv.Req) {
 	default:
 		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
-			r.RespondError(Eunlinked)
+			logRespondError(r, Eunlinked)
 			return
 		}
 		var count int
@@ -296,11 +298,7 @@ func (ops *ops) Read(r *srv.Req) {
 			count, err = node.ReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
 		}
 		if err != nil {
-			log.WithFields(log.Fields{
-				"path":  node.Path(),
-				"cause": err.Error(),
-			}).Error("Could not read")
-			r.RespondError(srv.Eperm)
+			logRespondError(r, err.Error())
 			return
 		}
 		p.SetRreadCount(r.Rc, uint32(count))
@@ -568,18 +566,18 @@ func (ops *ops) Write(r *srv.Req) {
 		ops.c.D.Mtime = uint32(time.Now().Unix())
 		// Assumption: One Twrite per command.
 		if err := runCommand(ops, string(r.Tc.Data)); err != nil {
-			r.RespondError(err)
+			logRespondError(r, err.Error())
 			return
 		}
 		r.RespondRwrite(uint32(len(r.Tc.Data)))
 	default:
 		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
-			r.RespondError(Eunlinked)
+			logRespondError(r, Eunlinked)
 			return
 		}
 		if err := node.WriteAt(r.Tc.Data, int64(r.Tc.Offset)); err != nil {
-			r.RespondError(err)
+			logRespondError(r, err.Error())
 			return
 		}
 		r.RespondRwrite(uint32(len(r.Tc.Data)))
@@ -610,20 +608,19 @@ func (ops *ops) Remove(r *srv.Req) {
 	defer ops.mu.Unlock()
 	switch {
 	case r.Fid.Aux == ops.c:
-		r.RespondError(srv.Eperm)
+		logRespondError(r, Eperm)
 	default:
 		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
-			r.RespondError(Eunlinked)
+			logRespondError(r, Eunlinked)
 			return
 		}
 		err := ops.tree.Remove(node.Node)
 		if err != nil {
 			if errors.Is(err, tree.ErrNotEmpty) {
-				r.RespondError(srv.Enotempty)
+				logRespondError(r, "directory not empty")
 			} else {
-				log.Printf("%s: %+v", node.Path(), err)
-				r.RespondError(srv.Eperm)
+				logRespondError(r, err.Error())
 			}
 		} else {
 			r.RespondRremove()
@@ -640,7 +637,7 @@ func (ops *ops) Stat(r *srv.Req) {
 	default:
 		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
-			r.RespondError(Eunlinked)
+			logRespondError(r, Eunlinked)
 			return
 		}
 		dir := p9util.NodeDir(node.Node)
@@ -660,24 +657,21 @@ func (ops *ops) Wstat(r *srv.Req) {
 	defer ops.mu.Unlock()
 	switch {
 	case r.Fid.Aux == ops.c:
-		r.RespondError(srv.Eperm)
+		logRespondError(r, Eperm)
 	default:
 		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
-			r.RespondError(Eunlinked)
+			logRespondError(r, Eunlinked)
 			return
 		}
 		dir := r.Tc.Dir
 		if dir.ChangeLength() {
 			if node.IsDir() {
-				r.RespondError(srv.Eperm)
+				logRespondError(r, Eperm)
 				return
 			}
 			if err := node.Truncate(dir.Length); err != nil {
-				log.WithFields(log.Fields{
-					"cause": err,
-				}).Error("Could not truncate")
-				r.RespondError(srv.Eperm)
+				logRespondError(r, err.Error())
 				return
 			}
 		}
@@ -700,7 +694,7 @@ func (ops *ops) Wstat(r *srv.Req) {
 				"dir":  dir,
 				"qid":  dir.Qid,
 			}).Warning("Trying to change illegal fields")
-			r.RespondError(srv.Eperm)
+			logRespondError(r, Eperm)
 			return
 		}
 
@@ -713,7 +707,7 @@ func (ops *ops) Wstat(r *srv.Req) {
 
 		if dir.ChangeMode() {
 			if err := checkMode(node.Node, dir.Mode); err != nil {
-				r.RespondError(err)
+				logRespondError(r, err.Error())
 				return
 			}
 			qid := p9util.NodeQID(node.Node)
@@ -727,7 +721,7 @@ func (ops *ops) Wstat(r *srv.Req) {
 
 		// TODO: Not sure it's best to 'pretend' it works, or fail.
 		if dir.ChangeGID() {
-			r.RespondError(srv.Eperm)
+			logRespondError(r, Eperm)
 			return
 		}
 
