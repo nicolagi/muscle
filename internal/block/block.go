@@ -3,6 +3,7 @@ package block
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/nicolagi/muscle/storage"
 	"github.com/pkg/errors"
@@ -43,6 +44,9 @@ type Block struct {
 	cipher     blockCipher
 	index      storage.Store
 	repository storage.Store
+
+	// When was the block last used?
+	atime time.Time
 }
 
 // TODO: panic if block is dirty.
@@ -51,6 +55,7 @@ func (block *Block) Ref() Ref {
 }
 
 func (block *Block) Size() (n int, err error) {
+	block.atime = time.Now()
 	if err := block.ensureReadable(); err != nil {
 		return 0, fmt.Errorf("block.Block.Size: %w", err)
 	}
@@ -58,6 +63,7 @@ func (block *Block) Size() (n int, err error) {
 }
 
 func (block *Block) Read(p []byte, off int) (n int, err error) {
+	block.atime = time.Now()
 	if err := block.ensureReadable(); err != nil {
 		return 0, fmt.Errorf("block.Block.Read: %w", err)
 	}
@@ -69,6 +75,7 @@ func (block *Block) Read(p []byte, off int) (n int, err error) {
 
 // ReadAll returns a copy of the content of the block.
 func (block *Block) ReadAll() ([]byte, error) {
+	block.atime = time.Now()
 	if err := block.ensureReadable(); err != nil {
 		return nil, err
 	}
@@ -80,6 +87,7 @@ func (block *Block) ReadAll() ([]byte, error) {
 // Truncate shrinks or grows a block up to the block capacity.
 // If the requested size exceeds the capacity, an error is returned.
 func (block *Block) Truncate(size int) error {
+	block.atime = time.Now()
 	if size > block.capacity {
 		return fmt.Errorf("block.Block.Truncate: requested %d bytes with capacity %d", size, block.capacity)
 	}
@@ -96,6 +104,7 @@ func (block *Block) Truncate(size int) error {
 }
 
 func (block *Block) Write(p []byte, off int) (n int, sizeIncrease int, err error) {
+	block.atime = time.Now()
 	if len(p) == 0 {
 		return 0, 0, nil
 	}
@@ -121,6 +130,7 @@ func (block *Block) Write(p []byte, off int) (n int, sizeIncrease int, err error
 // Flush ensures the block is synced to disk.
 // Returns whether the block needed flushing or not, or an error.
 func (block *Block) Flush() (flushed bool, err error) {
+	block.atime = time.Now()
 	if block.state != dirty {
 		return false, nil
 	}
@@ -150,6 +160,7 @@ func (block *Block) flush() error {
 
 // Seal ensures a read-only version of the block is written to the repository.
 func (block *Block) Seal() (sealed bool, err error) {
+	block.atime = time.Now()
 	if block.location == repository && (block.state == primed || block.state == clean) {
 		return false, nil
 	}
@@ -186,6 +197,9 @@ func (block *Block) seal() error {
 // Unused at the moment, tree.Node.Trim nils out the whole slice of blocks.
 func (block *Block) Forget() (forgotten bool) {
 	if block.state != clean {
+		return false
+	}
+	if time.Since(block.atime) < time.Minute {
 		return false
 	}
 	block.forget()
