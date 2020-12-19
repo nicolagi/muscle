@@ -3,6 +3,7 @@ package tree
 import (
 	"bytes"
 	"fmt"
+	stdlog "log"
 	"time"
 
 	"github.com/nicolagi/muscle/internal/block"
@@ -281,7 +282,12 @@ func (node *Node) Trim() {
 		})
 
 		if node.IsRoot() || node.flags&dirty != 0 || node.refs != 0 || age < minAge {
-			le.Debug("Not trimming")
+			le.Debug("Not trimming, but maybe we can trim blocks")
+			for _, b := range node.blocks {
+				if b.Forget() {
+					stdlog.Printf("Trimmed node %q block %q", node.Path(), b.Ref())
+				}
+			}
 			return
 		}
 
