@@ -21,7 +21,7 @@ func (f *ctl) read(target []byte, offset int) int {
 	return copy(target, f.contents[offset:])
 }
 
-func doDiff(w io.Writer, localTree *tree.Tree, treeStore *tree.Store, args []string) error {
+func doDiff(w io.Writer, localTree *tree.Tree, treeStore *tree.Store, mountpoint string, args []string) error {
 	var diffContext struct {
 		context int
 		prefix  string
@@ -55,6 +55,7 @@ func doDiff(w io.Writer, localTree *tree.Tree, treeStore *tree.Store, args []str
 		tree.DiffTreesNamesOnly(diffContext.names),
 		tree.DiffTreesVerbose(diffContext.verbose),
 		tree.DiffTreesMaxSize(diffContext.maxSize),
+		tree.DiffTreesOutputPathPrefix(mountpoint),
 	)
 	return err
 }

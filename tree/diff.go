@@ -114,12 +114,13 @@ func (node treeNode) Content() (string, error) {
 }
 
 type diffTreesOptions struct {
-	contextLines int
-	namesOnly    bool
-	verbose      bool
-	output       io.Writer
-	initialPath  string
-	maxSize      int
+	contextLines     int
+	namesOnly        bool
+	verbose          bool
+	output           io.Writer
+	initialPath      string
+	maxSize          int
+	outputPathPrefix string
 }
 
 // DiffTreesOption follows the functional options pattern to pass options to DiffTrees.
@@ -158,6 +159,12 @@ func DiffTreesNamesOnly(value bool) DiffTreesOption {
 func DiffTreesVerbose(value bool) DiffTreesOption {
 	return func(opts *diffTreesOptions) {
 		opts.verbose = value
+	}
+}
+
+func DiffTreesOutputPathPrefix(value string) DiffTreesOption {
+	return func(opts *diffTreesOptions) {
+		opts.outputPathPrefix = value
 	}
 }
 
@@ -210,14 +217,14 @@ func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
 	if ap == "" {
 		ap = "/dev/null"
 	} else {
-		commonp = ap
+		commonp = filepath.Join(opts.outputPathPrefix, ap)
 		ap = filepath.Join("a", ap)
 	}
 	bp := b.Path()
 	if bp == "" {
 		bp = "/dev/null"
 	} else {
-		commonp = bp
+		commonp = filepath.Join(opts.outputPathPrefix, bp)
 		bp = filepath.Join("b", bp)
 	}
 

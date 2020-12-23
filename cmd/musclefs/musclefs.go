@@ -330,7 +330,7 @@ func runCommand(ops *ops, cmd string) error {
 
 	switch cmd {
 	case "diff":
-		return doDiff(outputBuffer, ops.tree, ops.treeStore, args)
+		return doDiff(outputBuffer, ops.tree, ops.treeStore, ops.cfg.MuscleFSMount, args)
 	case "level":
 		if err := setLevel(args[0]); err != nil {
 			return err
