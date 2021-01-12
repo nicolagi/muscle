@@ -49,7 +49,7 @@ func (tree *Tree) Grow(parent *Node) error {
 
 // TODO: load should take a context for cancellation.
 func (tree *Tree) grow(parent *Node, load func(*Node) error) error {
-	semc := make(chan struct{}, 32)
+	semc := make(chan struct{}, 8)
 	g, _ := errgroup.WithContext(context.Background())
 	for _, child := range parent.children {
 		if child.flags&loaded != 0 {
