@@ -205,6 +205,11 @@ func (node *Node) hasEqualBlocks(other *Node) (bool, error) {
 	if node == nil || other == nil {
 		return false, nil
 	}
+	// Legacy check. File systems should no longer have mixed-size blocks.
+	if node.bsize != other.bsize {
+		log.Printf("Different block sizes (%d and %d), assuming nodes have different contents", node.bsize, other.bsize)
+		return false, nil
+	}
 	if len(node.blocks) != len(other.blocks) {
 		log.Printf("Different number of blocks: %v %v", node, other)
 		return false, nil

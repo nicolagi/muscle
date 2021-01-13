@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -30,8 +31,9 @@ type Tree struct {
 // according to the given options (see the TreeOption section).
 func NewTree(store *Store, opts ...TreeOption) (*Tree, error) {
 	t := &Tree{
-		store:    store,
-		readOnly: true,
+		store:     store,
+		readOnly:  true,
+		blockSize: config.BlockSize,
 	}
 	for _, o := range opts {
 		if err := o(t); err != nil {

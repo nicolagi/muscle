@@ -787,7 +787,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	tt, err := tree.NewTree(treeStore, tree.WithRoot(rootKey), tree.WithMutable(cfg.BlockSize))
+	tt, err := tree.NewTree(treeStore, tree.WithRoot(rootKey), tree.WithMutable())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}

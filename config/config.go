@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -27,7 +26,21 @@ var (
 	// Commands override this via the -base flag.
 	DefaultBaseDirectoryPath string
 
-	defaultBlockSize uint32 = 1024 * 1024
+	// DO NOT CHANGE.
+	//
+	// I had to back out changes to make the block size configurable. That
+	// knob turned out to be a problem: If a file system has blocks of a
+	// variety of different sizes, contents can't be compared for equality
+	// just by looking at the list of block hashes. I don't want musclefs
+	// to read up large files to determine if they're equal or not, as that
+	// would make the merge operation slow.
+	//
+	// The block size could still be configurable per file system, but that
+	// configuration should be written _once_ and never changed (in
+	// conventional file systems, in the superblocks). Since we've no
+	// superblocks (for now?) I decided to remove the configuration knob
+	// entirely.
+	BlockSize uint32 = 1024 * 1024
 )
 
 func init() {
@@ -41,11 +54,6 @@ func init() {
 }
 
 type C struct {
-	// BlockSize is the capacity for blocks of new nodes. Existing nodes
-	// have their block size encoded within them (which is the value of this
-	// variable at the time the nodes were created).
-	BlockSize uint32
-
 	// Listen on localhost or a local-only network, e.g., one for
 	// containers hosted on your computer.  There is no
 	// authentication nor TLS so the file server must not be exposed on a
@@ -115,9 +123,6 @@ func Load(base string) (*C, error) {
 	if c.DiskStoreDir != "" && !filepath.IsAbs(c.DiskStoreDir) {
 		c.DiskStoreDir = filepath.Clean(filepath.Join(c.base, c.DiskStoreDir))
 	}
-	if c.BlockSize == 0 {
-		c.BlockSize = defaultBlockSize
-	}
 	if c.ListenNet == "" && c.ListenAddr == "" {
 		c.ListenNet = "unix"
 	}
@@ -146,12 +151,6 @@ func load(f io.Reader) (*C, error) {
 			return nil, fmt.Errorf("load: no separator in %q", line)
 		}
 		switch key, val := line[:i], strings.TrimSpace(line[i:]); key {
-		case "block-size":
-			if i, err := strconv.ParseUint(val, 10, 32); err != nil {
-				return nil, fmt.Errorf("load: %w", err)
-			} else {
-				c.BlockSize = uint32(i)
-			}
 		case "cache-directory":
 			c.CacheDirectory = val
 		case "disk-store-dir":
@@ -294,7 +293,6 @@ func Initialize(baseDir string) error {
 	}
 
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "block-size %d\n", defaultBlockSize)
 	mathrand.Seed(time.Now().UnixNano())
 	port := 49152 + mathrand.Intn(65535-49152)
 	buf.WriteString("listen-net tcp\n")

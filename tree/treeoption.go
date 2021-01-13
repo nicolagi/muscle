@@ -10,12 +10,10 @@ type TreeOption func(*Tree) error
 
 // The WithMutable option specifies that the tree to be constructed
 // should allow mutating operations, like writing data, changing file
-// names, and adding new nodes. The block size (in bytes) is the size
-// of data blocks for all new nodes added to the tree.
-func WithMutable(blockSize uint32) TreeOption {
+// names, and adding new nodes.
+func WithMutable() TreeOption {
 	return func(t *Tree) error {
 		t.readOnly = false
-		t.blockSize = blockSize
 		return nil
 	}
 }
