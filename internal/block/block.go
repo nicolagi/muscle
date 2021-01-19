@@ -130,7 +130,6 @@ func (block *Block) Write(p []byte, off int) (n int, sizeIncrease int, err error
 // Flush ensures the block is synced to disk.
 // Returns whether the block needed flushing or not, or an error.
 func (block *Block) Flush() (flushed bool, err error) {
-	block.atime = time.Now()
 	if block.state != dirty {
 		return false, nil
 	}
