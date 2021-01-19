@@ -63,8 +63,11 @@ func (s *Store) StoreNode(node *Node) error {
 	if err := blk.Truncate(0); err != nil {
 		return errw(err)
 	}
-	if _, _, err := blk.Write(encoded, 0); err != nil {
+	if n, _, err := blk.Write(encoded, 0); err != nil {
 		return errw(err)
+	} else if n != len(encoded) {
+		// We get here if we try to write a more than 32 GB file.
+		return errw(fmt.Errorf("(actual) %d != (expected) %d", n, len(encoded)))
 	}
 	if _, err := blk.Flush(); err != nil {
 		return errw(err)
