@@ -618,7 +618,11 @@ func (ops *ops) Remove(r *srv.Req) {
 		err := ops.tree.Remove(node.Node)
 		if err != nil {
 			if errors.Is(err, tree.ErrNotEmpty) {
-				logRespondError(r, "directory not empty")
+				// Do not change the error string.
+				// /usr/src/linux-source-5.4.0/net/9p/error.c converts errors strings
+				// to error codes.
+				// Reported by fsdiff.
+				logRespondError(r, "Directory not empty")
 			} else {
 				logRespondError(r, err.Error())
 			}
