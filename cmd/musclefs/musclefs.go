@@ -743,11 +743,16 @@ func setLevel(level string) error {
 }
 
 func main() {
-	if err := agent.Listen(agent.Options{
-		ShutdownCleanup: true,
-	}); err != nil {
+	// Do NOT turn on agent.ShutdownCleanup.
+	// The installed signal handler will call os.Exit, preventing
+	// musclefs from doing a clean shutdown, possibly leading
+	// to data loss.
+	if err := agent.Listen(agent.Options{}); err != nil {
 		log.Printf("Could not start gops agent: %v", err)
 	}
+
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
 
 	base := flag.String("base", config.DefaultBaseDirectoryPath, "Base directory for configuration, logs and cache files")
 	blockSize := flag.Int("fsdiff.blocksize", -1, "Do NOT use this for production file systems.")
@@ -851,18 +856,18 @@ func main() {
 		}
 	}()
 
-	// Now just wait for a signal to do the clean-up.
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT)
-	for range c {
-		log.Info("Final clean-up")
+	log.Print("Awaiting a signal to flush and exit.")
+	for sig := range sigc {
+		log.Printf("Got signal %q, flushing before exiting.", sig)
 		ops.mu.Lock()
 		if err := tt.Flush(); err != nil {
-			log.Printf("Could not flush: %v", err)
+			log.Printf("Flushing failed, won't quit: %+v", err)
 			ops.mu.Unlock()
 			continue
 		}
+		log.Print("Flushed, quitting.")
 		ops.mu.Unlock()
 		break
 	}
+	agent.Close()
 }
