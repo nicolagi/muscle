@@ -746,7 +746,12 @@ func main() {
 	}
 
 	base := flag.String("base", config.DefaultBaseDirectoryPath, "Base directory for configuration, logs and cache files")
+	blockSize := flag.Int("fsdiff.blocksize", -1, "Do NOT use this for production file systems.")
 	flag.Parse()
+	if *blockSize != -1 {
+		log.Printf("Overriding block size to %d bytes.", *blockSize)
+		config.BlockSize = uint32(*blockSize)
+	}
 	cfg, err := config.Load(*base)
 	if err != nil {
 		log.Fatalf("Could not load config from %q: %v", *base, err)
