@@ -756,6 +756,7 @@ func main() {
 
 	base := flag.String("base", config.DefaultBaseDirectoryPath, "Base directory for configuration, logs and cache files")
 	blockSize := flag.Int("fsdiff.blocksize", -1, "Do NOT use this for production file systems.")
+	debug := flag.Bool("D", false, "Print 9P dialogs.")
 	flag.Parse()
 	if *blockSize != -1 {
 		log.Printf("Overriding block size to %d bytes.", *blockSize)
@@ -831,6 +832,9 @@ func main() {
 	fs := &srv.Srv{}
 	fs.Dotu = false
 	fs.Id = "muscle"
+	if *debug {
+		fs.Debuglevel = srv.DbgPrintFcalls
+	}
 	if !fs.Start(ops) {
 		log.Fatal("go9p/p/srv.Srv.Start returned false")
 	}
