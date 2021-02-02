@@ -143,3 +143,10 @@ func (node *Node) markUnlinked() {
 		child.markUnlinked()
 	}
 }
+
+func (node *Node) markLinked() {
+	node.flags &^= unlinked
+	for _, child := range node.children {
+		child.markLinked()
+	}
+}

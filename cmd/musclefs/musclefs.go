@@ -350,9 +350,18 @@ func runCommand(ops *ops, cmd string) error {
 		ops.tree.Ignore(parts[0], parts[1])
 		return nil
 	case "rename":
+		if len(args) != 2 {
+			_, _ = fmt.Fprintln(outputBuffer, "Usage: rename SOURCE TARGET")
+			return linuxerr.EINVAL
+		}
 		err := ops.tree.Rename(args[0], args[1])
 		if err != nil {
-			return fmt.Errorf("could not rename %q to %q: %v", args[0], args[1], err)
+			_, _ = fmt.Fprintf(outputBuffer, "rename: %v\n", err)
+			var e linuxerr.E
+			if errors.As(err, &e) {
+				return e
+			}
+			return err
 		}
 	case "unlink":
 		if len(args) == 0 {
@@ -847,6 +856,9 @@ func main() {
 	// need to be flushed to the disk cache.
 	go func() {
 		for {
+			// XXX
+			// This may interfere with fsdiff's crash inducing code!!!
+			// Adds non-determinism to the process.
 			time.Sleep(tree.SnapshotFrequency)
 			ops.mu.Lock()
 			// TODO handle all errors - add errcheck to precommit?

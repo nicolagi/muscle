@@ -2,13 +2,15 @@ package tree
 
 import (
 	"fmt"
+	"log"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/nicolagi/muscle/config"
+	"github.com/nicolagi/muscle/internal/linuxerr"
 	"github.com/nicolagi/muscle/storage"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 var ErrInUse = errors.New("in use")
@@ -44,6 +46,7 @@ func NewTree(store *Store, opts ...TreeOption) (*Tree, error) {
 		parent := &Node{
 			blockFactory: store.blockFactory,
 			flags:        loaded,
+			info:         NodeInfo{Mode: 0700 | DMDIR},
 		}
 		root, err := t.Add(parent, "root", 0700|DMDIR)
 		if err != nil {
@@ -182,47 +185,94 @@ func (tree *Tree) Graft(parent *Node, child *Node, childName string) error {
 	return nil
 }
 
-func (tree *Tree) Rename(source, target string) error {
-	sourceWalkNames := strings.Split(source, "/")
-	targetWalkNames := strings.Split(target, "/")
+func (tree *Tree) Rename(sourcepath, targetpath string) error {
+	sourcepath = filepath.Clean(sourcepath)
+	targetpath = filepath.Clean(targetpath)
 
-	visitedNodes, err := tree.Walk(tree.root, sourceWalkNames...)
+	// Validation peculiar to musclefs.
+	if sourcepath == "/" || targetpath == "/" {
+		return fmt.Errorf("root directory: %w", linuxerr.EINVAL)
+	}
+	if sourcepath == "." || targetpath == "." {
+		return fmt.Errorf("dot: %w", linuxerr.EINVAL)
+	}
+	if sourcepath[0] == '/' || targetpath[0] == '/' {
+		return fmt.Errorf("rooted path: %w", linuxerr.EINVAL)
+	}
+	if strings.HasPrefix(sourcepath, "./") || strings.HasPrefix(targetpath, "./") {
+		return fmt.Errorf("dot slash: %w", linuxerr.EINVAL)
+	}
+
+	snames := strings.Split(sourcepath, "/")
+	tnames := strings.Split(targetpath, "/")
+
+	snodes, err := tree.trywalk(snames)
 	if err != nil {
-		return err
+		return fmt.Errorf("walking to %q: %w", sourcepath, err)
 	}
-	if len(visitedNodes) != len(sourceWalkNames) {
-		return fmt.Errorf("incomplete source node walk")
-	}
-	nodeToMove := visitedNodes[len(visitedNodes)-1]
-
-	visitedNodes, err = tree.Walk(tree.root, targetWalkNames[:len(targetWalkNames)-1]...)
+	tnodes, err := tree.trywalk(tnames)
 	if err != nil {
-		return err
+		return fmt.Errorf("walking to %q: %w", targetpath, err)
 	}
-	if len(visitedNodes) != len(targetWalkNames)-1 {
-		return fmt.Errorf("incomplete new parent walk")
-	}
-	newParent := tree.root
-	if len(visitedNodes) > 0 {
-		newParent = visitedNodes[len(visitedNodes)-1]
-	}
-	newName := targetWalkNames[len(targetWalkNames)-1]
 
-	if err = tree.Grow(newParent); err != nil {
+	if len(snodes) < len(snames) {
+		return fmt.Errorf("%q: %w", sourcepath, linuxerr.ENOENT)
+	}
+	if len(tnodes) < len(tnames)-1 {
+		return fmt.Errorf("%q: %w", filepath.Join(tnames[:len(tnames)-1]...), linuxerr.ENOENT)
+	}
+
+	// Do the check here, after we checked that the source exists.
+	if sourcepath == targetpath {
+		return nil
+	}
+
+	if len(targetpath) != len(sourcepath) {
+		if strings.HasPrefix(targetpath, sourcepath) {
+			return fmt.Errorf("nesting: %w", linuxerr.EINVAL)
+		}
+		if strings.HasPrefix(sourcepath, targetpath) {
+			return fmt.Errorf("nesting: %w", linuxerr.ENOTEMPTY)
+		}
+	}
+
+	source := snodes[len(snodes)-1]
+	sourceparent := source.parent
+
+	var target, targetparent *Node
+	if len(tnodes) == len(tnames) {
+		target = tnodes[len(tnodes)-1]
+		targetparent = target.parent
+	} else {
+		target = nil
+		if len(tnodes) > 0 {
+			targetparent = tnodes[len(tnodes)-1]
+		} else {
+			targetparent = tree.root
+		}
+	}
+
+	if target != nil {
+		if target.info.Mode&DMDIR != 0 && source.info.Mode&DMDIR == 0 {
+			return fmt.Errorf("file to directory: %w", linuxerr.EISDIR)
+		}
+		if target.info.Mode&DMDIR != 0 && len(target.children) > 0 {
+			return fmt.Errorf("%q: %w", targetpath, linuxerr.ENOTEMPTY)
+		}
+		if target.info.Mode&DMDIR == 0 && source.info.Mode&DMDIR != 0 {
+			return fmt.Errorf("directory to file: %w", linuxerr.ENOTDIR)
+		}
+		targetparent.removeChild(target.info.Name)
+		targetparent.touchNow()
+	}
+	if err = tree.RemoveForMerge(source); err != nil {
 		return err
 	}
-	if cn, err := newParent.followBranch(newName); err != nil {
-		return err
-	} else if cn != nil {
-		return fmt.Errorf("new name already taken")
-	}
-	if err = tree.RemoveForMerge(nodeToMove); err != nil {
+	source.info.Name = tnames[len(tnames)-1]
+	if err := targetparent.addChild(source); err != nil {
 		return err
 	}
-	nodeToMove.info.Name = newName
-	if err := newParent.addChild(nodeToMove); err != nil {
-		return err
-	}
-	nodeToMove.markDirty()
+	sourceparent.markDirty()
+	source.markDirty()
 	return nil
 }

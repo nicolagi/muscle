@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/nicolagi/muscle/internal/linuxerr"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 )
@@ -30,6 +31,26 @@ func (tree *Tree) walk(sourceNode *Node, growFn func(*Node) error, branchNames .
 			break
 		}
 		visitedNodes = append(visitedNodes, n)
+	}
+	return
+}
+
+// trywalk walks as many names as possible starting from the root.
+// The returned list of nodes may be shorter than the list of names, but no error is set in this case.
+// An error is returned in case of errors loading data, or in the case a non-directory needs to be traversed.
+func (tree *Tree) trywalk(names []string) (nodes []*Node, err error) {
+	n := tree.root
+	for _, name := range names {
+		if err = tree.Grow(n); err != nil {
+			break
+		}
+		if n.info.Mode&DMDIR == 0 {
+			return nodes, fmt.Errorf("%q: %w", n.info.Name, linuxerr.ENOTDIR)
+		}
+		if n, err = n.followBranch(name); n == nil || err != nil {
+			break
+		}
+		nodes = append(nodes, n)
 	}
 	return
 }

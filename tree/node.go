@@ -139,6 +139,7 @@ func (node *Node) addChild(newChild *Node) error {
 	}
 	newChild.parent = node
 	node.children = append(node.children, newChild)
+	newChild.markLinked()
 	return nil
 }
 
