@@ -18,6 +18,7 @@ import (
 	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
+	"github.com/nicolagi/muscle/internal/linuxerr"
 	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/netutil"
 	"github.com/nicolagi/muscle/storage"
@@ -618,11 +619,7 @@ func (ops *ops) Remove(r *srv.Req) {
 		err := ops.tree.Remove(node.Node)
 		if err != nil {
 			if errors.Is(err, tree.ErrNotEmpty) {
-				// Do not change the error string.
-				// /usr/src/linux-source-5.4.0/net/9p/error.c converts errors strings
-				// to error codes.
-				// Reported by fsdiff.
-				logRespondError(r, "Directory not empty")
+				logRespondError(r, linuxerr.ENOTEMPTY.Error())
 			} else {
 				logRespondError(r, err.Error())
 			}
