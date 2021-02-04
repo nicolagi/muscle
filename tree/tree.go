@@ -265,13 +265,11 @@ func (tree *Tree) Rename(sourcepath, targetpath string) error {
 		targetparent.removeChild(target.info.Name)
 		targetparent.touchNow()
 	}
-	if err = tree.RemoveForMerge(source); err != nil {
-		return err
-	}
+	sourceparent.removeChild(source.info.Name)
+	sourceparent.touchNow()
 	source.info.Name = tnames[len(tnames)-1]
-	if err := targetparent.addChild(source); err != nil {
-		return err
-	}
+	source.parent = targetparent
+	targetparent.children = append(targetparent.children, source)
 	sourceparent.markDirty()
 	source.markDirty()
 	return nil
