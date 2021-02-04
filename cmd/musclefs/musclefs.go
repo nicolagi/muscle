@@ -88,7 +88,8 @@ func (node *fsNode) prepareForReads() {
 }
 
 type ops struct {
-	treeStore *tree.Store
+	pairedStore *storage.Paired
+	treeStore   *tree.Store
 
 	// Serializes access to the tree.
 	mu      sync.Mutex
@@ -560,6 +561,7 @@ func runCommand(ops *ops, cmd string) error {
 			return output(err)
 		}
 		_, _ = fmt.Fprintf(outputBuffer, "push: updated local base pointer: %v\n", revision.Key())
+		ops.pairedStore.Notify()
 		return nil
 	default:
 		return fmt.Errorf("command not recognized: %q", cmd)
@@ -814,10 +816,11 @@ func main() {
 	}
 
 	ops := &ops{
-		treeStore: treeStore,
-		tree:      tt,
-		c:         new(ctl),
-		cfg:       cfg,
+		pairedStore: pairedStore,
+		treeStore:   treeStore,
+		tree:        tt,
+		c:           new(ctl),
+		cfg:         cfg,
 	}
 
 	_, root := tt.Root()

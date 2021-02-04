@@ -27,8 +27,9 @@ const (
 const logLineLength = 66
 
 type propagationLog struct {
-	pollInterval time.Duration
-	readOffset   int64
+	readOffset int64
+
+	notify chan struct{}
 
 	mu   sync.Mutex
 	file *os.File
@@ -77,7 +78,10 @@ func newLog(pathname string) (*propagationLog, error) {
 	if _, err := curr.Seek(0, io.SeekEnd); err != nil {
 		return nil, errors.Wrapf(err, "seek %q to EOF", curr.Name())
 	}
-	return &propagationLog{file: curr, pollInterval: 5 * time.Second}, nil
+	return &propagationLog{
+		file:   curr,
+		notify: make(chan struct{}),
+	}, nil
 }
 
 func (pl *propagationLog) add(key Key) error {
@@ -98,7 +102,7 @@ func (pl *propagationLog) next(p []byte) {
 		if n == logLineLength && err == nil {
 			break
 		}
-		time.Sleep(pl.pollInterval)
+		<-pl.notify
 	}
 }
 
@@ -243,4 +247,8 @@ func (p *Paired) Delete(k Key) error {
 		return err
 	}
 	return p.fast.Delete(k)
+}
+
+func (s *Paired) Notify() {
+	s.log.notify <- struct{}{}
 }

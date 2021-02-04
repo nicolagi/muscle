@@ -212,7 +212,6 @@ func TestPaired(t *testing.T) {
 		store, err := NewPaired(fast, slow, pathname)
 		require.Nil(t, err)
 		store.retryInterval = time.Millisecond
-		store.log.pollInterval = 5 * time.Millisecond
 		_ = store.Put(k, v)
 		contents, err := fast.Get(k)
 		assert.Equal(t, Value(v), contents)
