@@ -232,27 +232,19 @@ func (node *Node) hasEqualBlocks(other *Node) (bool, error) {
 // walk(), this means we're updating the atime also to answer a stat
 // syscall. That's not correct. But the use case for atime is, as I said,
 // to track when last used in musclefs. It should perhaps be called last ref'd.
-func (node *Node) Ref(reason string) {
-	log.WithFields(log.Fields{
-		"path":      node.Path(),
-		"reason":    reason,
-		"increment": 1,
-	}).Debug("REF/UNREF")
+func (node *Node) Ref() int {
 	for n := node; n != nil; n = n.parent {
 		n.refs++
 	}
+	return node.refs
 }
 
 // Unref decrements the node's ref count, and that of all its ancestors.
-func (node *Node) Unref(reason string) {
-	log.WithFields(log.Fields{
-		"path":      node.Path(),
-		"reason":    reason,
-		"increment": -1,
-	}).Debug("REF/UNREF")
+func (node *Node) Unref() int {
 	for n := node; n != nil; n = n.parent {
 		n.refs--
 	}
+	return node.refs
 }
 
 // Trim removes links from the given node to blocks (for files) and

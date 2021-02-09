@@ -88,6 +88,23 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	return child, nil
 }
 
+func (tree *Tree) Unlink(node *Node) error {
+	if node.IsRoot() {
+		return fmt.Errorf("unlink root: %w", linuxerr.EPERM)
+	}
+	if len(node.children) > 0 {
+		return linuxerr.ENOTEMPTY
+	}
+	node.parent.removeChild(node.info.Name)
+	node.parent.markDirty()
+	node.markUnlinked()
+	return nil
+}
+
+func (tree *Tree) Discard(node *Node) {
+	node.discard()
+}
+
 func (tree *Tree) Remove(node *Node) error {
 	if node.IsRoot() {
 		return errors.Wrapf(ErrPermission, "removing the file system root is not allowed")

@@ -120,10 +120,13 @@ func (ops *ops) FidDestroy(fid *srv.Fid) {
 		return
 	}
 	node := fid.Aux.(*fsNode)
-	node.Unref("FidDestroy")
+	refs := node.Unref()
 	if node.lock != nil {
 		unlockNode(node.lock)
 		node.lock = nil
+	}
+	if refs == 0 && node.Unlinked() {
+		ops.tree.Discard(node.Node)
 	}
 }
 
@@ -131,7 +134,7 @@ func (ops *ops) Attach(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	root := ops.tree.Attach()
-	root.Ref("Attach")
+	root.Ref()
 	r.Fid.Aux = &fsNode{Node: root}
 	qid := p9util.NodeQID(root)
 	r.RespondRattach(&qid)
@@ -155,7 +158,7 @@ func (ops *ops) Walk(r *srv.Req) {
 			return
 		}
 		if len(r.Tc.Wname) == 0 {
-			node.Ref("clone")
+			node.Ref()
 			r.Newfid.Aux = node
 			r.RespondRwalk(nil)
 			return
@@ -186,7 +189,7 @@ func (ops *ops) Walk(r *srv.Req) {
 		if len(qids) == len(r.Tc.Wname) {
 			targetNode := nodes[len(nodes)-1]
 			r.Newfid.Aux = &fsNode{Node: targetNode}
-			targetNode.Ref("successful walk")
+			targetNode.Ref()
 		}
 		r.RespondRwalk(qids)
 	}
@@ -256,8 +259,8 @@ func (ops *ops) Create(r *srv.Req) {
 			logRespondError(r, err.Error())
 			return
 		}
-		node.Ref("create")
-		parent.Unref("created child")
+		node.Ref()
+		parent.Unref()
 		child := &fsNode{Node: node}
 		r.Fid.Aux = child
 		qid := p9util.NodeQID(node)
@@ -288,10 +291,6 @@ func (ops *ops) Read(r *srv.Req) {
 		p.SetRreadCount(r.Rc, uint32(count))
 	default:
 		node := r.Fid.Aux.(*fsNode)
-		if node.Unlinked() {
-			logRespondError(r, Eunlinked)
-			return
-		}
 		var count int
 		var err error
 		if node.IsDir() {
@@ -584,10 +583,6 @@ func (ops *ops) Write(r *srv.Req) {
 		r.RespondRwrite(uint32(len(r.Tc.Data)))
 	default:
 		node := r.Fid.Aux.(*fsNode)
-		if node.Unlinked() {
-			logRespondError(r, Eunlinked)
-			return
-		}
 		if err := node.WriteAt(r.Tc.Data, int64(r.Tc.Offset)); err != nil {
 			logRespondError(r, err.Error())
 			return
@@ -627,7 +622,7 @@ func (ops *ops) Remove(r *srv.Req) {
 			logRespondError(r, Eunlinked)
 			return
 		}
-		err := ops.tree.Remove(node.Node)
+		err := ops.tree.Unlink(node.Node)
 		if err != nil {
 			if errors.Is(err, tree.ErrNotEmpty) {
 				logRespondError(r, linuxerr.ENOTEMPTY.Error())

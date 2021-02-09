@@ -260,7 +260,7 @@ func (fs *fs) Write(r *srv.Req) {
 func (fs *fs) Clunk(r *srv.Req) {
 	n := r.Fid.Aux.(node)
 	if tn, ok := n.(*treenode); ok {
-		tn.node.Unref("clunk")
+		tn.node.Unref()
 	}
 	r.RespondRclunk()
 }
@@ -280,7 +280,7 @@ func (fs *fs) Walk(r *srv.Req) {
 func (fs *fs) clone(r *srv.Req) {
 	n := r.Fid.Aux.(node)
 	if tn, ok := n.(*treenode); ok {
-		tn.node.Ref("clone")
+		tn.node.Ref()
 	}
 	r.Newfid.Aux = n
 	r.RespondRwalk(nil)
@@ -309,7 +309,7 @@ func (fs *fs) walk(r *srv.Req) {
 	if len(qids) == len(r.Tc.Wname) {
 		r.Newfid.Aux = n
 		if tn, ok := n.(*treenode); ok {
-			tn.node.Ref("successful walk")
+			tn.node.Ref()
 		}
 	}
 	r.RespondRwalk(qids)
