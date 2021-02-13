@@ -1,27 +1,31 @@
 package tree
 
 import (
-	"fmt"
+	"bytes"
+	"log"
 	"path"
-	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 func (tree *Tree) DumpNodes() {
-	tree.dumpNodesFrom(tree.root, fmt.Sprintf("%d", time.Now().Unix()), "")
+	tree.dumpNodesFrom(tree.root, "/")
 }
 
-func (tree *Tree) dumpNodesFrom(node *Node, absolutePrefix, pathPrefix string) {
-	p := path.Join(pathPrefix, node.info.Name)
-	log.WithFields(log.Fields{
-		"prefix": absolutePrefix,
-		"path":   p,
-		"node":   node,
-	}).Info("Node dump")
+func (tree *Tree) dumpNodesFrom(node *Node, pathname string) {
+	b := bytes.NewBufferString(pathname)
+	b.WriteString(" pointer=")
+	b.WriteString(node.pointer.String())
+	for _, c := range node.children {
+		b.WriteString(" childpointer=")
+		b.WriteString(c.pointer.String())
+	}
+	for _, blk := range node.blocks {
+		b.WriteString(" block=")
+		b.WriteString(blk.Ref().String())
+	}
+	log.Print(b.String())
 	for _, c := range node.children {
 		if c.flags&loaded != 0 {
-			tree.dumpNodesFrom(c, absolutePrefix, p)
+			tree.dumpNodesFrom(c, path.Join(pathname, c.info.Name))
 		}
 	}
 }
