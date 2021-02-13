@@ -115,6 +115,18 @@ func logRespondError(r *srv.Req, err string) {
 	r.RespondError(err)
 }
 
+// ReqProcess implements srv.ReqProcessOps.
+// It delegates to the default processing right away, but could be used to add instrumentation for debugging when needed.
+func (ops *ops) ReqProcess(r *srv.Req) {
+	r.Process()
+}
+
+// ReqRespond implements srv.ReqProcessOps.
+// It delegates to the default processing right away, but could be used to add instrumentation for debugging when needed.
+func (ops *ops) ReqRespond(r *srv.Req) {
+	r.PostProcess()
+}
+
 func (ops *ops) FidDestroy(fid *srv.Fid) {
 	if fid.Aux == nil || fid.Aux == ops.c {
 		return
