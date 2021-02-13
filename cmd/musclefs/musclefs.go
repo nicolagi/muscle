@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"runtime"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -480,7 +480,7 @@ func runCommand(ops *ops, cmd string) error {
 		// is the only way to free up that memory.
 		_, root := ops.tree.Root()
 		root.Trim()
-		runtime.GC()
+		debug.FreeOSMemory()
 	case "flush":
 		if err := ops.tree.Flush(); err != nil {
 			return fmt.Errorf("could not flush: %v", err)
@@ -603,7 +603,7 @@ func (ops *ops) Clunk(r *srv.Req) {
 		if time.Since(ops.trimmed) > time.Minute {
 			_, root := ops.tree.Root()
 			root.Trim()
-			runtime.GC()
+			debug.FreeOSMemory()
 			ops.trimmed = time.Now()
 		}
 	}
