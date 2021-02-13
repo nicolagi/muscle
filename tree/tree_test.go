@@ -4,17 +4,18 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/nicolagi/muscle/internal/linuxerr"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTreeRemove(t *testing.T) {
+func TestTreeUnlink(t *testing.T) {
 	t.Run("removing the root is not allowed", func(t *testing.T) {
 		tree := newTestTree(t)
 		// The root is just the directory with no parent.
 		parent := &Node{}
 		parent.info.Mode = DMDIR
-		err := tree.Remove(parent)
-		if !errors.Is(err, ErrPermission) {
+		err := tree.Unlink(parent)
+		if !errors.Is(err, linuxerr.EPERM) {
 			t.Errorf("got %v, want a wrapper of %v", err, ErrPermission)
 		}
 	})
@@ -24,8 +25,8 @@ func TestTreeRemove(t *testing.T) {
 		if _, err := tree.Add(parent, "file", 0666); err != nil {
 			t.Fatal(err)
 		}
-		err := tree.Remove(parent)
-		if !errors.Is(err, ErrNotEmpty) {
+		err := tree.Unlink(parent)
+		if !errors.Is(err, linuxerr.ENOTEMPTY) {
 			t.Errorf("got %v, want a wrapper of %v", err, ErrNotEmpty)
 		}
 	})

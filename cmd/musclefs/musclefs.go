@@ -818,7 +818,6 @@ func main() {
 		cfg:         cfg,
 	}
 
-	_, root := tt.Root()
 	now := time.Now()
 	ops.c.D.Qid.Path = uint64(now.UnixNano())
 	ops.c.D.Mode = 0644
@@ -827,11 +826,6 @@ func main() {
 	ops.c.D.Name = "ctl"
 	ops.c.D.Uid = p9util.NodeUID
 	ops.c.D.Gid = p9util.NodeGID
-
-	/* Best-effort clean-up, for when the control file used to be part of the tree. */
-	if nodes, err := ops.tree.Walk(root, "ctl"); err == nil && len(nodes) == 1 {
-		_ = ops.tree.Remove(nodes[0])
-	}
 
 	fs := &srv.Srv{}
 	fs.Dotu = false

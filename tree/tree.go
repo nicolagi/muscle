@@ -105,21 +105,6 @@ func (tree *Tree) Discard(node *Node) {
 	node.discard()
 }
 
-func (tree *Tree) Remove(node *Node) error {
-	if node.IsRoot() {
-		return errors.Wrapf(ErrPermission, "removing the file system root is not allowed")
-	}
-	if len(node.children) > 0 {
-		// Don't wrap the error, don't add stack trace.
-		// We don't want to log it.
-		return ErrNotEmpty
-	}
-	node.parent.removeChild(node.info.Name)
-	node.parent.markDirty()
-	node.discard()
-	return nil
-}
-
 // RemoveForMerge unlinks the node from its parent even if it is a non-empty directory.
 // This is required when running the 3-way merge algorithm.
 // Also, if we don't find the node within the parent, we return an error, as that is an inconsistency.
