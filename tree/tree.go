@@ -266,6 +266,10 @@ func (tree *Tree) Rename(sourcepath, targetpath string) error {
 		}
 		targetparent.removeChild(target.info.Name)
 		targetparent.touchNow()
+		target.markUnlinked()
+		if target.refs == 0 {
+			target.discard()
+		}
 	}
 	sourceparent.removeChild(source.info.Name)
 	sourceparent.touchNow()
