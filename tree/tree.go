@@ -39,7 +39,7 @@ func NewTree(store *Store, opts ...TreeOption) (*Tree, error) {
 	}
 	for _, o := range opts {
 		if err := o(t); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("tree.NewTree: %v", err)
 		}
 	}
 	if t.root == nil {
@@ -50,7 +50,7 @@ func NewTree(store *Store, opts ...TreeOption) (*Tree, error) {
 		}
 		root, err := t.Add(parent, "root", 0700|DMDIR)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("tree.NewTree: %v", err)
 		}
 		t.root = root
 		// Clear out the fake parent,

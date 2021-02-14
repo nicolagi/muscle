@@ -1,6 +1,8 @@
 package tree
 
 import (
+	"fmt"
+
 	"github.com/nicolagi/muscle/storage"
 	"github.com/pkg/errors"
 )
@@ -30,12 +32,12 @@ func WithRevision(p storage.Pointer) TreeOption {
 		}
 		r, err := t.store.LoadRevisionByKey(p)
 		if err != nil {
-			return err
+			return fmt.Errorf("tree.WithRevision: loading revision %v: %v", p, err)
 		}
 		t.revision = r.key
 		t.root = &Node{pointer: r.rootKey}
 		if err := t.store.LoadNode(t.root); err != nil {
-			return err
+			return fmt.Errorf("tree.WithRevision: loading node %v: %v", r.rootKey, err)
 		}
 		return nil
 	}
@@ -51,6 +53,9 @@ func WithRoot(p storage.Pointer) TreeOption {
 			return nil
 		}
 		t.root = &Node{pointer: p}
-		return t.store.LoadNode(t.root)
+		if err := t.store.LoadNode(t.root); err != nil {
+			return fmt.Errorf("tree.WithRoot: loading node %v: %v", p, err)
+		}
+		return nil
 	}
 }

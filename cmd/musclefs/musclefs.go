@@ -511,7 +511,13 @@ func runCommand(ops *ops, cmd string) error {
 			_, _ = fmt.Fprintln(outputBuffer, "local base matches remote base, pull is a no-op")
 			return nil
 		}
-		localbasetree, err := tree.NewTree(ops.treeStore, tree.WithRevision(localbase))
+		var localbasetree *tree.Tree
+		if localbase.IsNull() {
+			// Assume an empty base tree, e.g., we're sitting on a new “branch.”
+			localbasetree, err = tree.NewTree(ops.treeStore)
+		} else {
+			localbasetree, err = tree.NewTree(ops.treeStore, tree.WithRevision(localbase))
+		}
 		if err != nil {
 			return output(err)
 		}
