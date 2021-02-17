@@ -28,17 +28,21 @@ func (s *DiskStore) Get(k Key) (Value, error) {
 
 func (s *DiskStore) Put(k Key, v Value) error {
 	p := s.pathFor(k)
-	err := ioutil.WriteFile(p, v, 0666)
+	pnew := p + ".new"
+	err := os.WriteFile(pnew, v, 0666)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return err
 		}
-		if err = os.MkdirAll(filepath.Dir(p), 0777); err != nil {
+		if err = os.MkdirAll(filepath.Dir(pnew), 0777); err != nil {
 			return err
 		}
-		return ioutil.WriteFile(p, v, 0666)
+		err = os.WriteFile(pnew, v, 0666)
 	}
-	return nil
+	if err != nil {
+		return err
+	}
+	return syscall.Rename(pnew, p)
 }
 
 func (s *DiskStore) Delete(k Key) error {

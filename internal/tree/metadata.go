@@ -93,10 +93,6 @@ func (tree *Tree) depthFirstSave(node *Node) error {
 			return err
 		}
 	}
-	log.WithFields(log.Fields{
-		"path": node.Path(),
-		"key":  node.pointer.Hex(),
-	}).Debug("Persisting node")
 	for _, b := range node.blocks {
 		_, err := b.Flush()
 		if err != nil {
