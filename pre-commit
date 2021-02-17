@@ -1,16 +1,15 @@
-#!/usr/bin/env bash
-set -euxo pipefail
-files=$(git diff --cached --name-only --diff-filter ACM | grep '\.go$' || true)
-dirs=$(for f in $files ; do dirname $f; done | sort | uniq)
-for d in $dirs ; do
-	( cd $d ; errcheck -abspath -ignoretests=false )
-done
-for f in $files ; do
-	goimports -w $f
-	git add $f
-done
-staticcheck ./...
+#!/usr/local/plan9/bin/rc -e
+if(! cmp pre-commit $0){
+	echo 'Hook is stale, run: cp pre-commit' $0 >[1=2]
+	exit 1
+}
+sources=`{ du -a cmd internal | awk '$2 ~ /\.go$/ { print $2 }' }
+notformatted=`{ gofmt -l $sources }
+if(! ~ $#notformatted 0){
+	echo Did you run goimports before adding changes to the index? >[1=2]
+	exit 1
+}
 go vet ./...
+errcheck ./...
+staticcheck ./...
 go test -race ./...
-# Did I forget copying the latest version of the hook?
-cmp pre-commit $0
