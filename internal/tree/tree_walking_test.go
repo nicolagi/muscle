@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/nicolagi/muscle/storage"
+	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )

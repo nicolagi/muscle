@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/nicolagi/muscle/config"
+	"github.com/nicolagi/muscle/internal/config"
 )
 
 var (

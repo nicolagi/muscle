@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nicolagi/muscle/config"
+	"github.com/nicolagi/muscle/internal/config"
 )
 
 /*

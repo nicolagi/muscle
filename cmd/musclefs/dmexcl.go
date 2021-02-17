@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/lionkov/go9p/p/srv"
-	"github.com/nicolagi/muscle/tree"
+	"github.com/nicolagi/muscle/internal/tree"
 )
 
 const (

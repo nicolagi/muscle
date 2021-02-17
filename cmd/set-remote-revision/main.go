@@ -7,9 +7,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/nicolagi/muscle/config"
-	"github.com/nicolagi/muscle/storage"
-	"github.com/nicolagi/muscle/tree"
+	"github.com/nicolagi/muscle/internal/config"
+	"github.com/nicolagi/muscle/internal/storage"
+	"github.com/nicolagi/muscle/internal/tree"
 )
 
 func main() {

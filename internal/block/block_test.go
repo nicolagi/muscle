@@ -8,7 +8,7 @@ import (
 	"testing/quick"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nicolagi/muscle/storage"
+	"github.com/nicolagi/muscle/internal/storage"
 )
 
 func TestBlockTruncate(t *testing.T) {

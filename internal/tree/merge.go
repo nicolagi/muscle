@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nicolagi/muscle/config"
+	"github.com/nicolagi/muscle/internal/config"
 	log "github.com/sirupsen/logrus"
 )
 

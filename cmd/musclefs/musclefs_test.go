@@ -12,11 +12,11 @@ import (
 
 	"github.com/lionkov/go9p/p"
 	"github.com/lionkov/go9p/p/clnt"
-	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
-	"github.com/nicolagi/muscle/netutil"
-	"github.com/nicolagi/muscle/storage"
-	"github.com/nicolagi/muscle/tree"
+	"github.com/nicolagi/muscle/internal/config"
+	"github.com/nicolagi/muscle/internal/netutil"
+	"github.com/nicolagi/muscle/internal/storage"
+	"github.com/nicolagi/muscle/internal/tree"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

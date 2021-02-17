@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nicolagi/muscle/config"
+	"github.com/nicolagi/muscle/internal/config"
 	"github.com/nicolagi/muscle/internal/linuxerr"
-	"github.com/nicolagi/muscle/storage"
+	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/pkg/errors"
 )
 

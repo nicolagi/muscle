@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/nicolagi/muscle/internal/block"
-	"github.com/nicolagi/muscle/storage"
+	"github.com/nicolagi/muscle/internal/storage"
 )
 
 func newTestBlockFactory(t *testing.T) *block.Factory {

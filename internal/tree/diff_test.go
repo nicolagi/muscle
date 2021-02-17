@@ -5,9 +5,9 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/nicolagi/muscle/diff"
 	"github.com/nicolagi/muscle/internal/block"
-	"github.com/nicolagi/muscle/storage"
+	"github.com/nicolagi/muscle/internal/diff"
+	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

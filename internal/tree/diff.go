@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nicolagi/muscle/diff"
+	"github.com/nicolagi/muscle/internal/diff"
 )
 
 const defaultMaxBlockSizeForDiff = 256 * 1024 // 256 kB

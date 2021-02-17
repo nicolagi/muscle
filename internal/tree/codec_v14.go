@@ -5,33 +5,39 @@ import (
 	"time"
 
 	"github.com/nicolagi/muscle/internal/block"
-	"github.com/nicolagi/muscle/storage"
+	"github.com/nicolagi/muscle/internal/storage"
 )
 
-const v13BlockCapacity = 1024 * 1024
+// This was the default before node size was configurable and included in the serialized node. There are nodes that have
+// a serialized block capacity of 0, and should instead use the default capacity at that time.
+const v14DefaultBlockCapacity = 1024 * 1024
 
-type codecV13 struct {
-}
+type codecV14 struct{}
 
-func (codecV13) encodeNode(node *Node) ([]byte, error) {
+func (codecV14) encodeNode(node *Node) ([]byte, error) {
 	panic("decommissioned")
 }
 
-func (codec codecV13) decodeNode(data []byte, dest *Node) error {
+func (codecV14) decodeNode(data []byte, dest *Node) error {
 	ptr := data
 
 	var u8 uint8
 	var u32 uint32
 
-	// This data was not saved with v13.
+	// This data was not saved with v14.
 	dest.info.ID = uint64(time.Now().UnixNano())
 	dest.info.Version = 1
 
 	dest.info.Name, ptr = gstr(ptr)
+	u8, ptr = gint8(ptr)
+	dest.flags = nodeFlags(u8)
+	dest.bsize, ptr = gint32(ptr)
+	if dest.bsize == 0 {
+		dest.bsize = v14DefaultBlockCapacity
+	}
 	dest.info.Mode, ptr = gint32(ptr)
 	if dest.info.Mode&DMDIR != 0 {
-		// Read and ignore the length. I used to calculate and store directory lengths
-		// (length of the serialized dir entries) but I later learned that the size is conventionally 0.
+		// Ignore the length, it's 0 for directories, see stat(9p) or stat(5).
 		_, ptr = gint64(ptr)
 	} else {
 		dest.info.Size, ptr = gint64(ptr)
@@ -60,17 +66,14 @@ func (codec codecV13) decodeNode(data []byte, dest *Node) error {
 		if err != nil {
 			return err
 		}
-		b, err := dest.blockFactory.New(r, v13BlockCapacity)
+		// Block size isn't configurable yet.
+		b, err := dest.blockFactory.New(r, int(dest.bsize))
 		if err != nil {
 			return err
 		}
 		dest.blocks = append(dest.blocks, b)
 		ptr = ptr[u8:]
 	}
-
-	// Properties added in V14.
-	dest.flags = sealed
-	dest.bsize = v13BlockCapacity
 
 	if len(ptr) != 0 {
 		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
@@ -79,20 +82,27 @@ func (codec codecV13) decodeNode(data []byte, dest *Node) error {
 	return nil
 }
 
-func (codecV13) encodeRevision(rev *Revision) ([]byte, error) {
+func (codecV14) encodeRevision(rev *Revision) ([]byte, error) {
 	panic("decommissioned")
 }
 
-func (codecV13) decodeRevision(data []byte, rev *Revision) error {
+func (codecV14) decodeRevision(data []byte, rev *Revision) error {
 	var u8 uint8
 	var u64 uint64
 	ptr := data
-	rev.rootKey = storage.NewPointer(ptr[:32])
-	ptr = ptr[32:]
 	u8, ptr = gint8(ptr)
-	for i := uint8(0); i < u8; i++ {
+	if u8 == 0 {
+		rev.rootKey = storage.Null
+	} else {
+		rev.rootKey = storage.NewPointer(ptr[:u8])
+		ptr = ptr[u8:]
+	}
+	u8, ptr = gint8(ptr)
+	nparents := u8
+	for i := uint8(0); i < nparents; i++ {
+		u8, ptr = gint8(ptr)
 		// Not interested in parent revisions for this codec (too stale).
-		ptr = ptr[32:]
+		ptr = ptr[u8:]
 	}
 	u64, ptr = gint64(ptr)
 	rev.when = int64(u64)

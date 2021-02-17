@@ -14,10 +14,10 @@ import (
 
 	"github.com/lionkov/go9p/p"
 	"github.com/lionkov/go9p/p/clnt"
-	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
-	"github.com/nicolagi/muscle/storage"
-	"github.com/nicolagi/muscle/tree"
+	"github.com/nicolagi/muscle/internal/config"
+	"github.com/nicolagi/muscle/internal/storage"
+	"github.com/nicolagi/muscle/internal/tree"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -428,7 +428,7 @@ func main() {
 		// TODO note about encryption and that it's probably bad
 		store, ok := remoteStore.(storage.Lister)
 		if !ok {
-			log.Fatal("Store does not implement github.com/nicolagi/muscle/storage.Lister.")
+			log.Fatal("Store does not implement github.com/nicolagi/muscle/internal/storage.Lister.")
 		}
 		keys, err := store.List()
 		if err != nil {

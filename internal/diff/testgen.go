@@ -17,7 +17,7 @@ import (
 	"os/exec"
 	"strconv"
 
-	"github.com/nicolagi/muscle/diff"
+	"github.com/nicolagi/muscle/internal/diff"
 )
 
 func main() {

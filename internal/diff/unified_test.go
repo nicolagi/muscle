@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/nicolagi/muscle/diff"
+	"github.com/nicolagi/muscle/internal/diff"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

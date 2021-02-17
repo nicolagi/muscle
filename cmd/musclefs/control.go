@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/lionkov/go9p/p"
-	"github.com/nicolagi/muscle/tree"
+	"github.com/nicolagi/muscle/internal/tree"
 	"github.com/pkg/errors"
 )
 

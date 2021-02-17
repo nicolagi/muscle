@@ -8,12 +8,12 @@ import (
 
 	"github.com/lionkov/go9p/p"
 	"github.com/lionkov/go9p/p/srv"
-	"github.com/nicolagi/muscle/config"
 	"github.com/nicolagi/muscle/internal/block"
+	"github.com/nicolagi/muscle/internal/config"
+	"github.com/nicolagi/muscle/internal/netutil"
 	"github.com/nicolagi/muscle/internal/p9util"
-	"github.com/nicolagi/muscle/netutil"
-	"github.com/nicolagi/muscle/storage"
-	"github.com/nicolagi/muscle/tree"
+	"github.com/nicolagi/muscle/internal/storage"
+	"github.com/nicolagi/muscle/internal/tree"
 	log "github.com/sirupsen/logrus"
 )
 

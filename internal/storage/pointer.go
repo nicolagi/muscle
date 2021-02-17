@@ -1,4 +1,4 @@
-package storage // import "github.com/nicolagi/muscle/storage"
+package storage
 
 import (
 	"crypto/sha256"

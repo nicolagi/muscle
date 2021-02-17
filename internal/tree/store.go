@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/nicolagi/muscle/internal/block"
-	"github.com/nicolagi/muscle/storage"
+	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/pkg/errors"
 )
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/nicolagi/muscle/internal/block"
-	"github.com/nicolagi/muscle/storage"
+	"github.com/nicolagi/muscle/internal/storage"
 )
 
 type codecV15 struct{}

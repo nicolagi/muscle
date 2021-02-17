@@ -3,7 +3,7 @@ package block
 import (
 	"fmt"
 
-	"github.com/nicolagi/muscle/storage"
+	"github.com/nicolagi/muscle/internal/storage"
 )
 
 type Factory struct {

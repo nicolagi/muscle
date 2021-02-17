@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/nicolagi/muscle/storage"
+	"github.com/nicolagi/muscle/internal/storage"
 )
 
 // Revision is the analogue of a git commit.

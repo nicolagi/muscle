@@ -3,7 +3,7 @@ package diff_test
 import (
 	"testing"
 
-	"github.com/nicolagi/muscle/diff"
+	"github.com/nicolagi/muscle/internal/diff"
 )
 
 func TestByteNodeSameAs(t *testing.T) {
