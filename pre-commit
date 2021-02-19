@@ -1,4 +1,4 @@
-#!/usr/local/plan9/bin/rc -e
+#!/usr/local/plan9/bin/rc -ex
 if(! cmp pre-commit $0){
 	echo 'Hook is stale, run: cp pre-commit' $0 >[1=2]
 	exit 1
