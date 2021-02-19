@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nicolagi/muscle/internal/block"
+	"github.com/nicolagi/muscle/internal/linuxerr"
 	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -341,17 +342,33 @@ func (node *Node) SetPerm(perm uint32) {
 }
 
 // Rename changes the node's name. If the parent already contains a
-// child with the new name, that child is removed first. stat(5) says
-// that renaming should fail in that case, but conforming to the
-// manual page makes it impossible to use git (which rename
-// 'index.lock' to an already existing 'index', for example) under
-// both 9pfuse and v9fs.
-func (node *Node) Rename(newName string) {
-	if node.parent != nil {
-		node.parent.removeChild(newName)
+// file/empty directory with the new name, that file/directory is
+// unlinked first. Stat(5) says that renaming should fail in that
+// case, but conforming to the manual page makes it impossible to use
+// git (which renames 'index.lock' to an already existing 'index',
+// for example) under both 9pfuse and v9fs.
+func (node *Node) Rename(newName string) error {
+	if p := node.parent; p != nil {
+		var kept []*Node
+		for _, c := range p.children {
+			if c.info.Name != newName {
+				kept = append(kept, c)
+			} else {
+				if c.IsDir() && len(c.children) != 0 {
+					return linuxerr.ENOTEMPTY
+				}
+				c.markUnlinked()
+				if c.refs == 0 {
+					c.discard()
+				}
+				p.touchNow()
+			}
+		}
+		p.children = kept
 	}
 	node.info.Name = newName
 	node.markDirty()
+	return nil
 }
 
 func (node *Node) Truncate(requestedSize uint64) error {

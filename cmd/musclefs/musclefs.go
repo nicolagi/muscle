@@ -685,10 +685,6 @@ func (ops *ops) Wstat(r *srv.Req) {
 		logRespondError(r, Eperm)
 	default:
 		node := r.Fid.Aux.(*fsNode)
-		if node.Unlinked() {
-			logRespondError(r, Eunlinked)
-			return
-		}
 		dir := r.Tc.Dir
 		if dir.ChangeLength() {
 			if node.IsDir() {
@@ -724,7 +720,10 @@ func (ops *ops) Wstat(r *srv.Req) {
 		}
 
 		if dir.ChangeName() {
-			node.Rename(dir.Name)
+			if err := node.Rename(dir.Name); err != nil {
+				logRespondError(r, err.Error())
+				return
+			}
 		}
 		if dir.ChangeMtime() {
 			node.Touch(dir.Mtime)
