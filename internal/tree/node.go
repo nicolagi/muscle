@@ -119,6 +119,7 @@ func (node *Node) addChildPointer(p storage.Pointer) error {
 		return errors.Wrapf(ErrInvariant, "add pointer %v to loaded node %v", p, node)
 	}
 	var stub Node
+	stub.blockFactory = node.blockFactory
 	stub.parent = node
 	stub.pointer = p
 	node.children = append(node.children, &stub)

@@ -118,8 +118,31 @@ func (tree *Tree) RemoveForMerge(node *Node) error {
 	if node.IsRoot() {
 		return errors.New("the root cannot be removed")
 	}
-	if node.refs > 0 {
-		node.markUnlinked()
+	node.markUnlinked()
+	var g func(*Node) error
+	g = func(n *Node) error {
+		// We actually need to recurse only of the node is in the index.
+		// If it's in the repository, so are all its children nodes or data blocks.
+		if len(n.pointer) == 32 {
+			return nil
+		}
+		if n.flags&loaded == 0 {
+			if err := tree.store.LoadNode(n); err != nil {
+				return err
+			}
+		}
+		for _, c := range n.children {
+			if err := g(c); err != nil {
+				return err
+			}
+		}
+		if n.refs == 0 {
+			n.discard()
+		}
+		return nil
+	}
+	if err := g(node); err != nil {
+		return err
 	}
 	if removed := node.parent.removeChild(node.info.Name); removed == 0 {
 		log.Printf("warning: %q does not contain %q; remove is a no-op", node.parent.Path(), node.info.Name)

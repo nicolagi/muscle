@@ -372,20 +372,30 @@ func runCommand(ops *ops, cmd string) error {
 			return err
 		}
 	case "unlink":
-		if len(args) == 0 {
-			return errors.New("missing argument to unlink")
+		usage := func() {
+			_, _ = fmt.Fprint(outputBuffer, "Usage: unlink NAME\nNAME is a non-empty path relative to the musclefs root.\n")
 		}
-		elems := strings.Split(args[0], "/")
-		if len(elems) == 0 {
-			return errors.Errorf("not enough elements in path: %v", args[0])
+		if len(args) != 1 {
+			usage()
+			return linuxerr.EINVAL
 		}
+		name := args[0]
+		if len(name) == 0 || name[0] == '/' {
+			usage()
+			return linuxerr.EINVAL
+		}
+		elems := strings.Split(name, "/")
 		_, r := ops.tree.Root()
 		nn, err := ops.tree.Walk(r, elems...)
 		if err != nil {
-			return errors.Wrapf(err, "could not walk the local tree along %v", elems)
+			if errors.Is(err, tree.ErrNotExist) {
+				return linuxerr.ENOENT
+			}
+			_, _ = fmt.Fprintln(outputBuffer, err)
+			return err
 		}
 		if len(nn) != len(elems) {
-			return errors.Errorf("walked %d path elements, required %d", len(nn), len(elems))
+			return linuxerr.ENOENT
 		}
 		return ops.tree.RemoveForMerge(nn[len(nn)-1])
 	case "graft2":

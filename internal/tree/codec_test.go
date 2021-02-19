@@ -75,14 +75,14 @@ func TestLatestCodecForNodes(t *testing.T) {
 			}
 
 			// Normalize
+			input.blockFactory = factory
 			for _, c := range input.children {
+				c.blockFactory = factory
 				c.parent = input
 			}
 			if input.info.Mode&DMDIR != 0 {
 				input.info.Size = 0
 			}
-			// This would only be needed on the output node, but adding it here as well for comparison.
-			input.blockFactory = factory
 
 			b, err := c.encodeNode(input)
 			if err != nil {
