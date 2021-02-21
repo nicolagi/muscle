@@ -2,9 +2,10 @@ package tree
 
 import (
 	"fmt"
+	"log"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/nicolagi/muscle/internal/debug"
 )
 
 func (tree *Tree) Seal() error {
@@ -18,6 +19,7 @@ func (tree *Tree) Seal() error {
 }
 
 func (tree *Tree) seal(node *Node) error {
+	debug.Assert(node.flags&unlinked == 0)
 	// Might've been loaded but then trimmed; in that case we still now whether it's sealed or not.
 	if node.flags&sealed != 0 {
 		log.Printf("Already sealed: %v", node)
@@ -85,6 +87,7 @@ func (tree *Tree) SetRevision(r *Revision) {
 }
 
 func (tree *Tree) depthFirstSave(node *Node) error {
+	debug.Assert(node.flags&unlinked == 0)
 	if node.flags&dirty == 0 {
 		return nil
 	}
@@ -115,15 +118,9 @@ func (tree *Tree) depthFirstSave(node *Node) error {
 // from such pack (or packs would keep growing). (This mechanism makes for
 // bigger node metadata blocks but fewer overall node metadata blocks.)
 func (node *Node) markDirty() {
-	entry := log.WithFields(log.Fields{
-		"op":   "markDirty",
-		"node": node.String(),
-	})
-	if node == nil || node.flags&dirty != 0 {
-		entry.Debug("Already dirty")
+	if node == nil || node.flags&dirty != 0 || node.flags&unlinked != 0 {
 		return
 	}
-	entry.Debug("Setting dirty and recursing")
 	node.flags |= dirty
 	node.flags &= ^sealed
 	node.parent.markDirty()
