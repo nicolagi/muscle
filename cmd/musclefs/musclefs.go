@@ -166,6 +166,10 @@ func (ops *ops) Walk(r *srv.Req) {
 	default:
 		node := r.Fid.Aux.(*fsNode)
 		if len(r.Tc.Wname) == 0 {
+			if node.Unlinked() {
+				logRespondError(r, linuxerr.ENOENT.Error())
+				return
+			}
 			node.Ref()
 			r.Newfid.Aux = node
 			r.RespondRwalk(nil)
