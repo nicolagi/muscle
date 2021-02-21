@@ -96,6 +96,7 @@ func (block *Block) Truncate(size int) error {
 	}
 	if size <= len(block.value) {
 		block.value = block.value[:size]
+		block.state = dirty
 		return nil
 	}
 	block.value = append(block.value, make([]byte, size-len(block.value))...)
