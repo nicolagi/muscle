@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nicolagi/muscle/internal/block"
+	"github.com/nicolagi/muscle/internal/debug"
 	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/pkg/errors"
 )
@@ -154,6 +155,7 @@ func (s *Store) LoadNode(dst *Node) error {
 	errw := func(e error) error {
 		return fmt.Errorf("tree.Store.LoadNode: %w", e)
 	}
+	debug.Assert(s.blockFactory != nil)
 	dst.blockFactory = s.blockFactory
 	blk, err := dst.metadataBlock()
 	if err != nil {

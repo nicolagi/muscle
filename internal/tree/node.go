@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nicolagi/muscle/internal/block"
+	"github.com/nicolagi/muscle/internal/debug"
 	"github.com/nicolagi/muscle/internal/linuxerr"
 	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/pkg/errors"
@@ -115,9 +116,8 @@ func (node *Node) followBranch(name string) (*Node, error) {
 }
 
 func (node *Node) addChildPointer(p storage.Pointer) error {
-	if node.flags&loaded != 0 {
-		return errors.Wrapf(ErrInvariant, "add pointer %v to loaded node %v", p, node)
-	}
+	debug.Assert(node.blockFactory != nil)
+	debug.Assert(node.flags&loaded == 0)
 	var stub Node
 	stub.blockFactory = node.blockFactory
 	stub.parent = node

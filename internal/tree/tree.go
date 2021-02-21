@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nicolagi/muscle/internal/config"
+	"github.com/nicolagi/muscle/internal/debug"
 	"github.com/nicolagi/muscle/internal/linuxerr"
 	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/pkg/errors"
@@ -32,6 +33,7 @@ type Tree struct {
 // NewTree constructs a new tree object using the given store, and
 // according to the given options (see the TreeOption section).
 func NewTree(store *Store, opts ...TreeOption) (*Tree, error) {
+	debug.Assert(store.blockFactory != nil)
 	t := &Tree{
 		store:     store,
 		readOnly:  true,
@@ -67,6 +69,7 @@ func (tree *Tree) Attach() *Node {
 func (tree *Tree) Root() (storage.Pointer, *Node) { return tree.revision, tree.root }
 
 func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
+	debug.Assert(node.blockFactory != nil)
 	child := &Node{
 		flags:        loaded | dirty,
 		blockFactory: node.blockFactory,
