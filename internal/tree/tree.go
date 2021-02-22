@@ -267,6 +267,11 @@ func (tree *Tree) Rename(sourcepath, targetpath string) error {
 	source := snodes[len(snodes)-1]
 	sourceparent := source.parent
 
+	// Peculiar to musclefs:
+	if source.refs > 0 {
+		return fmt.Errorf("%q has %d references: %w", sourcepath, source.refs, linuxerr.EBUSY)
+	}
+
 	var target, targetparent *Node
 	if len(tnodes) == len(tnames) {
 		target = tnodes[len(tnodes)-1]
@@ -290,6 +295,12 @@ func (tree *Tree) Rename(sourcepath, targetpath string) error {
 		if target.info.Mode&DMDIR == 0 && source.info.Mode&DMDIR != 0 {
 			return fmt.Errorf("directory to file: %w", linuxerr.ENOTDIR)
 		}
+
+		// Peculiar to musclefs:
+		if target.refs > 0 {
+			return fmt.Errorf("%q has %d references: %w", targetpath, target.refs, linuxerr.EBUSY)
+		}
+
 		targetparent.removeChild(target.info.Name)
 		targetparent.touchNow()
 		target.markUnlinked()
