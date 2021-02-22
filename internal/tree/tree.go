@@ -201,6 +201,9 @@ func (tree *Tree) Graft(parent *Node, child *Node, childName string) error {
 	if node, err := parent.followBranch(childName); err != nil {
 		return err
 	} else if node != nil {
+		if node.refs > 0 {
+			return fmt.Errorf("%q: %w", childName, linuxerr.EBUSY)
+		}
 		if err := tree.RemoveForMerge(node); err != nil {
 			return fmt.Errorf("tree.Tree.Graft: parent: %v: %w", parent, err)
 		}

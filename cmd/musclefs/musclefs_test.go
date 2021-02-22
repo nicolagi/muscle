@@ -213,7 +213,7 @@ func Test(t *testing.T) {
 		must.write(ctl, cmd)
 		cmd = []byte(fmt.Sprintf("graft %s/music music\n", donorRevision.Hex()))
 		_, err = must.c.Write(ctl, cmd, 0)
-		assert.Nil(t, err) // TODO converse
+		assert.NotNil(t, err)
 		must.clunk(ctl)
 
 		// Now release the song file and then flush the tree.
@@ -225,7 +225,7 @@ func Test(t *testing.T) {
 		must.clunk(ctl)
 
 		// Finally verify that the song was NOT lost.
-		//must.walk("music", "song") // TODO enable
+		must.walk("music", "song")
 	})
 	t.Run("creating or removing a file updates the directory timestamp", func(t *testing.T) {
 		must := &mustHelpers{t: t, c: client}
