@@ -121,6 +121,9 @@ func (tree *Tree) RemoveForMerge(node *Node) error {
 	if node.IsRoot() {
 		return errors.New("the root cannot be removed")
 	}
+	if node.refs > 0 {
+		return linuxerr.EBUSY
+	}
 	node.markUnlinked()
 	var g func(*Node) error
 	g = func(n *Node) error {
