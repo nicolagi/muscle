@@ -1,6 +1,6 @@
-#!/usr/local/plan9/bin/rc -ex
+#!/usr/local/plan9/bin/rc -e
 if(! cmp pre-commit $0){
-	echo 'Hook is stale, run: cp pre-commit' $0 >[1=2]
+	echo 'Hook is stale, run: ''cp pre-commit .git/hooks/pre-push''' >[1=2]
 	exit 1
 }
 sources=`{ du -a cmd internal | awk '$2 ~ /\.go$/ { print $2 }' }

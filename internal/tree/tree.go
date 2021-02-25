@@ -321,5 +321,7 @@ func (tree *Tree) Rename(sourcepath, targetpath string) error {
 	targetparent.children = append(targetparent.children, source)
 	sourceparent.markDirty()
 	source.markDirty()
+	// The source may already be dirty, and fail to propagate the flag to the root of the tree!
+	targetparent.markDirty()
 	return nil
 }
