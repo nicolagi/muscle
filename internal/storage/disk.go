@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
-
-	"github.com/pkg/errors"
 )
 
 type DiskStore struct {
@@ -52,7 +50,7 @@ func (s *DiskStore) Delete(k Key) error {
 		if ok {
 			serr, ok := perr.Err.(syscall.Errno)
 			if ok && serr == syscall.ENOENT {
-				return errors.Wrapf(ErrNotFound, "could not delete %v", k)
+				return nil
 			}
 		}
 	}

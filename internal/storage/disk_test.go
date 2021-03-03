@@ -1,69 +1,13 @@
 package storage
 
 import (
-	"bytes"
 	"testing"
 	"testing/quick"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/pkg/errors"
 )
 
 func TestDiskStore(t *testing.T) {
-	t.Run("you get what you put", func(t *testing.T) {
-		store := NewDiskStore(t.TempDir())
-		f := func(key Key, value Value) bool {
-			err := store.Put(key, value)
-			if err != nil {
-				t.Fatal(err)
-			}
-			v, err := store.Get(key)
-			if err != nil {
-				t.Fatal(err)
-			}
-			return bytes.Equal(v, value)
-		}
-		if err := quick.Check(f, nil); err != nil {
-			t.Error(err)
-		}
-	})
-	t.Run("should not get a deleted key", func(t *testing.T) {
-		store := NewDiskStore(t.TempDir())
-		f := func(key Key, value Value) bool {
-			err := store.Put(key, value)
-			if err != nil {
-				t.Fatal(err)
-			}
-			err = store.Delete(key)
-			if err != nil {
-				t.Fatal(err)
-			}
-			v, err := store.Get(key)
-			vok := v == nil
-			eok := errors.Is(err, ErrNotFound)
-			if !eok {
-				t.Errorf("got %v of type %T, want wrapper of %v", err, err, ErrNotFound)
-			}
-			return vok && eok
-		}
-		if err := quick.Check(f, nil); err != nil {
-			t.Error(err)
-		}
-	})
-	t.Run("delete inexistent key gives ErrNotFound", func(t *testing.T) {
-		store := NewDiskStore(t.TempDir())
-		f := func(key Key) bool {
-			err := store.Delete(key)
-			ok := errors.Is(err, ErrNotFound)
-			if !ok {
-				t.Errorf("got %v of type %T, want wrapper of %v", err, err, ErrNotFound)
-			}
-			return ok
-		}
-		if err := quick.Check(f, nil); err != nil {
-			t.Error(err)
-		}
-	})
 	t.Run("contains keys that were put", func(t *testing.T) {
 		store := NewDiskStore(t.TempDir())
 		f := func(key Key, value Value) bool {
