@@ -509,6 +509,9 @@ func runCommand(ops *ops, cmd string) error {
 		}
 		_, _ = fmt.Fprintln(outputBuffer, "flushed")
 	case "pull":
+		if err := ops.tree.Flush(); err != nil {
+			return fmt.Errorf("could not flush: %v", err)
+		}
 		localbase, err := ops.treeStore.LocalBasePointer()
 		if err != nil {
 			return output(err)
