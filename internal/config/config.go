@@ -76,11 +76,11 @@ type C struct {
 	// Permanent storage type - can be "s3" or "null" at present.
 	Storage string
 
-	// These only make sense if the storage type is "s3".  The AWS
-	// profile is used for credentials.
-	S3Profile string
-	S3Region  string
-	S3Bucket  string
+	// These only make sense if the storage type is "s3".
+	S3Region    string
+	S3Bucket    string
+	S3AccessKey string
+	S3SecretKey string
 
 	// These only make sense if the storage type is "disk".
 	// If the path is relative, it will be assumed relative to the base dir.
@@ -165,8 +165,10 @@ func load(f io.Reader) (*C, error) {
 			c.MuscleFSMount = val
 		case "s3-bucket":
 			c.S3Bucket = val
-		case "s3-profile":
-			c.S3Profile = val
+		case "s3-access-key":
+			c.S3AccessKey = val
+		case "s3-secret-key":
+			c.S3SecretKey = val
 		case "s3-region":
 			c.S3Region = val
 		case "snapshotsfs-mount":

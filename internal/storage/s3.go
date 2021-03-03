@@ -27,7 +27,7 @@ func newS3Store(c *config.C) (Store, error) {
 	const maxRetries = 16 // I have  very bad connectivity.
 	sess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(c.S3Region),
-		Credentials: credentials.NewSharedCredentials("", c.S3Profile),
+		Credentials: credentials.NewStaticCredentials(c.S3AccessKey, c.S3SecretKey, ""),
 		MaxRetries:  aws.Int(maxRetries),
 	})
 	if err != nil {
