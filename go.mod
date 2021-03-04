@@ -15,7 +15,10 @@ require (
 	golang.org/x/sys v0.0.0-20200909081042-eff7692f9009 // indirect
 	golang.org/x/text v0.3.2 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
+	github.com/nicolagi/signit v0.0.0
 )
+
+replace github.com/nicolagi/signit => ../signit
 
 go 1.13
 

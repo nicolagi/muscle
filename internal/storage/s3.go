@@ -1,24 +1,28 @@
 package storage
 
 import (
-	"bytes"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/nicolagi/muscle/internal/config"
+	"github.com/nicolagi/signit"
 	"github.com/pkg/errors"
 )
 
 type s3Store struct {
 	client *s3.S3
-	bucket string
+
+	region    string
+	bucket    string
+	accessKey string
+	secretKey string
 }
 
 var _ Store = (*s3Store)(nil)
@@ -34,50 +38,69 @@ func newS3Store(c *config.C) (Store, error) {
 		return nil, errors.WithStack(err)
 	}
 	return &s3Store{
-		client: s3.New(sess),
-		bucket: c.S3Bucket,
+		client:    s3.New(sess),
+		region:    c.S3Region,
+		bucket:    c.S3Bucket,
+		accessKey: c.S3AccessKey,
+		secretKey: c.S3SecretKey,
 	}, nil
 }
 
 func (s *s3Store) Get(key Key) (contents Value, err error) {
-	output, err := s.client.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(string(key)),
-	})
+	url := fmt.Sprintf("https://%s.s3.amazonaws.com/%s", s.bucket, string(key))
+	req, err := signit.NewRequest(s.accessKey, s.secretKey, s.region, "s3", "GET", url, nil)
 	if err != nil {
-		if rfErr, ok := err.(awserr.RequestFailure); ok {
-			if rfErr.StatusCode() == http.StatusNotFound {
-				return nil, errors.Wrapf(ErrNotFound, "key=%q err=%+v", key, err)
-			}
-		}
-		return nil, err
+		return nil, fmt.Errorf("s3Store.Get %q: %w", key, err)
 	}
-	defer func() {
-		if err := output.Body.Close(); err != nil {
-			log.Printf("warning: storage.s3Store.Get: could not close response body: %v", err)
-		}
-	}()
-	return ioutil.ReadAll(output.Body)
+	res, err := http.DefaultClient.Do(req.Sign())
+	if err != nil {
+		return nil, fmt.Errorf("s3Store.Get %q: %w", key, err)
+	}
+	body, err := ioutil.ReadAll(res.Body)
+	_ = res.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("s3Store.Get %q: %w", key, err)
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("s3Store.Get %q: %w", key, ErrNotFound)
+	}
+	if res.StatusCode != 200 {
+		return nil, fmt.Errorf("s3Store.Get %q: %d status code", key, res.StatusCode)
+	}
+	return body, nil
 }
 
 func (s *s3Store) Put(key Key, value Value) (err error) {
-	_, err = s.client.PutObject(&s3.PutObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(string(key)),
-		Body:   bytes.NewReader(value),
-	})
+	url := fmt.Sprintf("https://%s.s3.amazonaws.com/%s", s.bucket, string(key))
+	req, err := signit.NewRequest(s.accessKey, s.secretKey, s.region, "s3", "PUT", url, value)
 	if err != nil {
-		return errors.WithStack(err)
+		return fmt.Errorf("s3Store.Put %q: %w", key, err)
+	}
+	req.AddNextHeader("content-type", "application/octet-stream")
+	res, err := http.DefaultClient.Do(req.Sign())
+	if err != nil {
+		return fmt.Errorf("s3Store.Put %q: %w", key, err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != 200 {
+		return fmt.Errorf("s3Store.Put %q: %d status code", key, res.StatusCode)
 	}
 	return nil
 }
 
 func (s *s3Store) Delete(key Key) error {
-	if _, err := s.client.DeleteObject(&s3.DeleteObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(string(key)),
-	}); err != nil {
-		return errors.WithStack(err)
+	url := fmt.Sprintf("https://%s.s3.amazonaws.com/%s", s.bucket, string(key))
+	req, err := signit.NewRequest(s.accessKey, s.secretKey, s.region, "s3", "DELETE", url, nil)
+	if err != nil {
+		return fmt.Errorf("s3Store.Delete %q: %w", key, err)
+	}
+	res, err := http.DefaultClient.Do(req.Sign())
+	if err != nil {
+		return fmt.Errorf("s3Store.Delete %q: %w", key, err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != 204 {
+		return fmt.Errorf("s3Store.Delete %q: %d status code", key, res.StatusCode)
 	}
 	return nil
 }
