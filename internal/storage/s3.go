@@ -3,22 +3,13 @@ package storage
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
-	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/nicolagi/muscle/internal/config"
 	"github.com/nicolagi/signit"
-	"github.com/pkg/errors"
 )
 
 type s3Store struct {
-	client *s3.S3
-
 	region    string
 	bucket    string
 	accessKey string
@@ -28,17 +19,7 @@ type s3Store struct {
 var _ Store = (*s3Store)(nil)
 
 func newS3Store(c *config.C) (Store, error) {
-	const maxRetries = 16 // I have  very bad connectivity.
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(c.S3Region),
-		Credentials: credentials.NewStaticCredentials(c.S3AccessKey, c.S3SecretKey, ""),
-		MaxRetries:  aws.Int(maxRetries),
-	})
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
 	return &s3Store{
-		client:    s3.New(sess),
 		region:    c.S3Region,
 		bucket:    c.S3Bucket,
 		accessKey: c.S3AccessKey,
@@ -103,36 +84,4 @@ func (s *s3Store) Delete(key Key) error {
 		return fmt.Errorf("s3Store.Delete %q: %d status code", key, res.StatusCode)
 	}
 	return nil
-}
-
-func (s *s3Store) List() (keys chan string, err error) {
-	keys = make(chan string)
-	go s.list(keys)
-	return keys, nil
-}
-
-func (s *s3Store) list(recv chan string) {
-	input := &s3.ListObjectsInput{
-		Bucket:    aws.String(s.bucket),
-		Delimiter: aws.String(","),
-	}
-	var output *s3.ListObjectsOutput
-	var err error
-	for {
-		output, err = s.client.ListObjects(input)
-		if err != nil {
-			log.Printf("warning: storage.s3Store.list: %v", err)
-			// Retry indefinitely.
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		for _, o := range output.Contents {
-			recv <- *o.Key
-		}
-		if output.NextMarker == nil {
-			break
-		}
-		input.Marker = output.NextMarker
-	}
-	close(recv)
 }
