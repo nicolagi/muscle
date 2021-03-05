@@ -121,16 +121,9 @@ func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node,
 	}
 
 	if !(local != nil && remote != nil && local.IsDir()) || !remote.IsDir() {
-		_, _ = fmt.Fprintln(output, "---")
-		if local != nil {
-			_, _ = fmt.Fprintln(output, local.Path())
-		}
 		if remote != nil {
 			p := remote.Path()
 			p = strings.TrimPrefix(p, "/")
-			_, _ = fmt.Fprintf(output, "%s/%s\n", remoteRoot, p)
-			_, _ = fmt.Fprintf(output, "# graft2 %s/%s %s\n", remoteRoot, p, p+".merge-conflict")
-			_, _ = fmt.Fprintf(output, "# graft2 %s/%s %s\n", remoteRoot, p, p)
 			localVersion := filepath.Join(
 				cfg.MuscleFSMount,
 				p,
@@ -145,10 +138,13 @@ func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node,
 				remoteRev,
 				p,
 			)
-			_, _ = fmt.Fprintf(output, "meld %s %s %s\n", localVersion, baseVersion, remoteVersion)
+			_, _ = fmt.Fprintf(output, "# meld %s %s %s\n", localVersion, baseVersion, remoteVersion)
+			_, _ = fmt.Fprintf(output, "# meld %s %s\n", localVersion, remoteVersion)
+			_, _ = fmt.Fprintf(output, "# diff3 %s %s %s\n", localVersion, baseVersion, remoteVersion)
+			_, _ = fmt.Fprintf(output, "# diff %s %s\n", localVersion, remoteVersion)
+			_, _ = fmt.Fprintf(output, "# graft2 %s/%s %s\n", remoteRoot, p, p)
 			_, _ = fmt.Fprintf(output, "# keep-local-for %s/%s\n", remoteRoot, p)
 		}
-		_, _ = fmt.Fprintln(output, "EOE")
 		return nil
 	}
 

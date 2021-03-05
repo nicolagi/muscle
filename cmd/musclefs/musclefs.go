@@ -540,12 +540,36 @@ func runCommand(ops *ops, cmd string) error {
 		if err != nil {
 			return output(err)
 		}
-		if len(commands) == 0 {
-			_, _ = fmt.Fprintln(outputBuffer, "no commands to run, pull is a no-op")
+
+		// XXX It's a bit silly to return a string of concatenated commands
+		// and then split it! But let's first see if automatically running
+		// commands works out well and simplifies usage, and we'll refactor
+		// if so.
+		var cs []string
+		successful := 0
+		for _, c := range strings.Split(commands, "\n") {
+			args := strings.Fields(c)
+			if len(args) > 0 && (args[0] == "flush" || args[0] == "graft2" || args[0] == "unlink") {
+				log.Printf("DEBUG auto-running: %q", c)
+				if err := runCommand(ops, c); err != nil {
+					cs = append(cs, c)
+				} else {
+					successful++
+				}
+			} else {
+				cs = append(cs, c)
+			}
+		}
+		commands = strings.Join(cs, "\n")
+
+		if len(commands) == 0 || commands == "pull\n" {
+			_, _ = fmt.Fprintf(outputBuffer, "# pull successful (%d commands run)\n", successful)
 			if err := ops.treeStore.SetLocalBasePointer(remotebase); err != nil {
 				return output(err)
 			}
 			return nil
+		} else {
+			_, _ = fmt.Fprintf(outputBuffer, "# %d commands were run automatically\n", successful)
 		}
 		outputBuffer.WriteString(commands)
 		return nil
