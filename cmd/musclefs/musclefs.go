@@ -313,6 +313,9 @@ func (ops *ops) Read(r *srv.Req) {
 			count, err = node.ReadAt(r.Rc.Data[:r.Tc.Count], int64(r.Tc.Offset))
 		}
 		if err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				err = fmt.Errorf("%v: %w", err, linuxerr.ENODATA)
+			}
 			logRespondError(r, err)
 			return
 		}
