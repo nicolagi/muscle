@@ -31,6 +31,9 @@ func (dirb *DirBuffer) Write(dir *p.Dir) {
 // other words, seeking other than to the beginning is illegal in a
 // directory (see seek(2)).»
 func (dirb *DirBuffer) Read(b []byte, offset int) (n int, err error) {
+	if len(b) == 0 || offset == len(dirb.dirents) {
+		return
+	}
 	count := len(b)
 	// The offset must be the end of one of the dir entries.
 	if offset > 0 {
@@ -47,9 +50,6 @@ func (dirb *DirBuffer) Read(b []byte, offset int) (n int, err error) {
 		} else {
 			count = dirb.direntends[j-1] - offset
 		}
-	}
-	if count < 0 {
-		return 0, fmt.Errorf("dirents %d bytes too small for dir entry: %w", -count, linuxerr.EINVAL)
 	}
 	return copy(b, dirb.dirents[offset:offset+count]), nil
 }
