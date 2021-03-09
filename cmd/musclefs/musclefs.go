@@ -348,6 +348,9 @@ func runCommand(ops *ops, cmd string) error {
 
 	switch cmd {
 	case "diff":
+		if err := ops.tree.Flush(); err != nil {
+			return fmt.Errorf("could not flush: %v", err)
+		}
 		return doDiff(outputBuffer, ops.tree, ops.treeStore, ops.cfg.MuscleFSMount, args)
 	case "level":
 		if err := setLevel(args[0]); err != nil {
