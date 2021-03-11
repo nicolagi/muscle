@@ -83,6 +83,9 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 	child.info.ID = uint64(time.Now().UnixNano())
 	child.info.Version = 1
 	child.touchNow()
+	if err := tree.Grow(node); err != nil {
+		return nil, err
+	}
 	if err := node.addChild(child); err != nil {
 		return nil, err
 	}
