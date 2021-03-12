@@ -10,6 +10,7 @@ import (
 	"github.com/lionkov/go9p/p/srv"
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/internal/config"
+	"github.com/nicolagi/muscle/internal/linuxerr"
 	"github.com/nicolagi/muscle/internal/netutil"
 	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/internal/storage"
@@ -70,7 +71,7 @@ func (tn *treenode) walk(name string) (child node, err error) {
 
 func (tn *treenode) open(r *srv.Req) (qid p.Qid, err error) {
 	if r.Tc.Mode&(p.OWRITE|p.ORDWR|p.OTRUNC|p.ORCLOSE) != 0 {
-		err = srv.Eperm
+		err = linuxerr.EACCES
 		return
 	}
 	switch {
@@ -136,7 +137,7 @@ func (root *rootdir) walk(name string) (child node, err error) {
 
 func (root *rootdir) open(r *srv.Req) (qid p.Qid, err error) {
 	if r.Tc.Mode&(p.OWRITE|p.ORDWR|p.OTRUNC|p.ORCLOSE) != 0 {
-		err = srv.Eperm
+		err = linuxerr.EACCES
 		return
 	}
 	if time.Since(root.loaded) > 5*time.Minute {
@@ -223,11 +224,11 @@ func (fs *fs) Stat(r *srv.Req) {
 }
 
 func (fs *fs) Wstat(r *srv.Req) {
-	r.RespondError(srv.Eperm)
+	r.RespondError(linuxerr.EACCES)
 }
 
 func (fs *fs) Create(r *srv.Req) {
-	r.RespondError(srv.Eperm)
+	r.RespondError(linuxerr.EACCES)
 }
 
 func (fs *fs) Open(r *srv.Req) {
@@ -254,7 +255,7 @@ func (fs *fs) Read(r *srv.Req) {
 }
 
 func (fs *fs) Write(r *srv.Req) {
-	r.RespondError(srv.Eperm)
+	r.RespondError(linuxerr.EACCES)
 }
 
 func (fs *fs) Clunk(r *srv.Req) {
@@ -266,7 +267,7 @@ func (fs *fs) Clunk(r *srv.Req) {
 }
 
 func (fs *fs) Remove(r *srv.Req) {
-	r.RespondError(srv.Eperm)
+	r.RespondError(linuxerr.EACCES)
 }
 
 func (fs *fs) Walk(r *srv.Req) {
@@ -303,7 +304,7 @@ func (fs *fs) walk(r *srv.Req) {
 		return
 	}
 	if len(qids) == 0 {
-		r.RespondError(srv.Enoent)
+		r.RespondError(linuxerr.ENOENT)
 		return
 	}
 	if len(qids) == len(r.Tc.Wname) {

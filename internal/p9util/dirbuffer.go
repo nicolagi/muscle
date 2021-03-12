@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/lionkov/go9p/p"
+	"github.com/nicolagi/muscle/internal/linuxerr"
 )
 
 type DirBuffer struct {
@@ -35,7 +36,7 @@ func (dirb *DirBuffer) Read(b []byte, offset int) (n int, err error) {
 	if offset > 0 {
 		i := sort.SearchInts(dirb.direntends, offset)
 		if i == len(dirb.direntends) || dirb.direntends[i] != offset {
-			return 0, &p.Error{Err: fmt.Sprintf("%d is not a dir entry offset", offset), Errornum: p.EINVAL}
+			return 0, fmt.Errorf("%d is not a dir entry offset: %w", offset, linuxerr.EINVAL)
 		}
 	}
 	// We can't return truncated entries, so we may have to decrease count.
@@ -48,7 +49,7 @@ func (dirb *DirBuffer) Read(b []byte, offset int) (n int, err error) {
 		}
 	}
 	if count < 0 {
-		return 0, &p.Error{Err: fmt.Sprintf("dirents %d bytes too small for dir entry", -count), Errornum: p.EINVAL}
+		return 0, fmt.Errorf("dirents %d bytes too small for dir entry: %w", -count, linuxerr.EINVAL)
 	}
 	return copy(b, dirb.dirents[offset:offset+count]), nil
 }
