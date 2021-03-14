@@ -217,12 +217,12 @@ func linuxMountCommand(net string, addr string, mountpoint string) (string, erro
 	uid, gid := os.Getuid(), os.Getgid()
 	switch net {
 	case "unix":
-		return fmt.Sprintf("sudo mount -t 9p %v %v -o trans=unix,dfltuid=%d,dfltgid=%d", addr, mountpoint, uid, gid), nil
+		return fmt.Sprintf("sudo mount -t 9p %v %v -o trans=unix,dfltuid=%d,dfltgid=%d,cache=none,noextend,msize=131072", addr, mountpoint, uid, gid), nil
 	case "tcp":
 		if parts := strings.Split(addr, ":"); len(parts) != 2 {
 			return "", errors.Errorf("mailformed host-port pair: %q", addr)
 		} else {
-			return fmt.Sprintf("sudo mount -t 9p %v %v -o trans=tcp,port=%v,dfltuid=%d,dfltgid=%d", parts[0], mountpoint, parts[1], uid, gid), nil
+			return fmt.Sprintf("sudo mount -t 9p %v %v -o trans=tcp,port=%v,dfltuid=%d,dfltgid=%d,cache=none,noextend,msize=131072", parts[0], mountpoint, parts[1], uid, gid), nil
 		}
 	default:
 		return "", errors.Errorf("unhandled network type: %v", net)
