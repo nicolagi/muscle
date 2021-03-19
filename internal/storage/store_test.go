@@ -4,12 +4,17 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
+	"net"
+	"net/http"
+	"net/rpc"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
 	"testing/quick"
+	"time"
 
 	"github.com/nicolagi/muscle/internal/config"
 	"github.com/pkg/errors"
@@ -133,6 +138,33 @@ func TestStoreImplementations(t *testing.T) {
 					t.Fatal(err)
 				}
 				return
+			},
+		},
+		{
+			"rpc",
+			func(t *testing.T) (impl Store, teardown func()) {
+				err := rpc.Register(NewStoreService(new(InMemory)))
+				if err != nil {
+					log.Fatal(err)
+				}
+				rpc.HandleHTTP()
+				listener, err := net.Listen("tcp", ":0")
+				if err != nil {
+					log.Fatal(err)
+				}
+				go func() { _ = http.Serve(listener, nil) }()
+				tries := 0
+			again:
+				impl, err = NewRemoteStore("tcp", listener.Addr().String())
+				tries++
+				if err != nil {
+					if tries < 10 {
+						time.Sleep(100 * time.Millisecond)
+						goto again
+					}
+					t.Fatal(err)
+				}
+				return impl, func() { _ = listener.Close() }
 			},
 		},
 	}
