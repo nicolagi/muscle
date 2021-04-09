@@ -10,6 +10,7 @@ type NodeInfo struct {
 }
 
 const (
-	DMDIR  = 0x80000000
-	DMEXCL = 0x20000000
+	DMDIR    = 0x80000000
+	DMAPPEND = 0x40000000
+	DMEXCL   = 0x20000000
 )

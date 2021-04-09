@@ -29,7 +29,6 @@ import (
 
 var (
 	unsupportedModes = map[uint32]error{
-		p.DMAPPEND:    fmt.Errorf("append-only files are not supported"),
 		p.DMMOUNT:     fmt.Errorf("mounted channels are not supported"),
 		p.DMAUTH:      fmt.Errorf("authentication files are not supported"),
 		p.DMTMP:       fmt.Errorf("temporary files are not supported"),
@@ -45,7 +44,7 @@ var (
 )
 
 func init() {
-	knownModes = 0777 | p.DMDIR | p.DMEXCL
+	knownModes = 0777 | p.DMDIR | p.DMAPPEND | p.DMEXCL
 	for mode := range unsupportedModes {
 		knownModes |= mode
 	}
@@ -241,7 +240,7 @@ func (ops *ops) Open(r *srv.Req) {
 			}
 			node.prepareForReads()
 		default:
-			if r.Tc.Mode&p.OTRUNC != 0 {
+			if r.Tc.Mode&p.OTRUNC != 0 && qid.Type&p.QTAPPEND == 0 {
 				if err := node.Truncate(0); err != nil {
 					logRespondError(r, err)
 					return
@@ -722,6 +721,11 @@ func (ops *ops) Wstat(r *srv.Req) {
 		if dir.ChangeLength() {
 			if node.IsDir() {
 				logRespondError(r, linuxerr.EACCES)
+				return
+			}
+			eqid := p9util.NodeQID(node.Node)
+			if eqid.Type&p.QTAPPEND != 0 {
+				logRespondError(r, linuxerr.EPERM)
 				return
 			}
 			if err := node.Truncate(dir.Length); err != nil {

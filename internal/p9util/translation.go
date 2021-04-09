@@ -42,6 +42,9 @@ func NodeQIDVar(node *tree.Node, qid *p.Qid) {
 	if ni.Mode&tree.DMEXCL != 0 {
 		qid.Type |= p.QTEXCL
 	}
+	if ni.Mode&tree.DMAPPEND != 0 {
+		qid.Type |= p.QTAPPEND
+	}
 }
 
 func NodeDir(node *tree.Node) (dir p.Dir) {
@@ -59,6 +62,9 @@ func NodeDirVar(node *tree.Node, dir *p.Dir) {
 	}
 	if ni.Mode&tree.DMEXCL != 0 {
 		dir.Qid.Type |= p.QTEXCL
+	}
+	if ni.Mode&tree.DMAPPEND != 0 {
+		dir.Qid.Type |= p.QTAPPEND
 	}
 	dir.Uid = NodeUID
 	dir.Gid = NodeGID

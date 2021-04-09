@@ -334,7 +334,7 @@ func (node *Node) IsRoot() bool {
 	return node.info.Mode&DMDIR != 0 && node.parent == nil
 }
 
-const validMode = 0x000001ff | DMDIR | DMEXCL
+const validMode = 0x000001ff | DMDIR | DMAPPEND | DMEXCL
 
 func (node *Node) SetMode(mode uint32) {
 	node.info.Mode = mode & validMode
@@ -450,6 +450,9 @@ func (node *Node) shrink(requestedSize uint64) error {
 }
 
 func (node *Node) WriteAt(p []byte, off int64) error {
+	if node.info.Mode&DMAPPEND != 0 {
+		off = int64(node.info.Size)
+	}
 	if err := node.ensureBlocksForWriting(off + int64(len(p))); err != nil {
 		return err
 	}
