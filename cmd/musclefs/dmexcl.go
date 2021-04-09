@@ -51,27 +51,3 @@ func unlockNode(l *nodeLock) {
 	l.node = nil
 	nodelocks.Unlock()
 }
-
-// Maps node IDs to 9P mode flags that are maintained in musclefs but
-// do not have a counter part in the fs-agnostic tree package.
-var moreModes struct {
-	sync.Mutex
-	m map[uint64]uint32
-}
-
-func init() {
-	moreModes.m = make(map[uint64]uint32)
-}
-
-func moreMode(nodeID uint64) uint32 {
-	moreModes.Lock()
-	m := moreModes.m[nodeID]
-	moreModes.Unlock()
-	return m
-}
-
-func setMoreMode(nodeID uint64, mode uint32) {
-	moreModes.Lock()
-	moreModes.m[nodeID] = mode
-	moreModes.Unlock()
-}

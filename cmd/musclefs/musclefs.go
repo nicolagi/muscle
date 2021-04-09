@@ -225,7 +225,7 @@ func (ops *ops) Open(r *srv.Req) {
 			return
 		}
 		qid := p9util.NodeQID(node.Node)
-		if m := moreMode(qid.Path); m&p.DMEXCL != 0 {
+		if qid.Type&p.QTEXCL != 0 {
 			node.lock = lockNode(r.Fid, node.Node)
 			if node.lock == nil {
 				logRespondError(r, fmt.Errorf("file already locked"))
@@ -279,7 +279,6 @@ func (ops *ops) Create(r *srv.Req) {
 		r.Fid.Aux = child
 		qid := p9util.NodeQID(node)
 		if r.Tc.Perm&p.DMEXCL != 0 {
-			setMoreMode(qid.Path, p.DMEXCL)
 			child.lock = lockNode(r.Fid, child.Node)
 			if child.lock == nil {
 				logRespondError(r, fmt.Errorf("out of locks"))
@@ -707,13 +706,6 @@ func (ops *ops) Stat(r *srv.Req) {
 			return
 		}
 		dir := p9util.NodeDir(node.Node)
-		if m := moreMode(dir.Qid.Path); m&p.DMEXCL != 0 {
-			dir.Mode |= p.DMEXCL
-			dir.Qid.Type |= p.QTEXCL
-		} else {
-			dir.Mode &^= p.DMEXCL
-			dir.Qid.Type &^= p.QTEXCL
-		}
 		r.RespondRstat(&dir)
 	}
 }
@@ -775,13 +767,7 @@ func (ops *ops) Wstat(r *srv.Req) {
 				logRespondError(r, err)
 				return
 			}
-			qid := p9util.NodeQID(node.Node)
-			if dir.Mode&p.DMEXCL != 0 {
-				setMoreMode(qid.Path, p.DMEXCL)
-			} else {
-				setMoreMode(qid.Path, 0)
-			}
-			node.SetPerm(dir.Mode & 0777)
+			node.SetMode(dir.Mode)
 		}
 
 		// TODO: Not sure it's best to 'pretend' it works, or fail.

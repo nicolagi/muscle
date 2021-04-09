@@ -77,7 +77,7 @@ func (tree *Tree) Add(node *Node, name string, perm uint32) (*Node, error) {
 		parent:       node,
 		info: NodeInfo{
 			Name: name,
-			Mode: perm,
+			Mode: perm & validMode,
 		},
 	}
 	child.info.ID = uint64(time.Now().UnixNano())
