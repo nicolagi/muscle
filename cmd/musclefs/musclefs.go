@@ -362,7 +362,7 @@ func runCommand(ops *ops, cmd string) error {
 			outputBuffer.WriteByte(10)
 		}
 	case "dump":
-		ops.tree.DumpNodes()
+		ops.tree.DumpNodes(outputBuffer)
 	case "keep-local-for":
 		parts := strings.SplitN(args[0], "/", 2)
 		ops.tree.Ignore(parts[0], parts[1])

@@ -1,31 +1,32 @@
 package tree
 
 import (
-	"bytes"
-	"log"
+	"fmt"
+	"io"
 	"path"
 )
 
-func (tree *Tree) DumpNodes() {
-	tree.dumpNodesFrom(tree.root, "/")
+func (tree *Tree) DumpNodes(w io.Writer) {
+	tree.dumpNodesFrom(w, nil, tree.root, "/")
 }
 
-func (tree *Tree) dumpNodesFrom(node *Node, pathname string) {
-	b := bytes.NewBufferString(pathname)
-	b.WriteString(" pointer=")
-	b.WriteString(node.pointer.String())
+func (tree *Tree) dumpNodesFrom(w io.Writer, werr error, node *Node, pathname string) {
+	out := func(format string, a ...interface{}) {
+		if werr == nil {
+			_, werr = fmt.Fprintf(w, format, a...)
+		}
+	}
+	out("%s bsize=%d pointer=%v", pathname, node.bsize, node.pointer)
 	for _, c := range node.children {
-		b.WriteString(" childpointer=")
-		b.WriteString(c.pointer.String())
+		out(" childpointer=%v", c.pointer)
 	}
 	for _, blk := range node.blocks {
-		b.WriteString(" block=")
-		b.WriteString(blk.Ref().String())
+		out(" block=%v", blk.Ref())
 	}
-	log.Print(b.String())
+	_, _ = fmt.Fprintln(w)
 	for _, c := range node.children {
 		if c.flags&loaded != 0 {
-			tree.dumpNodesFrom(c, path.Join(pathname, c.info.Name))
+			tree.dumpNodesFrom(w, werr, c, path.Join(pathname, c.info.Name))
 		}
 	}
 }
