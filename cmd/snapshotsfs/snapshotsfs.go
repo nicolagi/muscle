@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
-	"strings"
+	"log"
 	"time"
 
 	"github.com/lionkov/go9p/p"
@@ -15,7 +15,6 @@ import (
 	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/nicolagi/muscle/internal/tree"
-	log "github.com/sirupsen/logrus"
 )
 
 type node interface {
@@ -318,23 +317,12 @@ func (fs *fs) walk(r *srv.Req) {
 
 func main() {
 	base := flag.String("base", config.DefaultBaseDirectoryPath, "directory for caches, configuration, logs, etc.")
-	var logLevel string
-	var levels []string
-	for _, l := range log.AllLevels {
-		levels = append(levels, l.String())
-	}
-	flag.StringVar(&logLevel, "verbosity", "info", "sets the log `level`, among "+strings.Join(levels, ", "))
 	flag.Parse()
 
 	cfg, err := config.Load(*base)
 	if err != nil {
 		log.Fatalf("Could not load config from %q: %v", *base, err)
 	}
-	ll, err := log.ParseLevel(logLevel)
-	if err != nil {
-		log.Fatalf("Could not parse log level %q: %v", logLevel, err)
-	}
-	log.SetLevel(ll)
 
 	remoteStore, err := storage.NewStore(cfg)
 	if err != nil {

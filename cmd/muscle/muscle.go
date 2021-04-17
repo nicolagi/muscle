@@ -18,7 +18,6 @@ import (
 	"github.com/nicolagi/muscle/internal/config"
 	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/nicolagi/muscle/internal/tree"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -30,8 +29,7 @@ var (
 	// the properties are bound to positional arguments. The global context is for flags that are part of all flag sets,
 	// that is, all sub-commands.
 	globalContext struct {
-		base     string
-		logLevel string
+		base string
 	}
 
 	cleanContext struct {
@@ -59,11 +57,6 @@ var (
 func newFlagSet(name string) *flag.FlagSet {
 	fs := flag.NewFlagSet(name, flag.ExitOnError)
 	fs.StringVar(&globalContext.base, "base", config.DefaultBaseDirectoryPath, "`directory` for caches, configuration, logs, etc.")
-	var levels []string
-	for _, l := range logrus.AllLevels {
-		levels = append(levels, l.String())
-	}
-	fs.StringVar(&globalContext.logLevel, "verbosity", "warning", "sets the log `level`, among "+strings.Join(levels, ", "))
 	return fs
 }
 
@@ -221,13 +214,6 @@ func main() {
 		exitUsage(fmt.Sprintf("%q: command not recognized", cmd))
 	}
 
-	logrus.SetFormatter(&logrus.JSONFormatter{})
-	ll, err := logrus.ParseLevel(globalContext.logLevel)
-	if err != nil {
-		log.Fatalf("Could not parse log level %q: %v", globalContext.logLevel, err)
-	}
-	logrus.SetLevel(ll)
-
 	// The init subcommand is special, because it must create configuration, not use it.
 	// Therefore it is handled outside of the big switch statement below.
 	if os.Args[1] == "init" {
@@ -320,7 +306,7 @@ func main() {
 			log.Fatalf("Error scanning file %q: %v", f.Name(), err)
 		}
 		_ = f.Close()
-		logrus.WithField("count", len(m)).Info("Found stored keys")
+		log.Printf("clean: found %d stored keys", len(m))
 		f, err = os.Open(cleanContext.neededKeys)
 		if err != nil {
 			log.Fatalf("Could not open file containing still needed keys %q: %v", cleanContext.neededKeys, err)
@@ -332,7 +318,7 @@ func main() {
 		if err := s.Err(); err != nil {
 			log.Fatalf("Error scanning file %q: %v", f.Name(), err)
 		}
-		logrus.WithField("count", len(m)).Info("Found stored keys that are no longer needed")
+		log.Printf("clean: %d stored keys that are no longer needed", len(m))
 		i := 0
 		for keyHex := range m {
 			if keyHex == "base" || strings.HasPrefix(keyHex, tree.RemoteRootKeyPrefix) {
@@ -345,7 +331,7 @@ func main() {
 			err := remoteStore.Delete(key.Key())
 			if err != nil {
 				fmt.Print("O")
-				logrus.Error(err.Error())
+				log.Printf("clean: %v", err)
 			} else {
 				fmt.Print(".")
 			}
@@ -356,14 +342,13 @@ func main() {
 		}
 
 	case "diff":
-		cmdlog := logrus.WithFields(logrus.Fields{})
 		remoteRevisionKey, err := treeStore.RemoteBasePointer()
 		if err != nil {
-			cmdlog.WithField("cause", err).Fatal("Could not load remote revision key")
+			log.Fatalf("diff: %v", err)
 		}
 		remoteTree, err := tree.NewTree(treeStore, tree.WithRevision(remoteRevisionKey))
 		if err != nil {
-			cmdlog.WithField("cause", err).Fatal("Could not load remote tree")
+			log.Fatalf("diff: %v", err)
 		}
 		err = tree.DiffTrees(
 			remoteTree,
@@ -376,7 +361,7 @@ func main() {
 			tree.DiffTreesVerbose(diffContext.verbose),
 		)
 		if err != nil {
-			cmdlog.WithField("cause", err).Fatal("Could not diff against remote tree")
+			log.Fatalf("diff: %v", err)
 		}
 
 	case "history":
@@ -439,26 +424,24 @@ func main() {
 		}
 
 	case "reachable":
-		cmdlog := logrus.WithField("op", cmd) // TODO adopt pattern for all commands
 		m := make(map[string]struct{})
 		s := bufio.NewScanner(os.Stdin)
 		for s.Scan() {
-			cmdlog = cmdlog.WithField("key", s.Text())
 			key, err := storage.NewPointerFromHex(s.Text())
 			if err != nil {
-				cmdlog.WithField("cause", err).Fatal("Could not parse key")
+				log.Fatalf("reachable: %v", err)
 			}
 			log.Printf("reachable: examining revision %q", key)
 			t, err := tree.NewTree(treeStore, tree.WithRevision(key))
 			if err != nil {
-				cmdlog.WithField("cause", err).Fatal("Could not construct tree")
+				log.Fatalf("reachable: %v", err)
 			}
 			if _, err := t.ReachableKeys(m); err != nil {
-				cmdlog.WithField("cause", err).Fatal("Could not find reachable keys")
+				log.Fatalf("reachable: %v", err)
 			}
 		}
 		if err := s.Err(); err != nil {
-			cmdlog.WithField("cause", err).Fatal("Scan error")
+			log.Fatalf("reachable: %v", err)
 		}
 		for k := range m {
 			fmt.Println(k)

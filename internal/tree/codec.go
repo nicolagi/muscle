@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"unicode/utf8"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // Codec defines how we serialize and deserialize our types.
@@ -75,12 +74,7 @@ func (mc *multiCodec) decodeNode(data []byte, node *Node) (err error) {
 			}
 			b = b[size:]
 		}
-		log.WithFields(log.Fields{
-			"key":    node.pointer.Hex(),
-			"codec":  data[0],
-			"parent": parent,
-			"data":   fmt.Sprintf("%x", data),
-		}).Error("no codec found")
+		log.Printf("no codec found for key %v, child of %v; content is %v; want codec %v", node.pointer, parent, fmt.Sprintf("%x", data), node.pointer.Hex())
 		return errNoCodec
 	}
 	return c.decodeNode(data[1:], node)

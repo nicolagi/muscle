@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"path/filepath"
 	"strings"
 
 	"github.com/nicolagi/muscle/internal/config"
-	log "github.com/sirupsen/logrus"
 )
 
 func (tree *Tree) isIgnored(revision string, pathname string) bool {

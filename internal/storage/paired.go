@@ -5,11 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"sync"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // Valid prefix byte in the propagation log lines. A pending item is only in the
@@ -162,10 +161,7 @@ func (p *Paired) Get(k Key) (v Value, err error) {
 		v, err = p.slow.Get(k)
 		if err == nil {
 			if e := p.fast.Put(k, v); e != nil {
-				log.WithFields(log.Fields{
-					"key":   k,
-					"cause": e.Error(),
-				}).Warning("Could not write item to the fast store")
+				log.Printf("Could not write item %v to the fast store: %v", k, e)
 			}
 		}
 	}

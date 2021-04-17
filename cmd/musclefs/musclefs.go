@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -24,7 +25,6 @@ import (
 	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/nicolagi/muscle/internal/tree"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -323,6 +323,7 @@ func (ops *ops) Read(r *srv.Req) {
 }
 
 func runCommand(ops *ops, cmd string) error {
+	const method = "runCommand"
 	args := strings.Fields(cmd)
 	if len(args) == 0 {
 		return nil
@@ -350,10 +351,6 @@ func runCommand(ops *ops, cmd string) error {
 			return fmt.Errorf("could not flush: %v", err)
 		}
 		return doDiff(outputBuffer, ops.tree, ops.treeStore, ops.cfg.MuscleFSMount, ops.cfg.SnapshotsFSMount, args)
-	case "level":
-		if err := setLevel(args[0]); err != nil {
-			return err
-		}
 	case "lsof":
 		paths := ops.tree.ListNodesInUse()
 		sort.Strings(paths)
@@ -490,12 +487,7 @@ func runCommand(ops *ops, cmd string) error {
 		fmt.Printf("Attempting graft of %s into %s\n", historicalChild, localParent)
 		err = ops.tree.Graft(localParent, historicalChild, localBaseName)
 		if err != nil {
-			log.WithFields(log.Fields{
-				"receiver": localParent,
-				"donor":    historicalChild,
-				"cause":    err,
-			}).Error("Graft failed")
-			return linuxerr.EACCES
+			return errorf(method, "%v: %w", err, linuxerr.EACCES)
 		}
 	case "trim":
 		// This, I think, is the only protection against loading large
@@ -710,11 +702,12 @@ func (ops *ops) Stat(r *srv.Req) {
 }
 
 func (ops *ops) Wstat(r *srv.Req) {
+	const method = "ops.Wstat"
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
 	switch {
 	case r.Fid.Aux == ops.c:
-		logRespondError(r, linuxerr.EACCES)
+		logRespondError(r, linuxerr.EPERM)
 	default:
 		node := r.Fid.Aux.(*fsNode)
 		dir := r.Tc.Dir
@@ -747,12 +740,7 @@ func (ops *ops) Wstat(r *srv.Req) {
 		dir.Atime = ^uint32(0)
 		dir.Muid = ""
 		if dir.ChangeIllegalFields() {
-			log.WithFields(log.Fields{
-				"path": node.Path(),
-				"dir":  dir,
-				"qid":  dir.Qid,
-			}).Warning("Trying to change illegal fields")
-			logRespondError(r, linuxerr.EACCES)
+			logRespondError(r, errorf(method, "illegal fields for %q: %w", node.Path(), linuxerr.EPERM))
 			return
 		}
 
@@ -784,15 +772,6 @@ func (ops *ops) Wstat(r *srv.Req) {
 	}
 }
 
-func setLevel(level string) error {
-	ll, err := log.ParseLevel(level)
-	if err != nil {
-		return err
-	}
-	log.SetLevel(ll)
-	return nil
-}
-
 func main() {
 	// Do NOT turn on agent.ShutdownCleanup.
 	// The installed signal handler will call os.Exit, preventing
@@ -817,7 +796,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load config from %q: %v", *base, err)
 	}
-	log.SetFormatter(&log.JSONFormatter{})
 
 	remoteBasicStore, err := storage.NewStore(cfg)
 	if err != nil {

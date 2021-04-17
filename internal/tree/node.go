@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	stdlog "log"
+	"log"
 	"time"
 
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/internal/debug"
 	"github.com/nicolagi/muscle/internal/linuxerr"
 	"github.com/nicolagi/muscle/internal/storage"
-	log "github.com/sirupsen/logrus"
 )
 
 type nodeFlags uint8
@@ -275,25 +274,15 @@ func (node *Node) Trim() {
 
 		age := now - node.info.Modified
 
-		le := log.WithFields(log.Fields{
-			"path":  node.Path(),
-			"key":   node.pointer.Hex(),
-			"age":   age,
-			"refs":  node.refs,
-			"flags": node.flags,
-		})
-
 		if node.IsRoot() || node.flags&dirty != 0 || node.refs != 0 || age < minAge {
-			le.Debug("Not trimming, but maybe we can trim blocks")
 			for _, b := range node.blocks {
 				if b.Forget() {
-					stdlog.Printf("Trimmed node %q block %q", node.Path(), b.Ref())
+					log.Printf("Trimmed node %q block %q", node.Path(), b.Ref())
 				}
 			}
 			return
 		}
 
-		le.Debug("Trimming")
 		node.flags &^= loaded
 		node.info.Name = ""
 		node.blocks = nil

@@ -4,8 +4,7 @@ package main
 
 import (
 	"flag"
-
-	log "github.com/sirupsen/logrus"
+	"log"
 
 	"github.com/nicolagi/muscle/internal/config"
 	"github.com/nicolagi/muscle/internal/storage"
