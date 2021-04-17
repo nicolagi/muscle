@@ -8,7 +8,7 @@ require (
 	github.com/google/go-cmp v0.3.1
 	github.com/google/gops v0.3.12
 	github.com/lionkov/go9p v0.0.0-20190125202718-b4200817c487
-	github.com/nicolagi/signit v0.0.0
+	github.com/nicolagi/signit v0.0.0-20210417064458-ac85470c0fc0
 	github.com/pkg/errors v0.9.1
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.6.0
@@ -17,7 +17,5 @@ require (
 	golang.org/x/sys v0.0.0-20200909081042-eff7692f9009 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )
-
-replace github.com/nicolagi/signit => ../signit
 
 replace github.com/lionkov/go9p v0.0.0-20190125202718-b4200817c487 => github.com/nicolagi/go9p v0.0.0-20190223213930-d791c5b05663
