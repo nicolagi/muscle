@@ -97,5 +97,6 @@ func newStandardCodec() *multiCodec {
 	codec.register(13, &codecV13{})
 	codec.register(14, &codecV14{})
 	codec.register(15, &codecV15{})
+	codec.register(16, &codec16{})
 	return codec
 }

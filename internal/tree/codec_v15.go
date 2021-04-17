@@ -9,45 +9,8 @@ import (
 
 type codecV15 struct{}
 
-func (codecV15) encodeNode(node *Node) ([]byte, error) {
-	size := 49
-	size += len(node.info.Name)
-	size += len(node.children)
-	size += len(node.blocks)
-	for _, ptr := range node.children {
-		size += int(ptr.pointer.Len())
-	}
-	for _, b := range node.blocks {
-		size += int(b.Ref().Len())
-	}
-	buf := make([]byte, size)
-	ptr := buf
-	ptr = pint8(15, ptr)
-	// The QID type (file or directory) is derived from the mode (DMDIR flag).
-	ptr = pint8(0, ptr)
-	ptr = pint64(node.info.ID, ptr)
-	ptr = pint32(node.info.Version, ptr)
-	ptr = pstr(node.info.Name, ptr)
-	ptr = pint8(uint8(node.flags & ^(loaded|dirty)), ptr)
-	ptr = pint32(node.bsize, ptr)
-	ptr = pint32(node.info.Mode, ptr)
-	ptr = pint64(node.info.Size, ptr)
-	ptr = pint32(node.info.Modified, ptr)
-	ptr = pint32(0, ptr)
-	ptr = pint32(uint32(len(node.children)), ptr)
-	for _, c := range node.children {
-		ptr = pint8(c.pointer.Len(), ptr)
-		ptr = pbytes(c.pointer.Bytes(), ptr)
-	}
-	ptr = pint32(uint32(len(node.blocks)), ptr)
-	for _, b := range node.blocks {
-		ptr = pint8(uint8(b.Ref().Len()), ptr)
-		ptr = pbytes(b.Ref().Bytes(), ptr)
-	}
-	if len(ptr) != 0 {
-		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
-	}
-	return buf, nil
+func (codecV15) encodeNode(*Node) ([]byte, error) {
+	panic("decommissioned")
 }
 
 func (codecV15) decodeNode(data []byte, dest *Node) error {
@@ -111,38 +74,8 @@ func (codecV15) decodeNode(data []byte, dest *Node) error {
 	return nil
 }
 
-func (codecV15) encodeRevision(rev *Revision) ([]byte, error) {
-	size := 16 + len(rev.host)
-	if !rev.rootKey.IsNull() {
-		size += int(rev.rootKey.Len())
-	}
-	if !rev.parent.IsNull() {
-		size += int(rev.parent.Len())
-	}
-	buf := make([]byte, size)
-	ptr := buf
-	ptr = pint8(15, ptr)
-	if rev.rootKey.IsNull() {
-		ptr = pint8(0, ptr)
-	} else {
-		ptr = pint8(rev.rootKey.Len(), ptr)
-		ptr = pbytes(rev.rootKey.Bytes(), ptr)
-	}
-	ptr = pint8(1, ptr) /* only one parent */
-	if rev.parent.IsNull() {
-		ptr = pint8(0, ptr)
-	} else {
-		ptr = pint8(rev.parent.Len(), ptr)
-		ptr = pbytes(rev.parent.Bytes(), ptr)
-	}
-	ptr = pint64(uint64(rev.when), ptr)
-	ptr = pstr(rev.host, ptr)
-	// Empty instance field, we don't want it anymore.
-	ptr = pstr("", ptr)
-	if len(ptr) != 0 {
-		panic(fmt.Sprintf("buffer length is non-zero: %d", len(ptr)))
-	}
-	return buf, nil
+func (codecV15) encodeRevision(*Revision) ([]byte, error) {
+	panic("decommissioned")
 }
 
 func (codecV15) decodeRevision(data []byte, rev *Revision) error {
@@ -163,9 +96,14 @@ func (codecV15) decodeRevision(data []byte, rev *Revision) error {
 	for i := uint8(0); i < nparents; i++ {
 		u8, ptr = gint8(ptr)
 		if u8 == 0 {
-			rev.parent = storage.Null
+			rev.parents = nil
 		} else {
-			rev.parent = storage.NewPointer(ptr[:u8])
+			rev.parents = []Tag{
+				Tag{
+					Name:    "base",
+					Pointer: storage.NewPointer(ptr[:u8]),
+				},
+			}
 			ptr = ptr[u8:]
 		}
 	}

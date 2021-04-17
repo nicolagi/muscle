@@ -118,7 +118,7 @@ func TestNodeMetaContent(t *testing.T) {
 		b2 := newBlock(t, bf, ref2)
 		a.blocks = append(a.blocks, b1, b2)
 		b = a
-		b.pointer = storage.RandomPointer()
+		b.pointer, _ = storage.NewPointerFromHex("680b4e7c8b763a1b1d49d4955c8486216325253fec738dd7a9e28bf921119c16")
 		b.info.Version++
 		b.info.Name = "Rupert"
 		assert.Equal(t, `-Key f00df00df00df00df00df00df00df00df00df00df00df00df00df00df00df00d

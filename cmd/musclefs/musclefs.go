@@ -510,11 +510,11 @@ func runCommand(ops *ops, cmd string) error {
 		if err != nil {
 			return output(err)
 		}
-		remotebase, err := ops.treeStore.RemoteBasePointer()
+		tag, err := ops.treeStore.RemoteTag("base")
 		if err != nil {
 			return output(err)
 		}
-		if localbase.Equals(remotebase) {
+		if localbase.Equals(tag.Pointer) {
 			_, _ = fmt.Fprintln(outputBuffer, "local base matches remote base, pull is a no-op")
 			return nil
 		}
@@ -528,7 +528,7 @@ func runCommand(ops *ops, cmd string) error {
 		if err != nil {
 			return output(err)
 		}
-		remotebasetree, err := tree.NewTree(ops.treeStore, tree.WithRevision(remotebase))
+		remotebasetree, err := tree.NewTree(ops.treeStore, tree.WithRevision(tag.Pointer))
 		if err != nil {
 			return output(err)
 		}
@@ -560,7 +560,7 @@ func runCommand(ops *ops, cmd string) error {
 
 		if len(commands) == 0 || commands == "pull\n" {
 			_, _ = fmt.Fprintf(outputBuffer, "# pull successful (%d commands run)\n", successful)
-			if err := ops.treeStore.SetLocalBasePointer(remotebase); err != nil {
+			if err := ops.treeStore.SetLocalBasePointer(tag.Pointer); err != nil {
 				return output(err)
 			}
 			return nil
@@ -570,14 +570,16 @@ func runCommand(ops *ops, cmd string) error {
 		outputBuffer.WriteString(commands)
 		return nil
 	case "push":
+		tagNames := append([]string{"base"}, args...)
 		localbase, err := ops.treeStore.LocalBasePointer()
 		if err != nil {
 			return output(err)
 		}
-		remotebase, err := ops.treeStore.RemoteBasePointer()
+		tags, err := ops.treeStore.RemoteTags(tagNames)
 		if err != nil {
 			return output(err)
 		}
+		remotebase := tags[0].Pointer
 		if !localbase.Equals(remotebase) {
 			return output(fmt.Errorf("local base %v does not match remote base %v, pull first", localbase, remotebase))
 		}
@@ -594,17 +596,18 @@ func runCommand(ops *ops, cmd string) error {
 		_, _ = fmt.Fprintln(outputBuffer, "push: sealed")
 
 		_, localroot := ops.tree.Root()
-		revision := tree.NewRevision(localroot, remotebase)
+		revision := tree.NewRevision(localroot, tags)
 		if err := ops.treeStore.StoreRevision(revision); err != nil {
 			return output(err)
 		}
 		ops.tree.SetRevision(revision)
 		_, _ = fmt.Fprintf(outputBuffer, "push: revision created: %s\n", revision.ShortString())
 
-		if err := ops.treeStore.SetRemoteBasePointer(revision.Key()); err != nil {
+		if err := ops.treeStore.SetRemoteTags(tagNames, revision.Key()); err != nil {
 			return output(err)
 		}
-		_, _ = fmt.Fprintf(outputBuffer, "push: updated remote base pointer: %v\n", revision.Key())
+		_, _ = fmt.Fprintf(outputBuffer, "push: updated remote tags %v to %v\n", tagNames, revision.Key())
+
 		if err := ops.treeStore.SetLocalBasePointer(revision.Key()); err != nil {
 			return output(err)
 		}

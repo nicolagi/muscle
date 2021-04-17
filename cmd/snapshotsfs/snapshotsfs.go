@@ -149,15 +149,15 @@ func (root *rootdir) open(r *srv.Req) (qid p.Qid, err error) {
 }
 
 func (root *rootdir) reload() error {
-	remotebase, err := root.treestore.RemoteBasePointer()
+	tag, err := root.treestore.RemoteTag("base")
 	if err != nil {
 		return err
 	}
-	remote, err := root.treestore.LoadRevisionByKey(remotebase)
+	remote, err := root.treestore.LoadRevisionByKey(tag.Pointer)
 	if err != nil {
 		return err
 	}
-	revisions, err := root.treestore.History(10, remote)
+	revisions, err := root.treestore.History(10, remote, "base")
 	if err != nil {
 		return err
 	}

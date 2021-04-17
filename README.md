@@ -1,3 +1,11 @@
+**Update 2021-04-18.**
+
+Lots of small bug fixes where done thanks for a [fs differential testing project](../fsdiff).
+
+Musclefs supports tagging sub-sequences of revisions; these could be useful for tracking projects histories as sub-sequences of the whole fs history.
+The commands for diff and history all support a new `-b` option (tag to use as base to diff from, show history of revisions with given tag only).
+The push command, used to create new revisions, supports an optional list of additional tags (in addition to the default, "base") to add to the revision.
+
 **Update 2020-10-11.**
 This file system uses the 9P protocol.
 It doesn't mean it's a Plan 9 file system like fossil or cwfs.

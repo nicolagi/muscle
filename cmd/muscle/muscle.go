@@ -38,6 +38,7 @@ var (
 	}
 
 	diffContext struct {
+		tagName string
 		prefix  string
 		names   bool
 		verbose bool
@@ -49,6 +50,7 @@ var (
 		diff   bool
 
 		// These apply only if diff is true.
+		tagName string
 		names   bool
 		verbose bool
 	}
@@ -126,6 +128,7 @@ func main() {
 	cleanFlags.StringVar(&cleanContext.neededKeys, "needed", "", "`file` listing needed keys - output from muscle reachable")
 
 	diffFlags := newFlagSet("diff")
+	diffFlags.StringVar(&diffContext.tagName, "b", "base", "tag `name`")
 	diffFlags.BoolVar(&diffContext.verbose, "v", false, "include metadata changes")
 	diffFlags.BoolVar(&diffContext.names, "N", false, "only output paths that changed, not context diffs")
 	diffFlags.StringVar(&diffContext.prefix, "prefix", "", "omit diffs outside of `path`, e.g., project/name")
@@ -137,6 +140,7 @@ func main() {
 	// TODO I need a glossary
 
 	historyFlags := newFlagSet("history")
+	historyFlags.StringVar(&historyContext.tagName, "b", "base", "tag `name`")
 	historyFlags.BoolVar(&historyContext.diff, "d", false, "show diff between revisions")
 	historyFlags.StringVar(&historyContext.prefix, "prefix", "", "omit diffs outside of `path`, e.g., project/name")
 	historyFlags.BoolVar(&historyContext.names, "N", false, "Only output paths that changed, not context diffs (requires -d)")
@@ -342,11 +346,11 @@ func main() {
 		}
 
 	case "diff":
-		remoteRevisionKey, err := treeStore.RemoteBasePointer()
+		tag, err := treeStore.RemoteTag(diffContext.tagName)
 		if err != nil {
 			log.Fatalf("diff: %v", err)
 		}
-		remoteTree, err := tree.NewTree(treeStore, tree.WithRevision(remoteRevisionKey))
+		remoteTree, err := tree.NewTree(treeStore, tree.WithRevision(tag.Pointer))
 		if err != nil {
 			log.Fatalf("diff: %v", err)
 		}
@@ -365,15 +369,15 @@ func main() {
 		}
 
 	case "history":
-		pointer, err := treeStore.RemoteBasePointer()
+		tag, err := treeStore.RemoteTag(historyContext.tagName)
 		if err != nil {
 			log.Fatalf("could not read base pointer: %+v", err)
 		}
-		rev, err := treeStore.LoadRevisionByKey(pointer)
+		rev, err := treeStore.LoadRevisionByKey(tag.Pointer)
 		if err != nil {
-			log.Fatalf("could not load revision %v: %+v", pointer, err)
+			log.Fatalf("could not load revision %v: %+v", tag.Pointer, err)
 		}
-		rr, err := treeStore.History(historyContext.count, rev)
+		rr, err := treeStore.History(historyContext.count, rev, historyContext.tagName)
 		if err != nil {
 			log.Printf("history may be truncated: %+v", err)
 		}

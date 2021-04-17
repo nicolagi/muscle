@@ -241,8 +241,31 @@ func setLocalPointer(pathname string, pointer storage.Pointer) error {
 	return nil
 }
 
-func (s *Store) RemoteBasePointer() (storage.Pointer, error) {
-	if content, err := s.pointers.Get(storage.Key(RemoteRootKeyPrefix + "base")); errors.Is(err, storage.ErrNotFound) {
+func (s *Store) RemoteTag(tagName string) (tag Tag, err error) {
+	var tags []Tag
+	tags, err = s.RemoteTags([]string{tagName})
+	if err == nil {
+		tag = tags[0]
+	}
+	return
+}
+
+func (s *Store) RemoteTags(tagNames []string) (tags []Tag, err error) {
+	var method = "Store.RemoteTags"
+	var p storage.Pointer
+	for _, n := range tagNames {
+		p, err = s.tagPointer(n)
+		if err != nil {
+			err = errorv(method, err)
+			break
+		}
+		tags = append(tags, Tag{Name: n, Pointer: p})
+	}
+	return
+}
+
+func (s *Store) tagPointer(tag string) (storage.Pointer, error) {
+	if content, err := s.pointers.Get(storage.Key(RemoteRootKeyPrefix + tag)); errors.Is(err, storage.ErrNotFound) {
 		return storage.Null, nil
 	} else if err != nil {
 		return storage.Null, err
@@ -251,8 +274,18 @@ func (s *Store) RemoteBasePointer() (storage.Pointer, error) {
 	}
 }
 
-func (s *Store) SetRemoteBasePointer(pointer storage.Pointer) error {
-	return s.pointers.Put(storage.Key(RemoteRootKeyPrefix+"base"), []byte(pointer.Hex()))
+// pointer must point to a revision.
+func (s *Store) SetRemoteTags(tagNames []string, pointer storage.Pointer) error {
+	const method = "Store.SetRemoteTags"
+	value := []byte(pointer.Hex())
+	for _, tagName := range tagNames {
+		key := storage.Key(RemoteRootKeyPrefix + tagName)
+		err := s.pointers.Put(key, value)
+		if err != nil {
+			return errorv(method, err)
+		}
+	}
+	return nil
 }
 
 func (s *Store) LocalRootKey() (storage.Pointer, error) {
@@ -304,24 +337,17 @@ func (s *Store) loadRoot(key storage.Pointer) (*Node, error) {
 	return root, nil
 }
 
-func (s *Store) History(maxRevisions int, head *Revision) (rr []*Revision, err error) {
-	if head == nil {
-		return nil, nil
-	}
-	return s.history(head, maxRevisions)
-}
-
-func (s *Store) history(r *Revision, maxRevisions int) (rr []*Revision, err error) {
-	for ; maxRevisions > 0; maxRevisions-- {
-		if r == nil {
-			break
-		}
+func (s *Store) History(maxRevisions int, head *Revision, tagName string) (rr []*Revision, err error) {
+	const method = "Store.History"
+	for r := head; r != nil && maxRevisions > 0; maxRevisions-- {
 		rr = append(rr, r)
-		if r.parent.IsNull() {
+		tag, ok := r.Parent(tagName)
+		if !ok {
 			break
 		}
-		r, err = s.LoadRevisionByKey(r.parent)
+		r, err = s.LoadRevisionByKey(tag.Pointer)
 		if err != nil {
+			err = errorv(method, err)
 			break
 		}
 	}
