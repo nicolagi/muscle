@@ -21,20 +21,16 @@ func (f *ctl) read(target []byte, offset int) int {
 	return copy(target, f.contents[offset:])
 }
 
-func doDiff(w io.Writer, localTree *tree.Tree, treeStore *tree.Store, mountpoint string, args []string) error {
+func doDiff(w io.Writer, localTree *tree.Tree, treeStore *tree.Store, muscleFSMount string, snapshotsFSMount string, args []string) error {
 	var diffContext struct {
-		context int
 		prefix  string
 		names   bool
 		verbose bool
-		maxSize int
 	}
 	flags := flag.NewFlagSet("diff", flag.ContinueOnError)
 	flags.BoolVar(&diffContext.verbose, "v", false, "include metadata changes")
-	flags.IntVar(&diffContext.context, "U", 3, "number of unified context `lines`")
 	flags.BoolVar(&diffContext.names, "N", false, "only output paths that changed, not context diffs")
 	flags.StringVar(&diffContext.prefix, "prefix", "", "omit diffs outside of `path`, e.g., project/name")
-	flags.IntVar(&diffContext.maxSize, "S", 256*1024, "do not diff nodes larger than `count` bytes")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -49,13 +45,15 @@ func doDiff(w io.Writer, localTree *tree.Tree, treeStore *tree.Store, mountpoint
 	if err != nil {
 		return err
 	}
-	err = tree.DiffTrees(remoteTree, localTree, tree.DiffTreesOutput(w),
+	err = tree.DiffTrees(
+		remoteTree,
+		localTree,
+		snapshotsFSMount,
+		muscleFSMount,
+		tree.DiffTreesOutput(w),
 		tree.DiffTreesInitialPath(diffContext.prefix),
-		tree.DiffTreesContext(diffContext.context),
 		tree.DiffTreesNamesOnly(diffContext.names),
 		tree.DiffTreesVerbose(diffContext.verbose),
-		tree.DiffTreesMaxSize(diffContext.maxSize),
-		tree.DiffTreesOutputPathPrefix(mountpoint),
 	)
 	return err
 }

@@ -2,7 +2,6 @@ package tree
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,127 +9,17 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/nicolagi/muscle/internal/diff"
 )
-
-const defaultMaxBlockSizeForDiff = 256 * 1024 // 256 kB
-
-var (
-	errTreeNodeLarge = errors.New("tree node too large")
-
-	// Should never happen, but if it does, it's bad. It means a node's length
-	// and its blocks are not in sync. Not that the blocks could not be loaded,
-	// but that the metadata is indeed inconsistent.
-	errTreeNodeTruncated = errors.New("tree node truncated")
-)
-
-// nodeMeta is an implementation of diff.Node for file system node metadata.
-type nodeMeta struct {
-	n *Node
-}
-
-func (node nodeMeta) SameAs(otherNode diff.Node) (bool, error) {
-	other, ok := otherNode.(nodeMeta)
-	if !ok {
-		return false, nil
-	}
-	if node.n == nil && other.n == nil {
-		return true, nil
-	}
-	if node.n == nil || other.n == nil {
-		return false, nil
-	}
-	return node.n.pointer.Equals(other.n.pointer), nil
-}
-
-func (node nodeMeta) Content() (string, error) {
-	if node.n == nil {
-		return "", nil
-	}
-	var output bytes.Buffer
-	_, _ = fmt.Fprintf(
-		&output,
-		`Key %q
-Dir.Qid.Version %d
-Dir.Qid.Path %d
-Dir.Mode %d
-Dir.Mtime %s
-Dir.Length %d
-Dir.Name %q
-`,
-		node.n.pointer.Hex(),
-		node.n.info.Version,
-		node.n.info.ID,
-		node.n.info.Mode,
-		time.Unix(int64(node.n.info.Modified), 0).UTC().Format(time.RFC3339),
-		node.n.info.Size,
-		node.n.info.Name,
-	)
-	_, _ = fmt.Fprintf(&output, "blocks:\n")
-	for _, b := range node.n.blocks {
-		_, _ = fmt.Fprintf(&output, "\t%v\n", b.Ref())
-	}
-	return output.String(), nil
-}
-
-// treeNode is an implementation of diff.Node for file system node contents.
-type treeNode struct {
-	t       *Tree
-	n       *Node
-	maxSize int
-}
-
-func (node treeNode) SameAs(otherNode diff.Node) (bool, error) {
-	other, ok := otherNode.(treeNode)
-	if !ok {
-		return false, nil
-	}
-	if node.n == nil && other.n == nil {
-		return true, nil
-	}
-	if node.n == nil || other.n == nil {
-		return false, nil
-	}
-	return node.n.hasEqualBlocks(other.n)
-}
-
-func (node treeNode) Content() (string, error) {
-	if node.n == nil {
-		return "", nil
-	}
-	if node.n.info.Size > uint64(node.maxSize) {
-		return "", fmt.Errorf("%d: %w", node.n.info.Size, errTreeNodeLarge)
-	}
-	content := make([]byte, node.n.info.Size)
-	n, err := node.n.ReadAt(content, 0)
-	if err != nil {
-		return "", err
-	}
-	if uint64(n) != node.n.info.Size {
-		return "", fmt.Errorf("got %d out of %d bytes: %w", n, node.n.info.Size, errTreeNodeTruncated)
-	}
-	return string(content), err
-}
 
 type diffTreesOptions struct {
-	contextLines     int
-	namesOnly        bool
-	verbose          bool
-	output           io.Writer
-	initialPath      string
-	maxSize          int
-	outputPathPrefix string
+	namesOnly   bool
+	verbose     bool
+	output      io.Writer
+	initialPath string
 }
 
 // DiffTreesOption follows the functional options pattern to pass options to DiffTrees.
 type DiffTreesOption func(*diffTreesOptions)
-
-func DiffTreesMaxSize(value int) DiffTreesOption {
-	return func(opts *diffTreesOptions) {
-		opts.maxSize = value
-	}
-}
 
 func DiffTreesOutput(w io.Writer) DiffTreesOption {
 	return func(opts *diffTreesOptions) {
@@ -141,12 +30,6 @@ func DiffTreesOutput(w io.Writer) DiffTreesOption {
 func DiffTreesInitialPath(pathname string) DiffTreesOption {
 	return func(opts *diffTreesOptions) {
 		opts.initialPath = pathname
-	}
-}
-
-func DiffTreesContext(value int) DiffTreesOption {
-	return func(opts *diffTreesOptions) {
-		opts.contextLines = value
 	}
 }
 
@@ -162,24 +45,13 @@ func DiffTreesVerbose(value bool) DiffTreesOption {
 	}
 }
 
-func DiffTreesOutputPathPrefix(value string) DiffTreesOption {
-	return func(opts *diffTreesOptions) {
-		opts.outputPathPrefix = value
-	}
-}
-
 // DiffTrees produces a metadata diff of the two trees.
-func DiffTrees(a, b *Tree, options ...DiffTreesOption) error {
+func DiffTrees(a, b *Tree, apath, bpath string, options ...DiffTreesOption) error {
 	opts := diffTreesOptions{
-		contextLines: 3,
-		output:       ioutil.Discard,
-		maxSize:      defaultMaxBlockSizeForDiff,
+		output: ioutil.Discard,
 	}
 	for _, opt := range options {
 		opt(&opts)
-	}
-	if _, err := fmt.Fprintf(opts.output, "------ a root %s\n++++++ b root %s\n", a.root.pointer.Hex(), b.root.pointer.Hex()); err != nil {
-		return fmt.Errorf("tree.DiffTrees: %w", err)
 	}
 	aInitial := a.root
 	bInitial := b.root
@@ -196,18 +68,95 @@ func DiffTrees(a, b *Tree, options ...DiffTreesOption) error {
 		}
 		bInitial = visitedNodes[len(visitedNodes)-1]
 	}
-	return diffTrees(a, b, aInitial, bInitial, &opts)
+	return diffTrees(a, b, apath, bpath, aInitial, bInitial, &opts)
 }
 
-func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
-	var an, bn diff.Node
-
-	an = nodeMeta{n: a}
-	bn = nodeMeta{n: b}
-	output, err := diff.Unified(an, bn, opts.contextLines)
-	if err != nil {
-		return err
+func mountedPath(t *Tree, n *Node, tpath string) string {
+	if n == nil {
+		return "/dev/null"
 	}
+	return filepath.Join(tpath, t.revision.Hex(), strings.TrimPrefix(n.Path(), "root/"))
+}
+
+func metaDiff(a, b *Node) string {
+	w := new(bytes.Buffer)
+	if a == nil && b == nil {
+		return ""
+	}
+	if a != nil && b != nil && a.pointer.Equals(b.pointer) {
+		return ""
+	}
+	modtime := func(node *Node) string {
+		return time.Unix(int64(node.info.Modified), 0).UTC().Format(time.RFC3339)
+	}
+	blockstring := func(node *Node) string {
+		var refs []string
+		for _, b := range node.blocks {
+			refs = append(refs, fmt.Sprintf("%q", b.Ref()))
+		}
+		return strings.Join(refs, " ")
+	}
+	if a == nil && b != nil {
+		_, _ = fmt.Fprintf(w, "+Key %q\n", b.pointer.Hex())
+		_, _ = fmt.Fprintf(w, "+Dir.Qid.Version %x\n", b.info.Version)
+		_, _ = fmt.Fprintf(w, "+Dir.Qid.Path %d\n", b.info.ID)
+		_, _ = fmt.Fprintf(w, "+Dir.Mode %d\n", b.info.Mode)
+		_, _ = fmt.Fprintf(w, "+Dir.Mtime %s\n", modtime(b))
+		_, _ = fmt.Fprintf(w, "+Dir.Length %d\n", b.info.Size)
+		_, _ = fmt.Fprintf(w, "+Dir.Name %q\n", b.info.Name)
+		_, _ = fmt.Fprintf(w, "+Blocks %s\n", blockstring(b))
+	} else if a != nil && b == nil {
+		_, _ = fmt.Fprintf(w, "-Key %q\n", a.pointer.Hex())
+		_, _ = fmt.Fprintf(w, "-Dir.Qid.Version %x\n", a.info.Version)
+		_, _ = fmt.Fprintf(w, "-Dir.Qid.Path %d\n", a.info.ID)
+		_, _ = fmt.Fprintf(w, "-Dir.Mode %d\n", a.info.Mode)
+		_, _ = fmt.Fprintf(w, "-Dir.Mtime %s\n", modtime(a))
+		_, _ = fmt.Fprintf(w, "-Dir.Length %d\n", a.info.Size)
+		_, _ = fmt.Fprintf(w, "-Dir.Name %q\n", a.info.Name)
+		_, _ = fmt.Fprintf(w, "-Blocks %s\n", blockstring(a))
+	} else {
+		_, _ = fmt.Fprintf(w, "-Key %s\n+Key %s\n", a.pointer.Hex(), b.pointer.Hex())
+		if a.info.Version != b.info.Version {
+			_, _ = fmt.Fprintf(w, "-Dir.Qid.Version %x\n+Dir.Qid.Version %x\n", a.info.Version, b.info.Version)
+		} else {
+			_, _ = fmt.Fprintf(w, " Dir.Qid.Version %x\n", a.info.Version)
+		}
+		if a.info.ID != b.info.ID {
+			_, _ = fmt.Fprintf(w, "-Dir.Qid.Path %d\n+Dir.Qid.Path %d\n", a.info.ID, b.info.ID)
+		} else {
+			_, _ = fmt.Fprintf(w, " Dir.Qid.Path %d\n", a.info.ID)
+		}
+		if a.info.Mode != b.info.Mode {
+			_, _ = fmt.Fprintf(w, "-Dir.Mode %d\n+Dir.Mode %d\n", a.info.Mode, b.info.Mode)
+		} else {
+			_, _ = fmt.Fprintf(w, " Dir.Mode %d\n", a.info.Mode)
+		}
+		if a.info.Modified != b.info.Modified {
+			_, _ = fmt.Fprintf(w, "-Dir.Mtime %q\n+Dir.Mtime %q\n", modtime(a), modtime(b))
+		} else {
+			_, _ = fmt.Fprintf(w, " Dir.Mtime %q\n", modtime(a))
+		}
+		if a.info.Size != b.info.Size {
+			_, _ = fmt.Fprintf(w, "-Dir.Length %d\n+Dir.Length %d\n", a.info.Size, b.info.Size)
+		} else {
+			_, _ = fmt.Fprintf(w, " Dir.Length %d\n", a.info.Size)
+		}
+		if a.info.Name != b.info.Name {
+			_, _ = fmt.Fprintf(w, "-Dir.Name %q\n+Dir.Name %q\n", a.info.Name, b.info.Name)
+		} else {
+			_, _ = fmt.Fprintf(w, " Dir.Name %q\n", a.info.Name)
+		}
+		if left, right := blockstring(a), blockstring(b); left != right {
+			_, _ = fmt.Fprintf(w, "-Blocks %s\n+Blocks %s\n", left, right)
+		} else {
+			_, _ = fmt.Fprintf(w, " Blocks %s\n", left)
+		}
+	}
+	return w.String()
+}
+
+func diffTrees(atree, btree *Tree, apath, bpath string, a, b *Node, opts *diffTreesOptions) error {
+	output := metaDiff(a, b)
 	if output == "" {
 		return nil
 	}
@@ -217,14 +166,14 @@ func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
 	if ap == "" {
 		ap = "/dev/null"
 	} else {
-		commonp = filepath.Join(opts.outputPathPrefix, ap)
+		commonp = filepath.Join(bpath, ap)
 		ap = filepath.Join("a", ap)
 	}
 	bp := b.Path()
 	if bp == "" {
 		bp = "/dev/null"
 	} else {
-		commonp = filepath.Join(opts.outputPathPrefix, bp)
+		commonp = filepath.Join(apath, bp)
 		bp = filepath.Join("b", bp)
 	}
 
@@ -237,27 +186,13 @@ func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
 		}
 	}
 
-	an = treeNode{t: atree, n: a, maxSize: opts.maxSize}
-	bn = treeNode{t: btree, n: b, maxSize: opts.maxSize}
-	output, err = diff.Unified(an, bn, opts.contextLines)
-	if errors.Is(err, errTreeNodeLarge) {
-		_, _ = fmt.Fprintf(opts.output, "omitting diff for large node: %v\n", err)
-		err = nil
-	}
-	if err != nil {
-		return err
-	}
-	if output != "" || a == nil || b == nil || a.info.Mode&DMDIR != b.info.Mode&DMDIR {
+	if a == nil || b == nil || !a.IsDir() || !b.IsDir() {
 		if opts.namesOnly {
 			_, _ = fmt.Fprintln(opts.output, commonp)
 		} else {
-			_, _ = fmt.Fprintf(opts.output, "--- %s\n+++ %s\n", ap, bp)
-			_, _ = fmt.Fprint(opts.output, output)
+			_, _ = fmt.Fprintf(opts.output, "diff -u %s %s\n", mountedPath(atree, a, apath), mountedPath(btree, b, bpath))
 		}
-	}
-
-	// We can recurse only if they are both directories.
-	if a == nil || b == nil || !a.IsDir() || !b.IsDir() {
+		// We can recurse only if they are both directories.
 		return nil
 	}
 
@@ -271,7 +206,7 @@ func diffTrees(atree, btree *Tree, a, b *Node, opts *diffTreesOptions) error {
 	achildren := a.childrenMap()
 	bchildren := b.childrenMap()
 	for _, name := range orderedUnionOfChildrenNames(achildren, bchildren) {
-		if err := diffTrees(atree, btree, achildren[name], bchildren[name], opts); err != nil {
+		if err := diffTrees(atree, btree, apath, bpath, achildren[name], bchildren[name], opts); err != nil {
 			return err
 		}
 	}
