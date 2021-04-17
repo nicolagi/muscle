@@ -18,7 +18,6 @@ import (
 	"github.com/nicolagi/muscle/internal/config"
 	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/nicolagi/muscle/internal/tree"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -477,15 +476,16 @@ func main() {
 }
 
 func doControl(c *config.C, args []string) error {
+	const method = "doControl"
 	user := p.OsUsers.Uid2User(os.Getuid())
 	fs, err := clnt.Mount(c.ListenNet, c.ListenAddr, "", 8192, user)
 	if err != nil {
-		return errors.Wrapf(err, "connecting to %s", c.ListenAddr)
+		return errorf(method, "connecting to %s: %v", c.ListenAddr, err)
 	}
 	defer fs.Unmount()
 	ctl, err := fs.FOpen("ctl", p.ORDWR)
 	if err != nil {
-		return errors.Wrap(err, "opening control file")
+		return errorf(method, "opening control file: %v", err)
 	}
 	defer func() {
 		if err := ctl.Close(); err != nil {
@@ -501,19 +501,19 @@ func doControl(c *config.C, args []string) error {
 	}
 	for s.Scan() {
 		if _, err := ctl.Write(s.Bytes()); err != nil {
-			return errors.Wrapf(err, "writing command %q", s.Bytes())
+			return errorf(method, "writing command %q: %v", s.Bytes(), err)
 		}
 		if _, err := ctl.Seek(0, 0); err != nil {
-			return errors.Wrapf(err, "seeking to beginning of control file")
+			return errorf(method, "seeking to beginning of control file: %v", err)
 		}
 		if response, err := ioutil.ReadAll(ctl); err != nil {
-			return errors.Wrapf(err, "reading response for command %q", s.Bytes())
+			return errorf(method, "reading response for command %q: %v", s.Bytes(), err)
 		} else if _, err := os.Stdout.Write(response); err != nil {
-			return errors.Wrapf(err, "writing response to standard output for command %q", s.Bytes())
+			return errorf(method, "writing response to standard output for command %q: %v", s.Bytes(), err)
 		}
 	}
 	if err := s.Err(); err != nil {
-		return errors.Wrap(err, "scanning input")
+		return errorf(method, "scanning input: %v", err)
 	}
 	return nil
 }

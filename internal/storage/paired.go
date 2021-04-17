@@ -2,13 +2,13 @@ package storage
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -37,13 +37,14 @@ type propagationLog struct {
 
 // newLog reads the log at pathname (creating it if necessary), compacts it, and time stamps the previous version.
 func newLog(pathname string) (*propagationLog, error) {
+	const method = "newLog"
 	curr, err := os.OpenFile(pathname, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
-		return nil, errors.Wrapf(err, "open %q read-only", pathname)
+		return nil, errorf(method, "open %q read-only: %v", pathname, err)
 	}
 	next, err := os.OpenFile(pathname+".new", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
-		return nil, errors.Wrapf(err, "open %q write-only", pathname+".new")
+		return nil, errorf(method, "open %q write-only: %v", pathname+".new", err)
 	}
 	s := bufio.NewScanner(curr)
 	for s.Scan() {
@@ -51,32 +52,32 @@ func newLog(pathname string) (*propagationLog, error) {
 		switch state := line[0]; state {
 		case itemPending, itemMissing:
 			if _, err := fmt.Fprintln(next, line); err != nil {
-				return nil, errors.Wrapf(err, "copying line from %q to %q", curr.Name(), next.Name())
+				return nil, errorf(method, "copying line from %q to %q: %v", curr.Name(), next.Name(), err)
 			}
 		case itemDone:
 		default:
-			return nil, errors.Errorf("Unrecognized item state: %d", state)
+			return nil, errorf(method, "unrecognized item state: %d", state)
 		}
 	}
 	if err := s.Err(); err != nil {
-		return nil, errors.Wrapf(err, "scan %q", curr.Name())
+		return nil, errorf(method, "scan %q: %v", curr.Name(), err)
 	}
 	if err := curr.Close(); err != nil {
-		return nil, errors.Wrapf(err, "close %q", curr.Name())
+		return nil, errorf(method, "close %q: %v", curr.Name(), err)
 	}
 	if err := next.Close(); err != nil {
-		return nil, errors.Wrapf(err, "close %q", next.Name())
+		return nil, errorf(method, "close %q: %v", next.Name(), err)
 	}
 	if err := os.Rename(next.Name(), curr.Name()); err != nil && !os.IsNotExist(err) {
-		return nil, errors.Wrapf(err, "rename %q to %q", next.Name(), curr.Name())
+		return nil, errorf(method, "rename %q to %q: %v", next.Name(), curr.Name(), err)
 	}
 	curr, err = os.OpenFile(pathname, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return nil, errors.Wrapf(err, "open %q read-write", pathname)
+		return nil, errorf(method, "open %q read-write: %v", pathname, err)
 	}
 	// Seek to end for writes. (Reads will use ReadAt instead.)
 	if _, err := curr.Seek(0, io.SeekEnd); err != nil {
-		return nil, errors.Wrapf(err, "seek %q to EOF", curr.Name())
+		return nil, errorf(method, "seek %q to EOF: %v", curr.Name(), err)
 	}
 	return &propagationLog{
 		file:   curr,

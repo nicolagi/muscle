@@ -1,6 +1,7 @@
 package tree
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -11,7 +12,6 @@ import (
 	"github.com/nicolagi/muscle/internal/debug"
 	"github.com/nicolagi/muscle/internal/linuxerr"
 	"github.com/nicolagi/muscle/internal/storage"
-	"github.com/pkg/errors"
 )
 
 var ErrInUse = errors.New("in use")

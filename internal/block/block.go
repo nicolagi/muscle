@@ -1,12 +1,12 @@
 package block
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/nicolagi/muscle/internal/storage"
-	"github.com/pkg/errors"
 )
 
 type state uint8
@@ -267,6 +267,7 @@ func (block *Block) ensureReadable() error {
 // Pre-condition: block is primed.
 // Post-condition: block is clean.
 func (block *Block) load() (err error) {
+	const method = "Block.load"
 	var ciphertext []byte
 	switch block.location {
 	case index:
@@ -277,10 +278,10 @@ func (block *Block) load() (err error) {
 		panic("block.Block.load: unknown location")
 	}
 	if err != nil {
-		return err
+		return errorv(method, err)
 	}
 	if l, min := len(ciphertext), block.cipher.BlockSize(); l < min {
-		return errors.Errorf("%v is %d bytes long; it's expected to be at least %d bytes long", block.ref.Key(), l, min)
+		return errorf(method, "%v is %d bytes long; need at least %d bytes", block.ref.Key(), l, min)
 	}
 	block.value = block.cipher.decrypt(ciphertext)
 	block.state = clean

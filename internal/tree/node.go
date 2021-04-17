@@ -2,6 +2,7 @@ package tree
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	stdlog "log"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/nicolagi/muscle/internal/debug"
 	"github.com/nicolagi/muscle/internal/linuxerr"
 	"github.com/nicolagi/muscle/internal/storage"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -95,11 +95,12 @@ func (node *Node) Info() NodeInfo {
 }
 
 func (node *Node) followBranch(name string) (*Node, error) {
+	const method = "Node.followBranch"
 	if node.flags&loaded == 0 {
-		return nil, errors.Wrapf(ErrInvariant, "looking up %q within %q, which hasn't been loaded", name, node.Path())
+		return nil, errorf(method, "looking up %q within %q, which hasn't been loaded", name, node.Path())
 	}
 	if name == "" {
-		return nil, errors.Wrapf(ErrInvariant, "looking up child with no name within %q", node.Path())
+		return nil, errorf(method, "looking up child with no name within %q", node.Path())
 	}
 	if name == ".." {
 		if node.parent == nil {
@@ -128,16 +129,17 @@ func (node *Node) addChildPointer(p storage.Pointer) error {
 
 // addChild fails if the node already has a child with matching name.
 func (node *Node) addChild(newChild *Node) error {
+	const method = "node.addChild"
 	if node.flags&loaded == 0 {
-		return errors.Wrapf(ErrInvariant, "add child %v to node %v, which wasn't loaded", newChild, node)
+		return errorf(method, "add child %v to node %v, which wasn't loaded", newChild, node)
 	}
 	if newChild.flags&loaded == 0 {
-		return errors.Wrapf(ErrInvariant, "add child %v, which wasn't loaded, to node %v", newChild, node)
+		return errorf(method, "add child %v, which wasn't loaded, to node %v", newChild, node)
 	}
 	if cn, err := node.followBranch(newChild.info.Name); err != nil {
 		return err
 	} else if cn != nil {
-		return errors.Wrapf(ErrExist, "%q within %q", newChild.info.Name, node.Path())
+		return errorf(method, "%q within %q: %w", newChild.info.Name, node.Path(), ErrExist)
 	}
 	newChild.parent = node
 	node.children = append(node.children, newChild)

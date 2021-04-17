@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/nicolagi/muscle/internal/linuxerr"
-	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -62,14 +61,16 @@ func (tree *Tree) trywalk(names []string) (nodes []*Node, err error) {
 // This method will also add a random UUID extension to every node that is not found in the storage layer.
 // Such nodes will then represent empty files.
 func (tree *Tree) Grow(parent *Node) error {
+	const method = "Tree.Grow"
 	if parent == nil {
-		return errors.New("cannot grow tree at nil node")
+		return errorf(method, "cannot grow tree at nil node")
 	}
 	return tree.grow(parent, tree.store.LoadNode)
 }
 
 // TODO: load should take a context for cancellation.
 func (tree *Tree) grow(parent *Node, load func(*Node) error) error {
+	const method = "Tree.grow"
 	semc := make(chan struct{}, 8)
 	g, _ := errgroup.WithContext(context.Background())
 	for _, child := range parent.children {
@@ -81,7 +82,7 @@ func (tree *Tree) grow(parent *Node, load func(*Node) error) error {
 			semc <- struct{}{}
 			defer func() { <-semc }()
 			if err := load(child); err != nil {
-				return errors.Wrapf(err, "tree.Tree.grow: loading a child of %q", parent.Path())
+				return errorf(method, "loading a child of %q: %v", parent.Path(), err)
 			}
 			return nil
 		})

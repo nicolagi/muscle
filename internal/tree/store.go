@@ -1,6 +1,7 @@
 package tree
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -12,7 +13,6 @@ import (
 	"github.com/nicolagi/muscle/internal/block"
 	"github.com/nicolagi/muscle/internal/debug"
 	"github.com/nicolagi/muscle/internal/storage"
-	"github.com/pkg/errors"
 )
 
 // Used for blocks holding serialized revisions and nodes. Since only one block
@@ -191,13 +191,19 @@ func (s *Store) LocalBasePointer() (storage.Pointer, error) {
 }
 
 func localPointer(pathname string) (storage.Pointer, error) {
-	if content, err := ioutil.ReadFile(pathname); os.IsNotExist(err) {
+	const method = "localPointer"
+	content, err := ioutil.ReadFile(pathname)
+	if os.IsNotExist(err) {
 		return storage.Null, nil
-	} else if err != nil {
-		return storage.Null, errors.WithStack(err)
-	} else {
-		return storage.NewPointerFromHex(strings.TrimSpace(string(content)))
 	}
+	if err != nil {
+		return storage.Null, errorv(method, err)
+	}
+	p, err := storage.NewPointerFromHex(strings.TrimSpace(string(content)))
+	if err != nil {
+		return storage.Null, errorv(method, err)
+	}
+	return p, nil
 }
 
 // SetLocalBasePointer atomically updates $HOME/lib/muscle/base, and
@@ -209,27 +215,28 @@ func (s *Store) SetLocalBasePointer(pointer storage.Pointer) error {
 }
 
 func setLocalPointer(pathname string, pointer storage.Pointer) error {
+	const method = "setLocalPointer"
 	previous, err := localPointer(pathname)
 	if err != nil {
-		return err
+		return errorv(method, err)
 	}
 	if f, err := os.OpenFile(pathname+".history", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666); err != nil {
-		return errors.WithStack(err)
+		return errorv(method, err)
 	} else {
 		_, werr := fmt.Fprintf(f, "%d	%s\n", time.Now().Unix(), previous.Hex())
 		cerr := f.Close()
 		if werr != nil {
-			return errors.WithStack(werr)
+			return errorv(method, err)
 		}
 		if cerr != nil {
-			return errors.WithStack(cerr)
+			return errorv(method, err)
 		}
 	}
 	if err := ioutil.WriteFile(pathname+".new", []byte(pointer.Hex()), 0666); err != nil {
-		return errors.WithStack(err)
+		return errorv(method, err)
 	}
 	if err := os.Rename(pathname+".new", pathname); err != nil {
-		return errors.WithStack(err)
+		return errorv(method, err)
 	}
 	return nil
 }

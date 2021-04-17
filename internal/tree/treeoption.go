@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/nicolagi/muscle/internal/storage"
-	"github.com/pkg/errors"
 )
 
 // TreeOption values influence the behavior of NewTree.
@@ -23,12 +22,13 @@ func WithMutable() TreeOption {
 // WithRevision specifies that the tree's root node should be the
 // revision's root node.
 func WithRevision(p storage.Pointer) TreeOption {
+	const method = "WithRevision"
 	return func(t *Tree) error {
 		if !t.revision.IsNull() {
-			return errors.Wrapf(ErrPhase, "tree already has a revision")
+			return errorf(method, "tree already has a revision")
 		}
 		if t.root != nil {
-			return errors.Wrapf(ErrPhase, "tree already has a root node")
+			return errorf(method, "tree already has a root node")
 		}
 		r, err := t.store.LoadRevisionByKey(p)
 		if err != nil {
@@ -45,9 +45,10 @@ func WithRevision(p storage.Pointer) TreeOption {
 
 // WithRoot specifies the tree's root node.
 func WithRoot(p storage.Pointer) TreeOption {
+	const method = "WithRoot"
 	return func(t *Tree) error {
 		if t.root != nil {
-			return errors.Wrapf(ErrPhase, "tree already has a root node")
+			return errorf(method, "tree already has a root node")
 		}
 		if p.IsNull() {
 			return nil

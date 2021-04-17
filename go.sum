@@ -21,8 +21,6 @@ github.com/nicolagi/go9p v0.0.0-20190223213930-d791c5b05663 h1:it7/mykD5osEYa/Dx
 github.com/nicolagi/go9p v0.0.0-20190223213930-d791c5b05663/go.mod h1:8xFEdKAXzfhwGXPzBHdRdvaDxVhfFzfefJsOVmElUFo=
 github.com/nicolagi/signit v0.0.0-20210417064458-ac85470c0fc0 h1:GsQTnJIVZ+gWkhEGUSZixv7FrG1tSEAdWZ2tIDp1fiM=
 github.com/nicolagi/signit v0.0.0-20210417064458-ac85470c0fc0/go.mod h1:sCOXtGBFfPfI3+lmlMdTuUoRWfkjsQkkvi9icrsJVj0=
-github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
-github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/shirou/gopsutil v2.20.4+incompatible/go.mod h1:5b4v6he4MtMOwMlS0TUMTu2PcXUg8+E1lC7eC3UO/RA=

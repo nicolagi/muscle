@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -17,7 +18,6 @@ import (
 	"time"
 
 	"github.com/nicolagi/muscle/internal/config"
-	"github.com/pkg/errors"
 )
 
 // storeFuncs implements Store.

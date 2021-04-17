@@ -16,8 +16,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 var (
@@ -214,28 +212,30 @@ func (c *C) EncryptionKeyBytes() []byte {
 
 // See https://www.kernel.org/doc/Documentation/filesystems/9p.txt.
 func linuxMountCommand(net string, addr string, mountpoint string) (string, error) {
+	const method = "linuxMountCommand"
 	uid, gid := os.Getuid(), os.Getgid()
 	switch net {
 	case "unix":
 		return fmt.Sprintf("sudo mount -t 9p %v %v -o trans=unix,dfltuid=%d,dfltgid=%d,cache=none,noextend,msize=131072", addr, mountpoint, uid, gid), nil
 	case "tcp":
 		if parts := strings.Split(addr, ":"); len(parts) != 2 {
-			return "", errors.Errorf("mailformed host-port pair: %q", addr)
+			return "", errorf(method, "mailformed host-port pair: %q", addr)
 		} else {
 			return fmt.Sprintf("sudo mount -t 9p %v %v -o trans=tcp,port=%v,dfltuid=%d,dfltgid=%d,cache=none,noextend,msize=131072", parts[0], mountpoint, parts[1], uid, gid), nil
 		}
 	default:
-		return "", errors.Errorf("unhandled network type: %v", net)
+		return "", errorf(method, "unhandled network type: %v", net)
 	}
 }
 
 // See mount_9p(8).
 func netbsdMountCommand(net string, addr string, mountpoint string) (string, error) {
+	const method = "linuxMountCommand"
 	if net != "tcp" {
-		return "", errors.Errorf("unsupported network: %q", net)
+		return "", errorf(method, "unsupported network: %q", net)
 	}
 	if parts := strings.Split(addr, ":"); len(parts) != 2 {
-		return "", errors.Errorf("mailformed host-port pair: %q", addr)
+		return "", errorf(method, "mailformed host-port pair: %q", addr)
 	} else {
 		return fmt.Sprintf("sudo mount_9p -p %v %v %v", parts[1], parts[0], mountpoint), nil
 	}

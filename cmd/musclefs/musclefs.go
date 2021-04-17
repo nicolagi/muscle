@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -23,7 +24,6 @@ import (
 	"github.com/nicolagi/muscle/internal/p9util"
 	"github.com/nicolagi/muscle/internal/storage"
 	"github.com/nicolagi/muscle/internal/tree"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -587,7 +587,7 @@ func runCommand(ops *ops, cmd string) error {
 			return output(err)
 		}
 		if !localbase.Equals(remotebase) {
-			return output(errors.Errorf("local base %v does not match remote base %v, pull first", localbase, remotebase))
+			return output(fmt.Errorf("local base %v does not match remote base %v, pull first", localbase, remotebase))
 		}
 		_, _ = fmt.Fprintln(outputBuffer, "local base matches remote base, push allowed")
 
