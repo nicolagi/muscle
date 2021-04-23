@@ -165,58 +165,91 @@ func (ops *ops) Attach(r *srv.Req) {
 	r.RespondRattach(&qid)
 }
 
-func (ops *ops) Walk(r *srv.Req) {
-	ops.mu.Lock()
-	defer ops.mu.Unlock()
+func (ops *ops) clone(r *srv.Req) {
 	node := r.Fid.Aux.(*fsNode)
-	switch {
-	case node.kind == controlFile:
-		if len(r.Tc.Wname) == 0 {
-			r.Newfid.Aux = node
-			r.RespondRwalk(nil)
-		} else {
-			logRespondError(r, linuxerr.EACCES)
-		}
+	switch node.kind {
+	case controlFile:
+		r.Newfid.Aux = ops.c
+		r.RespondRwalk(nil)
 	default:
-		if len(r.Tc.Wname) == 0 {
-			if node.Unlinked() {
-				logRespondError(r, linuxerr.ENOENT)
-				return
-			}
+		if node.Unlinked() {
+			logRespondError(r, linuxerr.ENOENT)
+		} else {
 			node.Ref()
 			r.Newfid.Aux = node
 			r.RespondRwalk(nil)
-			return
 		}
-		if node.IsRoot() && len(r.Tc.Wname) == 1 && r.Tc.Wname[0] == "ctl" {
-			r.Newfid.Aux = ops.c
-			r.RespondRwalk([]p.Qid{ops.c.dir.Qid})
-			return
+	}
+}
+
+func (ops *ops) walk1(node *fsNode, name string) (*fsNode, error) {
+	switch node.kind {
+	case controlFile:
+		return nil, linuxerr.EACCES
+	default:
+		if name == "ctl" && node.IsRoot() {
+			return ops.c, nil
 		}
-		// TODO test scenario: nwqids != 0 but < nwname
-		nodes, err := ops.tree.Walk(node.Node, r.Tc.Wname...)
-		if errors.Is(err, tree.ErrNotExist) {
-			if len(nodes) == 0 {
-				logRespondError(r, linuxerr.ENOENT)
-				return
-			}
-			// Clear the error if it was of type "not found" and we could walk at least a node.
-			err = nil
+		if node.Unlinked() {
+			return nil, linuxerr.ENOENT
 		}
+		walked, err := ops.tree.Walk(node.Node, name)
 		if err != nil {
-			logRespondError(r, err)
+			return nil, err
+		}
+		if len(walked) != 1 {
+			return nil, linuxerr.EPERM // Incorrect, but will do for now.
+		}
+		return &fsNode{kind: muscleNode, Node: walked[0]}, nil
+	}
+}
+
+func (ops *ops) walk(r *srv.Req) {
+	node := r.Fid.Aux.(*fsNode)
+	var child *fsNode
+	var err error
+	var qids []p.Qid
+	for _, name := range r.Tc.Wname {
+		child, err = ops.walk1(node, name)
+		if err != nil {
+			break
+		}
+		node = child
+		switch node.kind {
+		case controlFile:
+			qids = append(qids, node.dir.Qid)
+		default:
+			qids = append(qids, p9util.NodeQID(node.Node))
+		}
+	}
+	if errors.Is(err, tree.ErrNotExist) || errors.Is(err, linuxerr.ENOENT) {
+		if len(qids) == 0 {
+			logRespondError(r, linuxerr.ENOENT)
 			return
 		}
-		var qids []p.Qid
-		for _, n := range nodes {
-			qids = append(qids, p9util.NodeQID(n))
+		// Clear the error if it was of type "not found" and we could walk at least a node.
+		err = nil
+	}
+	if err != nil {
+		logRespondError(r, err)
+		return
+	}
+	if len(qids) == len(r.Tc.Wname) {
+		r.Newfid.Aux = node
+		if node.kind == muscleNode {
+			node.Ref()
 		}
-		if len(qids) == len(r.Tc.Wname) {
-			targetNode := nodes[len(nodes)-1]
-			r.Newfid.Aux = &fsNode{kind: muscleNode, Node: targetNode}
-			targetNode.Ref()
-		}
-		r.RespondRwalk(qids)
+	}
+	r.RespondRwalk(qids)
+}
+
+func (ops *ops) Walk(r *srv.Req) {
+	ops.mu.Lock()
+	defer ops.mu.Unlock()
+	if len(r.Tc.Wname) == 0 {
+		ops.clone(r)
+	} else {
+		ops.walk(r)
 	}
 }
 
