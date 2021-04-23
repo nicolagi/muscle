@@ -4,21 +4,8 @@ import (
 	"flag"
 	"io"
 
-	"github.com/lionkov/go9p/p"
 	"github.com/nicolagi/muscle/internal/tree"
 )
-
-type ctl struct {
-	D        p.Dir
-	contents []byte
-}
-
-func (f *ctl) read(target []byte, offset int) int {
-	if offset > len(f.contents) {
-		return 0
-	}
-	return copy(target, f.contents[offset:])
-}
 
 func doDiff(w io.Writer, localTree *tree.Tree, treeStore *tree.Store, muscleFSMount string, snapshotsFSMount string, args []string) error {
 	const method = "doDiff"

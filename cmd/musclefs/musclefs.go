@@ -70,11 +70,20 @@ func checkMode(node *tree.Node, mode uint32) error {
 	return nil
 }
 
-type fsNode struct {
-	*tree.Node
+type nodeKind int
 
-	dirb p9util.DirBuffer
-	lock *nodeLock // Only meaningful for DMEXCL files.
+const (
+	controlFile nodeKind = iota
+	muscleNode
+)
+
+type fsNode struct {
+	kind       nodeKind
+	*tree.Node                  // For muscle nodes.
+	dir        p.Dir            // For the control file.
+	data       []byte           // For the control file.
+	dirb       p9util.DirBuffer // For muscle nodes.
+	lock       *nodeLock        // Only meaningful for DMEXCL muscle file nodes.
 }
 
 func (node *fsNode) prepareForReads() {
@@ -95,8 +104,7 @@ type ops struct {
 	tree    *tree.Tree
 	trimmed time.Time
 
-	// Control node
-	c *ctl
+	c *fsNode
 
 	cfg *config.C
 }
@@ -129,17 +137,21 @@ func (ops *ops) ReqRespond(r *srv.Req) {
 }
 
 func (ops *ops) FidDestroy(fid *srv.Fid) {
-	if fid.Aux == nil || fid.Aux == ops.c {
+	if fid.Aux == nil {
 		return
 	}
 	node := fid.Aux.(*fsNode)
-	refs := node.Unref()
-	if node.lock != nil {
-		unlockNode(node.lock)
-		node.lock = nil
-	}
-	if refs == 0 && node.Unlinked() {
-		ops.tree.Discard(node.Node)
+	switch node.kind {
+	case controlFile:
+	default:
+		refs := node.Unref()
+		if node.lock != nil {
+			unlockNode(node.lock)
+			node.lock = nil
+		}
+		if refs == 0 && node.Unlinked() {
+			ops.tree.Discard(node.Node)
+		}
 	}
 }
 
@@ -148,7 +160,7 @@ func (ops *ops) Attach(r *srv.Req) {
 	defer ops.mu.Unlock()
 	root := ops.tree.Attach()
 	root.Ref()
-	r.Fid.Aux = &fsNode{Node: root}
+	r.Fid.Aux = &fsNode{kind: muscleNode, Node: root}
 	qid := p9util.NodeQID(root)
 	r.RespondRattach(&qid)
 }
@@ -156,16 +168,16 @@ func (ops *ops) Attach(r *srv.Req) {
 func (ops *ops) Walk(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
+	node := r.Fid.Aux.(*fsNode)
 	switch {
-	case r.Fid.Aux == ops.c:
+	case node.kind == controlFile:
 		if len(r.Tc.Wname) == 0 {
-			r.Newfid.Aux = ops.c
+			r.Newfid.Aux = node
 			r.RespondRwalk(nil)
 		} else {
 			logRespondError(r, linuxerr.EACCES)
 		}
 	default:
-		node := r.Fid.Aux.(*fsNode)
 		if len(r.Tc.Wname) == 0 {
 			if node.Unlinked() {
 				logRespondError(r, linuxerr.ENOENT)
@@ -178,7 +190,7 @@ func (ops *ops) Walk(r *srv.Req) {
 		}
 		if node.IsRoot() && len(r.Tc.Wname) == 1 && r.Tc.Wname[0] == "ctl" {
 			r.Newfid.Aux = ops.c
-			r.RespondRwalk([]p.Qid{ops.c.D.Qid})
+			r.RespondRwalk([]p.Qid{ops.c.dir.Qid})
 			return
 		}
 		// TODO test scenario: nwqids != 0 but < nwname
@@ -201,7 +213,7 @@ func (ops *ops) Walk(r *srv.Req) {
 		}
 		if len(qids) == len(r.Tc.Wname) {
 			targetNode := nodes[len(nodes)-1]
-			r.Newfid.Aux = &fsNode{Node: targetNode}
+			r.Newfid.Aux = &fsNode{kind: muscleNode, Node: targetNode}
 			targetNode.Ref()
 		}
 		r.RespondRwalk(qids)
@@ -214,11 +226,11 @@ func (ops *ops) Open(r *srv.Req) {
 	if r.Tc.Mode&p.ORCLOSE != 0 {
 		logRespondError(r, linuxerr.EACCES)
 	}
+	node := r.Fid.Aux.(*fsNode)
 	switch {
-	case r.Fid.Aux == ops.c:
-		r.RespondRopen(&ops.c.D.Qid, 0)
+	case node.kind == controlFile:
+		r.RespondRopen(&ops.c.dir.Qid, 0)
 	default:
-		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			logRespondError(r, linuxerr.ENOENT)
 			return
@@ -254,11 +266,11 @@ func (ops *ops) Open(r *srv.Req) {
 func (ops *ops) Create(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	switch {
-	case r.Fid.Aux == ops.c:
+	parent := r.Fid.Aux.(*fsNode)
+	switch parent.kind {
+	case controlFile:
 		logRespondError(r, linuxerr.EACCES)
 	default:
-		parent := r.Fid.Aux.(*fsNode)
 		if parent.Unlinked() {
 			logRespondError(r, linuxerr.ENOENT)
 			return
@@ -274,7 +286,7 @@ func (ops *ops) Create(r *srv.Req) {
 		}
 		node.Ref()
 		parent.Unref()
-		child := &fsNode{Node: node}
+		child := &fsNode{kind: muscleNode, Node: node}
 		r.Fid.Aux = child
 		qid := p9util.NodeQID(node)
 		if r.Tc.Perm&p.DMEXCL != 0 {
@@ -296,13 +308,17 @@ func (ops *ops) Read(r *srv.Req) {
 		logRespondError(r, err)
 		return
 	}
-	switch {
-	case r.Fid.Aux == ops.c:
-		ops.c.D.Atime = uint32(time.Now().Unix())
-		count := ops.c.read(r.Rc.Data[:r.Tc.Count], int(r.Tc.Offset))
-		p.SetRreadCount(r.Rc, uint32(count))
+	node := r.Fid.Aux.(*fsNode)
+	switch node.kind {
+	case controlFile:
+		ops.c.dir.Atime = uint32(time.Now().Unix())
+		if o := int(r.Tc.Offset); o > len(node.data) {
+			p.SetRreadCount(r.Rc, 0)
+		} else {
+			count := copy(r.Rc.Data[:r.Tc.Count], node.data[o:])
+			p.SetRreadCount(r.Rc, uint32(count))
+		}
 	default:
-		node := r.Fid.Aux.(*fsNode)
 		var count int
 		var err error
 		if node.IsDir() {
@@ -341,8 +357,8 @@ func runCommand(ops *ops, cmd string) error {
 
 	// Ensure the output is available even in the case of an early error return.
 	defer func() {
-		ops.c.contents = outputBuffer.Bytes()
-		ops.c.D.Length = uint64(len(ops.c.contents))
+		ops.c.data = outputBuffer.Bytes()
+		ops.c.dir.Length = uint64(len(ops.c.data))
 	}()
 
 	switch cmd {
@@ -624,9 +640,10 @@ func runCommand(ops *ops, cmd string) error {
 func (ops *ops) Write(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	switch {
-	case r.Fid.Aux == ops.c:
-		ops.c.D.Mtime = uint32(time.Now().Unix())
+	node := r.Fid.Aux.(*fsNode)
+	switch node.kind {
+	case controlFile:
+		ops.c.dir.Mtime = uint32(time.Now().Unix())
 		// Assumption: One Twrite per command.
 		if err := runCommand(ops, string(r.Tc.Data)); err != nil {
 			logRespondError(r, err)
@@ -634,7 +651,6 @@ func (ops *ops) Write(r *srv.Req) {
 		}
 		r.RespondRwrite(uint32(len(r.Tc.Data)))
 	default:
-		node := r.Fid.Aux.(*fsNode)
 		if err := node.WriteAt(r.Tc.Data, int64(r.Tc.Offset)); err != nil {
 			logRespondError(r, err)
 			return
@@ -646,8 +662,10 @@ func (ops *ops) Write(r *srv.Req) {
 func (ops *ops) Clunk(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	if r.Fid.Aux != ops.c {
-		node := r.Fid.Aux.(*fsNode)
+	node := r.Fid.Aux.(*fsNode)
+	switch node.kind {
+	case controlFile:
+	default:
 		if node.lock != nil {
 			unlockNode(node.lock)
 			node.lock = nil
@@ -665,11 +683,11 @@ func (ops *ops) Clunk(r *srv.Req) {
 func (ops *ops) Remove(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	switch {
-	case r.Fid.Aux == ops.c:
+	node := r.Fid.Aux.(*fsNode)
+	switch node.kind {
+	case controlFile:
 		logRespondError(r, linuxerr.EACCES)
 	default:
-		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			logRespondError(r, linuxerr.ENOENT)
 			return
@@ -690,11 +708,11 @@ func (ops *ops) Remove(r *srv.Req) {
 func (ops *ops) Stat(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	switch {
-	case r.Fid.Aux == ops.c:
-		r.RespondRstat(&ops.c.D)
+	node := r.Fid.Aux.(*fsNode)
+	switch node.kind {
+	case controlFile:
+		r.RespondRstat(&ops.c.dir)
 	default:
-		node := r.Fid.Aux.(*fsNode)
 		if node.Unlinked() {
 			logRespondError(r, linuxerr.ENOENT)
 			return
@@ -708,11 +726,11 @@ func (ops *ops) Wstat(r *srv.Req) {
 	const method = "ops.Wstat"
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	switch {
-	case r.Fid.Aux == ops.c:
+	node := r.Fid.Aux.(*fsNode)
+	switch node.kind {
+	case controlFile:
 		logRespondError(r, linuxerr.EPERM)
 	default:
-		node := r.Fid.Aux.(*fsNode)
 		dir := r.Tc.Dir
 		if dir.ChangeLength() {
 			if node.IsDir() {
@@ -843,18 +861,18 @@ func main() {
 		pairedStore: pairedStore,
 		treeStore:   treeStore,
 		tree:        tt,
-		c:           new(ctl),
+		c:           &fsNode{kind: controlFile},
 		cfg:         cfg,
 	}
 
 	now := time.Now()
-	ops.c.D.Qid.Path = uint64(now.UnixNano())
-	ops.c.D.Mode = 0644
-	ops.c.D.Mtime = uint32(now.Unix())
-	ops.c.D.Atime = ops.c.D.Mtime
-	ops.c.D.Name = "ctl"
-	ops.c.D.Uid = p9util.NodeUID
-	ops.c.D.Gid = p9util.NodeGID
+	ops.c.dir.Qid.Path = uint64(now.UnixNano())
+	ops.c.dir.Mode = 0644
+	ops.c.dir.Mtime = uint32(now.Unix())
+	ops.c.dir.Atime = ops.c.dir.Mtime
+	ops.c.dir.Name = "ctl"
+	ops.c.dir.Uid = p9util.NodeUID
+	ops.c.dir.Gid = p9util.NodeGID
 
 	fs := &srv.Srv{}
 	fs.Dotu = false
