@@ -72,18 +72,18 @@ func TestConformsToManualPages(t *testing.T) {
 
 		dir, err := client.Stat(newfid)
 		require.Nil(t, err)
-		assert.Equal(t, "root", dir.Name)
+		assert.Equal(t, "muscle", dir.Name)
 	})
 	t.Run("walk to .. from dir gives parent", func(t *testing.T) {
 		client, _, tearDown := setUp(t)
 		defer tearDown(t)
 		must := &mustHelpers{t: t, c: client}
 
-		fid := must.walk()
+		fid := must.walk("live")
 		must.create(fid, "dir", 0700|p.DMDIR, 0)
 		must.clunk(fid)
 
-		fid = must.walk("dir")
+		fid = must.walk("live", "dir")
 		newfid := client.FidAlloc()
 		qids, err := client.Walk(fid, newfid, []string{".."})
 		require.Nil(t, err)
@@ -91,7 +91,7 @@ func TestConformsToManualPages(t *testing.T) {
 
 		dir, err := client.Stat(newfid)
 		require.Nil(t, err)
-		assert.Equal(t, "root", dir.Name)
+		assert.Equal(t, "live", dir.Name)
 	})
 	t.Run("walk to . from dir gives dir", func(t *testing.T) {
 		// TODO
@@ -126,11 +126,11 @@ func Test(t *testing.T) {
 	t.Run("try to change dir length and fail", func(t *testing.T) {
 		must := &mustHelpers{t: t, c: client}
 
-		fid := must.walk()
+		fid := must.walk("live")
 		must.create(fid, "dir", 0700|p.DMDIR, 0)
 		must.clunk(fid)
 
-		fid = must.walk("dir")
+		fid = must.walk("live", "dir")
 		dir := p.NewWstatDir()
 		dir.Length = 1
 		assert.NotNil(t, client.Wstat(fid, dir))
@@ -140,13 +140,13 @@ func Test(t *testing.T) {
 		must := &mustHelpers{t: t, c: client}
 
 		// Setup
-		fid := must.walk()
+		fid := must.walk("live")
 		must.create(fid, "old-name", 0700|p.DMDIR, 0)
 		must.clunk(fid)
-		fid = must.walk()
+		fid = must.walk("live")
 		must.create(fid, "new-parent", 0700|p.DMDIR, 0)
 		must.clunk(fid)
-		fid = must.walk("old-name")
+		fid = must.walk("live", "old-name")
 		must.create(fid, "inner-node", 0600, p.OWRITE)
 		must.write(fid, []byte("hello world"))
 		must.clunk(fid)
@@ -193,16 +193,16 @@ func Test(t *testing.T) {
 		must := &mustHelpers{t: t, c: client}
 
 		// Create root/music/song
-		fid := must.walk()
+		fid := must.walk("live")
 		must.create(fid, "music", 0700|p.DMDIR, 0)
 		must.clunk(fid)
-		fid = must.walk("music")
+		fid = must.walk("live", "music")
 		must.create(fid, "song", 0600, p.OWRITE)
 		must.clunk(fid)
 
 		// Walk to root/music/song and open it and write something to it so the underlying node is dirty.
 		// But do not release it nor flush the tree.
-		fid = must.walk("music", "song")
+		fid = must.walk("live", "music", "song")
 		must.open(fid, p.OWRITE)
 		must.write(fid, []byte("all along the watchtower"))
 
@@ -225,59 +225,59 @@ func Test(t *testing.T) {
 		must.clunk(ctl)
 
 		// Finally verify that the song was NOT lost.
-		must.walk("music", "song")
+		must.walk("live", "music", "song")
 	})
 	t.Run("creating or removing a file updates the directory timestamp", func(t *testing.T) {
 		must := &mustHelpers{t: t, c: client}
 
 		// Create test dir.
-		fid := must.walk()
+		fid := must.walk("live")
 		must.create(fid, "dirmtime", 0700|p.DMDIR, 0)
 		must.clunk(fid)
 
 		// Set its mtime to 0 and check it was set to 0.
-		fid = must.walk("dirmtime")
+		fid = must.walk("live", "dirmtime")
 		dir := p.NewWstatDir()
 		dir.Mtime = 0
 		must.wstat(fid, dir)
 		must.clunk(fid)
-		fid = must.walk("dirmtime")
+		fid = must.walk("live", "dirmtime")
 		dir = must.stat(fid)
 		require.Equal(t, uint32(0), dir.Mtime)
 		must.clunk(fid)
 
 		// Create file within directory.
-		fid = must.walk("dirmtime")
+		fid = must.walk("live", "dirmtime")
 		must.create(fid, "filemtime", 0600, 0)
 		must.clunk(fid)
 
 		// Check mtime of file and dir match and are non-zero.
-		fid = must.walk("dirmtime")
+		fid = must.walk("live", "dirmtime")
 		ddir := must.stat(fid)
 		must.clunk(fid)
-		fid = must.walk("dirmtime", "filemtime")
+		fid = must.walk("live", "dirmtime", "filemtime")
 		fdir := must.stat(fid)
 		must.clunk(fid)
 		require.NotEqual(t, 0, fdir.Mtime)
 		require.Equal(t, fdir.Mtime, ddir.Mtime)
 
 		// Reset the dir's mtime to 0 and check it was set to 0.
-		fid = must.walk("dirmtime")
+		fid = must.walk("live", "dirmtime")
 		dir = p.NewWstatDir()
 		dir.Mtime = 0
 		must.wstat(fid, dir)
 		must.clunk(fid)
-		fid = must.walk("dirmtime")
+		fid = must.walk("live", "dirmtime")
 		dir = must.stat(fid)
 		require.Equal(t, uint32(0), dir.Mtime)
 		must.clunk(fid)
 
 		// Remove the file.
-		fid = must.walk("dirmtime", "filemtime")
+		fid = must.walk("live", "dirmtime", "filemtime")
 		must.remove(fid)
 
 		// Check mtime of dir is non-zero after the removal.
-		fid = must.walk("dirmtime")
+		fid = must.walk("live", "dirmtime")
 		ddir = must.stat(fid)
 		must.clunk(fid)
 		require.NotEqual(t, 0, ddir.Mtime)
@@ -332,7 +332,7 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, tearDown func(*t
 	// Create tmp dir, expected by newer tests.
 	r := require.New(t)
 	newfid := client.FidAlloc()
-	_, err = client.Walk(client.Root, newfid, []string{})
+	_, err = client.Walk(client.Root, newfid, []string{"live"})
 	r.NoError(err)
 	r.NoError(client.Create(newfid, "tmp", 0777|p.DMDIR, p.OREAD, ""))
 	r.NoError(client.Clunk(newfid))
@@ -379,6 +379,7 @@ type mustHelpers struct {
 }
 
 func (m *mustHelpers) walk(names ...string) *clnt.Fid {
+	m.t.Helper()
 	fid := m.c.FidAlloc()
 	qids, err := m.c.Walk(m.c.Root, fid, names)
 	if err != nil {
@@ -413,6 +414,7 @@ func (m *mustHelpers) open(fid *clnt.Fid, mode uint8) {
 }
 
 func (m *mustHelpers) create(fid *clnt.Fid, name string, perm uint32, mode uint8) {
+	m.t.Helper()
 	err := m.c.Create(fid, name, perm, mode, "")
 	if err != nil {
 		m.t.Fatalf("could not open: %v", err)
@@ -452,15 +454,17 @@ func (m *mustHelpers) clunk(fid *clnt.Fid) {
 }
 
 func (m *mustHelpers) notExist(name string) {
+	m.t.Helper()
 	fid := m.c.FidAlloc()
-	_, err := m.c.Walk(m.c.Root, fid, []string{name})
-	if err == nil {
+	qids, err := m.c.Walk(m.c.Root, fid, []string{"live", name})
+	if err == nil && len(qids) == 2 {
 		m.t.Fatalf("no error walking to %q", name)
 	}
 }
 
 func (m *mustHelpers) readFile(names ...string) string {
-	fid := m.walk(names...)
+	m.t.Helper()
+	fid := m.walk(append([]string{"live"}, names...)...)
 	m.open(fid, p.OREAD)
 	b := m.read(fid, 0, 8192)
 	m.clunk(fid)

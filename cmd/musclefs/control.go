@@ -38,7 +38,7 @@ func doDiff(w io.Writer, localTree *tree.Tree, treeStore *tree.Store, muscleFSMo
 		remoteTree,
 		localTree,
 		snapshotsFSMount,
-		muscleFSMount,
+		muscleFSMount+"/live",
 		tree.DiffTreesOutput(w),
 		tree.DiffTreesInitialPath(diffContext.prefix),
 		tree.DiffTreesNamesOnly(diffContext.names),

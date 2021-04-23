@@ -75,23 +75,41 @@ type nodeKind int
 const (
 	controlFile nodeKind = iota
 	muscleNode
+	syntheticDir
 )
 
 type fsNode struct {
 	kind       nodeKind
 	*tree.Node                  // For muscle nodes.
-	dir        p.Dir            // For the control file.
+	dir        p.Dir            // For the control file and synthetic dirs.
 	data       []byte           // For the control file.
-	dirb       p9util.DirBuffer // For muscle nodes.
+	children   []*fsNode        // For the synthetic dirs.
+	dirb       p9util.DirBuffer // For muscle nodes and synthetic dirs.
 	lock       *nodeLock        // Only meaningful for DMEXCL muscle file nodes.
 }
 
 func (node *fsNode) prepareForReads() {
 	node.dirb.Reset()
-	var dir p.Dir
-	for _, child := range node.Children() {
-		p9util.NodeDirVar(child, &dir)
-		node.dirb.Write(&dir)
+	switch node.kind {
+	case muscleNode:
+		var dir p.Dir
+		for _, child := range node.Children() {
+			p9util.NodeDirVar(child, &dir)
+			node.dirb.Write(&dir)
+		}
+	case syntheticDir:
+		for _, child := range node.children {
+			switch child.kind {
+			case controlFile:
+				node.dirb.Write(&child.dir)
+			case muscleNode:
+				var dir p.Dir
+				p9util.NodeDirVar(child.Node, &dir)
+				node.dirb.Write(&dir)
+			case syntheticDir:
+				node.dirb.Write(&child.dir)
+			}
+		}
 	}
 }
 
@@ -104,7 +122,7 @@ type ops struct {
 	tree    *tree.Tree
 	trimmed time.Time
 
-	c *fsNode
+	root *fsNode
 
 	cfg *config.C
 }
@@ -143,6 +161,7 @@ func (ops *ops) FidDestroy(fid *srv.Fid) {
 	node := fid.Aux.(*fsNode)
 	switch node.kind {
 	case controlFile:
+	case syntheticDir:
 	default:
 		refs := node.Unref()
 		if node.lock != nil {
@@ -158,18 +177,18 @@ func (ops *ops) FidDestroy(fid *srv.Fid) {
 func (ops *ops) Attach(r *srv.Req) {
 	ops.mu.Lock()
 	defer ops.mu.Unlock()
-	root := ops.tree.Attach()
-	root.Ref()
-	r.Fid.Aux = &fsNode{kind: muscleNode, Node: root}
-	qid := p9util.NodeQID(root)
-	r.RespondRattach(&qid)
+	r.Fid.Aux = ops.root
+	r.RespondRattach(&ops.root.dir.Qid)
 }
 
 func (ops *ops) clone(r *srv.Req) {
 	node := r.Fid.Aux.(*fsNode)
 	switch node.kind {
 	case controlFile:
-		r.Newfid.Aux = ops.c
+		r.Newfid.Aux = node
+		r.RespondRwalk(nil)
+	case syntheticDir:
+		r.Newfid.Aux = node
 		r.RespondRwalk(nil)
 	default:
 		if node.Unlinked() {
@@ -186,10 +205,26 @@ func (ops *ops) walk1(node *fsNode, name string) (*fsNode, error) {
 	switch node.kind {
 	case controlFile:
 		return nil, linuxerr.EACCES
-	default:
-		if name == "ctl" && node.IsRoot() {
-			return ops.c, nil
+	case syntheticDir:
+		if name == ".." && node == ops.root {
+			return node, nil
 		}
+		for _, child := range node.children {
+			switch child.kind {
+			case controlFile, syntheticDir:
+				if child.dir.Name == name {
+					return child, nil
+				}
+			default:
+				var dir p.Dir
+				p9util.NodeDirVar(child.Node, &dir)
+				if dir.Name == name {
+					return child, nil
+				}
+			}
+		}
+		return nil, linuxerr.ENOENT
+	default:
 		if node.Unlinked() {
 			return nil, linuxerr.ENOENT
 		}
@@ -217,6 +252,8 @@ func (ops *ops) walk(r *srv.Req) {
 		node = child
 		switch node.kind {
 		case controlFile:
+			qids = append(qids, node.dir.Qid)
+		case syntheticDir:
 			qids = append(qids, node.dir.Qid)
 		default:
 			qids = append(qids, p9util.NodeQID(node.Node))
@@ -260,9 +297,12 @@ func (ops *ops) Open(r *srv.Req) {
 		logRespondError(r, linuxerr.EACCES)
 	}
 	node := r.Fid.Aux.(*fsNode)
-	switch {
-	case node.kind == controlFile:
-		r.RespondRopen(&ops.c.dir.Qid, 0)
+	switch node.kind {
+	case controlFile:
+		r.RespondRopen(&node.dir.Qid, 0)
+	case syntheticDir:
+		node.prepareForReads()
+		r.RespondRopen(&node.dir.Qid, 0)
 	default:
 		if node.Unlinked() {
 			logRespondError(r, linuxerr.ENOENT)
@@ -301,7 +341,7 @@ func (ops *ops) Create(r *srv.Req) {
 	defer ops.mu.Unlock()
 	parent := r.Fid.Aux.(*fsNode)
 	switch parent.kind {
-	case controlFile:
+	case controlFile, syntheticDir:
 		logRespondError(r, linuxerr.EACCES)
 	default:
 		if parent.Unlinked() {
@@ -344,13 +384,21 @@ func (ops *ops) Read(r *srv.Req) {
 	node := r.Fid.Aux.(*fsNode)
 	switch node.kind {
 	case controlFile:
-		ops.c.dir.Atime = uint32(time.Now().Unix())
+		node.dir.Atime = uint32(time.Now().Unix())
 		if o := int(r.Tc.Offset); o > len(node.data) {
 			p.SetRreadCount(r.Rc, 0)
 		} else {
 			count := copy(r.Rc.Data[:r.Tc.Count], node.data[o:])
 			p.SetRreadCount(r.Rc, uint32(count))
 		}
+	case syntheticDir:
+		node.dir.Atime = uint32(time.Now().Unix())
+		count, err := node.dirb.Read(r.Rc.Data[:r.Tc.Count], int(r.Tc.Offset))
+		if err != nil {
+			logRespondError(r, err)
+			return
+		}
+		p.SetRreadCount(r.Rc, uint32(count))
 	default:
 		var count int
 		var err error
@@ -371,7 +419,7 @@ func (ops *ops) Read(r *srv.Req) {
 	r.Respond()
 }
 
-func runCommand(ops *ops, cmd string) error {
+func runCommand(ops *ops, controlNode *fsNode, cmd string) error {
 	const method = "runCommand"
 	args := strings.Fields(cmd)
 	if len(args) == 0 {
@@ -390,8 +438,8 @@ func runCommand(ops *ops, cmd string) error {
 
 	// Ensure the output is available even in the case of an early error return.
 	defer func() {
-		ops.c.data = outputBuffer.Bytes()
-		ops.c.dir.Length = uint64(len(ops.c.data))
+		controlNode.data = outputBuffer.Bytes()
+		controlNode.dir.Length = uint64(len(controlNode.data))
 	}()
 
 	switch cmd {
@@ -596,7 +644,7 @@ func runCommand(ops *ops, cmd string) error {
 			args := strings.Fields(c)
 			if len(args) > 0 && (args[0] == "flush" || args[0] == "graft2" || args[0] == "unlink") {
 				log.Printf("DEBUG auto-running: %q", c)
-				if err := runCommand(ops, c); err != nil {
+				if err := runCommand(ops, controlNode, c); err != nil {
 					cs = append(cs, c)
 				} else {
 					successful++
@@ -676,13 +724,15 @@ func (ops *ops) Write(r *srv.Req) {
 	node := r.Fid.Aux.(*fsNode)
 	switch node.kind {
 	case controlFile:
-		ops.c.dir.Mtime = uint32(time.Now().Unix())
+		node.dir.Mtime = uint32(time.Now().Unix())
 		// Assumption: One Twrite per command.
-		if err := runCommand(ops, string(r.Tc.Data)); err != nil {
+		if err := runCommand(ops, node, string(r.Tc.Data)); err != nil {
 			logRespondError(r, err)
 			return
 		}
 		r.RespondRwrite(uint32(len(r.Tc.Data)))
+	case syntheticDir:
+		logRespondError(r, linuxerr.EACCES)
 	default:
 		if err := node.WriteAt(r.Tc.Data, int64(r.Tc.Offset)); err != nil {
 			logRespondError(r, err)
@@ -697,7 +747,7 @@ func (ops *ops) Clunk(r *srv.Req) {
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*fsNode)
 	switch node.kind {
-	case controlFile:
+	case controlFile, syntheticDir:
 	default:
 		if node.lock != nil {
 			unlockNode(node.lock)
@@ -718,7 +768,7 @@ func (ops *ops) Remove(r *srv.Req) {
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*fsNode)
 	switch node.kind {
-	case controlFile:
+	case controlFile, syntheticDir:
 		logRespondError(r, linuxerr.EACCES)
 	default:
 		if node.Unlinked() {
@@ -743,8 +793,8 @@ func (ops *ops) Stat(r *srv.Req) {
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*fsNode)
 	switch node.kind {
-	case controlFile:
-		r.RespondRstat(&ops.c.dir)
+	case controlFile, syntheticDir:
+		r.RespondRstat(&node.dir)
 	default:
 		if node.Unlinked() {
 			logRespondError(r, linuxerr.ENOENT)
@@ -761,7 +811,7 @@ func (ops *ops) Wstat(r *srv.Req) {
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*fsNode)
 	switch node.kind {
-	case controlFile:
+	case controlFile, syntheticDir:
 		logRespondError(r, linuxerr.EPERM)
 	default:
 		dir := r.Tc.Dir
@@ -885,7 +935,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
-	tt, err := tree.NewTree(treeStore, tree.WithRoot(rootKey), tree.WithMutable())
+	tt, err := tree.NewTree(treeStore, tree.WithRoot(rootKey), tree.WithRootName("live"), tree.WithMutable())
 	if err != nil {
 		log.Fatalf("Could not load tree: %v", err)
 	}
@@ -894,18 +944,48 @@ func main() {
 		pairedStore: pairedStore,
 		treeStore:   treeStore,
 		tree:        tt,
-		c:           &fsNode{kind: controlFile},
 		cfg:         cfg,
 	}
 
 	now := time.Now()
-	ops.c.dir.Qid.Path = uint64(now.UnixNano())
-	ops.c.dir.Mode = 0644
-	ops.c.dir.Mtime = uint32(now.Unix())
-	ops.c.dir.Atime = ops.c.dir.Mtime
-	ops.c.dir.Name = "ctl"
-	ops.c.dir.Uid = p9util.NodeUID
-	ops.c.dir.Gid = p9util.NodeGID
+	controlNode := &fsNode{
+		kind: controlFile,
+		dir: p.Dir{
+			Name:  "ctl",
+			Mode:  0644,
+			Uid:   p9util.NodeUID,
+			Gid:   p9util.NodeGID,
+			Atime: uint32(now.Unix()),
+			Mtime: uint32(now.Unix()),
+			Qid: p.Qid{
+				Path: uint64(now.UnixNano()),
+			},
+		},
+	}
+
+	now = time.Now()
+	ops.root = &fsNode{
+		kind: syntheticDir,
+		dir: p.Dir{
+			Name:  "muscle",
+			Mode:  p.DMDIR | 0555,
+			Uid:   p9util.NodeUID,
+			Gid:   p9util.NodeGID,
+			Atime: uint32(now.Unix()),
+			Mtime: uint32(now.Unix()),
+			Qid: p.Qid{
+				Type: p.QTDIR,
+				Path: uint64(now.UnixNano()),
+			},
+		},
+	}
+	ops.root.children = append(ops.root.children, controlNode)
+
+	main := ops.tree.Attach()
+	main.Ref()
+	ops.root.children = append(ops.root.children, &fsNode{kind: muscleNode, Node: main})
+
+	ops.root.prepareForReads()
 
 	fs := &srv.Srv{}
 	fs.Dotu = false
@@ -928,12 +1008,10 @@ func main() {
 	// need to be flushed to the disk cache.
 	go func() {
 		for {
-			// XXX
 			// This may interfere with fsdiff's crash inducing code!!!
 			// Adds non-determinism to the process.
 			time.Sleep(tree.SnapshotFrequency)
 			ops.mu.Lock()
-			// TODO handle all errors - add errcheck to precommit?
 			if err := ops.tree.FlushIfNotDoneRecently(); err != nil {
 				log.Printf("Could not flush: %v", err)
 			}

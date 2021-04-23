@@ -60,3 +60,10 @@ func WithRoot(p storage.Pointer) TreeOption {
 		return nil
 	}
 }
+
+func WithRootName(name string) TreeOption {
+	return func(t *Tree) error {
+		t.rootName = name
+		return nil
+	}
+}

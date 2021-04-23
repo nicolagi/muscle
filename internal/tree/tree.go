@@ -23,6 +23,7 @@ type Tree struct {
 	root      *Node
 	blockSize uint32 // For new nodes.
 
+	rootName string
 	readOnly bool
 
 	ignored map[string]map[string]struct{}
@@ -36,6 +37,7 @@ func NewTree(store *Store, opts ...TreeOption) (*Tree, error) {
 	debug.Assert(store.blockFactory != nil)
 	t := &Tree{
 		store:     store,
+		rootName:  "root",
 		readOnly:  true,
 		blockSize: config.BlockSize,
 	}
@@ -50,7 +52,7 @@ func NewTree(store *Store, opts ...TreeOption) (*Tree, error) {
 			flags:        loaded,
 			info:         NodeInfo{Mode: 0700 | DMDIR},
 		}
-		root, err := t.Add(parent, "root", 0700|DMDIR)
+		root, err := t.Add(parent, t.rootName, 0700|DMDIR)
 		if err != nil {
 			return nil, fmt.Errorf("tree.NewTree: %v", err)
 		}
@@ -58,6 +60,9 @@ func NewTree(store *Store, opts ...TreeOption) (*Tree, error) {
 		// Clear out the fake parent,
 		// which was only introduced to re-use the logic in tree.Add.
 		t.root.parent = nil
+	} else if t.root.info.Name != t.rootName {
+		t.root.info.Name = t.rootName
+		t.root.markDirty()
 	}
 	return t, nil
 }

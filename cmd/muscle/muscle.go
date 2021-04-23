@@ -358,7 +358,7 @@ func main() {
 			remoteTree,
 			localTree,
 			cfg.SnapshotsFSMount,
-			cfg.SnapshotsFSMount,
+			cfg.MuscleFSMount+"/live",
 			tree.DiffTreesOutput(os.Stdout),
 			tree.DiffTreesInitialPath(diffContext.prefix),
 			tree.DiffTreesNamesOnly(diffContext.names),

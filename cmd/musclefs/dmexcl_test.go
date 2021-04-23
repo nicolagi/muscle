@@ -65,9 +65,9 @@ func TestDMEXCL(t *testing.T) {
 
 		// f: create file with DMEXCL flag.
 		f := c.FidAlloc()
-		qids, err := c.Walk(root, f, []string{"tmp"})
+		qids, err := c.Walk(root, f, []string{"live", "tmp"})
 		r.NoError(err)
-		r.Len(qids, 1)
+		r.Len(qids, 2)
 		err = c.Create(f, name, 0777|p.DMEXCL, p.OWRITE, "")
 		r.NoError(err)
 		defer func() {
@@ -76,16 +76,16 @@ func TestDMEXCL(t *testing.T) {
 
 		// g: walk again to same file, try to open it (fail).
 		g := c.FidAlloc()
-		qids, err = c.Walk(root, g, []string{"tmp", name})
-		if a.NoError(err) && a.Len(qids, 2) {
+		qids, err = c.Walk(root, g, []string{"live", "tmp", name})
+		if a.NoError(err) && a.Len(qids, 3) {
 			a.Error(c.Open(g, p.OREAD))
 		}
 		a.NoError(c.Clunk(g))
 
 		// h: walk again to same file, check its DMEXCL flag is set.
 		h := c.FidAlloc()
-		qids, err = c.Walk(root, h, []string{"tmp", name})
-		if a.NoError(err) && a.Len(qids, 2) {
+		qids, err = c.Walk(root, h, []string{"live", "tmp", name})
+		if a.NoError(err) && a.Len(qids, 3) {
 			dir, err := c.Stat(h)
 			a.NoError(err)
 			a.Equal(uint32(p.DMEXCL), dir.Mode&p.DMEXCL)
@@ -105,17 +105,17 @@ func TestDMEXCL(t *testing.T) {
 
 		// f1: create and close file.
 		f1 := c.FidAlloc()
-		qids, err := c.Walk(root, f1, []string{"tmp"})
+		qids, err := c.Walk(root, f1, []string{"live", "tmp"})
 		must.NoError(err)
-		must.Len(qids, 1)
+		must.Len(qids, 2)
 		err = c.Create(f1, name, 0777, p.OWRITE, "")
 		must.NoError(err)
 		should.NoError(c.Clunk(f1))
 
 		// f2: walk to same file, set it DMEXCL.
 		f2 := c.FidAlloc()
-		qids, err = c.Walk(root, f2, []string{"tmp", name})
-		if should.NoError(err) && should.Len(qids, 2) {
+		qids, err = c.Walk(root, f2, []string{"live", "tmp", name})
+		if should.NoError(err) && should.Len(qids, 3) {
 			dir := p.NewWstatDir()
 			dir.Mode = 0777 | p.DMEXCL
 			should.NoError(c.Wstat(f2, dir))
@@ -124,8 +124,8 @@ func TestDMEXCL(t *testing.T) {
 
 		// f3: walk again to same file, check DMEXCL is set.
 		f3 := c.FidAlloc()
-		qids, err = c.Walk(root, f3, []string{"tmp", name})
-		if should.NoError(err) && should.Len(qids, 2) {
+		qids, err = c.Walk(root, f3, []string{"live", "tmp", name})
+		if should.NoError(err) && should.Len(qids, 3) {
 			dir, err := c.Stat(f3)
 			should.NoError(err)
 			should.Equal(uint32(p.DMEXCL), dir.Mode&p.DMEXCL)
@@ -145,9 +145,9 @@ func TestDMEXCL(t *testing.T) {
 
 		// f1: create but do not close file.
 		f1 := c.FidAlloc()
-		qids, err := c.Walk(root, f1, []string{"tmp"})
+		qids, err := c.Walk(root, f1, []string{"live", "tmp"})
 		must.NoError(err)
-		must.Len(qids, 1)
+		must.Len(qids, 2)
 		err = c.Create(f1, name, 0777, p.OWRITE, "")
 		must.NoError(err)
 		defer func() {
@@ -156,8 +156,8 @@ func TestDMEXCL(t *testing.T) {
 
 		// f2: walk to same file, set it DMEXCL.
 		f2 := c.FidAlloc()
-		qids, err = c.Walk(root, f2, []string{"tmp", name})
-		if should.NoError(err) && should.Len(qids, 2) {
+		qids, err = c.Walk(root, f2, []string{"live", "tmp", name})
+		if should.NoError(err) && should.Len(qids, 3) {
 			dir := p.NewWstatDir()
 			dir.Mode = 0777 | p.DMEXCL
 			should.NoError(c.Wstat(f2, dir))
@@ -166,8 +166,8 @@ func TestDMEXCL(t *testing.T) {
 
 		// f3: walk again to same file, check DMEXCL is set.
 		f3 := c.FidAlloc()
-		qids, err = c.Walk(root, f3, []string{"tmp", name})
-		if should.NoError(err) && should.Len(qids, 2) {
+		qids, err = c.Walk(root, f3, []string{"live", "tmp", name})
+		if should.NoError(err) && should.Len(qids, 3) {
 			dir, err := c.Stat(f3)
 			should.NoError(err)
 			should.Equal(uint32(p.DMEXCL), dir.Mode&p.DMEXCL)
@@ -187,9 +187,9 @@ func TestDMEXCL(t *testing.T) {
 
 		// f1: create but do not close file.
 		f1 := c.FidAlloc()
-		qids, err := c.Walk(root, f1, []string{"tmp"})
+		qids, err := c.Walk(root, f1, []string{"live", "tmp"})
 		must.NoError(err)
-		must.Len(qids, 1)
+		must.Len(qids, 2)
 		err = c.Create(f1, name, 0777, p.OWRITE, "")
 		must.NoError(err)
 		defer func(f *clnt.Fid) {
@@ -198,9 +198,9 @@ func TestDMEXCL(t *testing.T) {
 
 		// f1 again: open file again.
 		f1 = c.FidAlloc()
-		qids, err = c.Walk(root, f1, []string{"tmp", name})
+		qids, err = c.Walk(root, f1, []string{"live", "tmp", name})
 		must.NoError(err)
-		must.Len(qids, 2)
+		must.Len(qids, 3)
 		err = c.Open(f1, p.OREAD)
 		must.NoError(err)
 		defer func(f *clnt.Fid) {
@@ -209,8 +209,8 @@ func TestDMEXCL(t *testing.T) {
 
 		// f2: walk to same file, set it DMEXCL.
 		f2 := c.FidAlloc()
-		qids, err = c.Walk(root, f2, []string{"tmp", name})
-		if should.NoError(err) && should.Len(qids, 2) {
+		qids, err = c.Walk(root, f2, []string{"live", "tmp", name})
+		if should.NoError(err) && should.Len(qids, 3) {
 			dir := p.NewWstatDir()
 			dir.Mode = 0777 | p.DMEXCL
 			should.NoError(c.Wstat(f2, dir))
@@ -219,8 +219,8 @@ func TestDMEXCL(t *testing.T) {
 
 		// f3: walk again to same file, check DMEXCL is set.
 		f3 := c.FidAlloc()
-		qids, err = c.Walk(root, f3, []string{"tmp", name})
-		if should.NoError(err) && should.Len(qids, 2) {
+		qids, err = c.Walk(root, f3, []string{"live", "tmp", name})
+		if should.NoError(err) && should.Len(qids, 3) {
 			dir, err := c.Stat(f3)
 			should.NoError(err)
 			should.Equal(uint32(p.DMEXCL), dir.Mode&p.DMEXCL)
@@ -240,9 +240,9 @@ func TestDMEXCL(t *testing.T) {
 
 		// f1: create but do not close a DMEXCL file.
 		f1 := c.FidAlloc()
-		qids, err := c.Walk(root, f1, []string{"tmp"})
+		qids, err := c.Walk(root, f1, []string{"live", "tmp"})
 		must.NoError(err)
-		must.Len(qids, 1)
+		must.Len(qids, 2)
 		err = c.Create(f1, name, 0777|p.DMEXCL, p.OWRITE, "")
 		must.NoError(err)
 		defer func() {
@@ -251,8 +251,8 @@ func TestDMEXCL(t *testing.T) {
 
 		// f2: walk to same file, unset its DMEXCL bit.
 		f2 := c.FidAlloc()
-		qids, err = c.Walk(root, f2, []string{"tmp", name})
-		if should.NoError(err) && should.Len(qids, 2) {
+		qids, err = c.Walk(root, f2, []string{"live", "tmp", name})
+		if should.NoError(err) && should.Len(qids, 3) {
 			dir := p.NewWstatDir()
 			dir.Mode = 0777
 			should.NoError(c.Wstat(f2, dir))
@@ -261,9 +261,9 @@ func TestDMEXCL(t *testing.T) {
 
 		// f3: walk again to the same file, open it a second time; should work.
 		f3 := c.FidAlloc()
-		qids, err = c.Walk(root, f3, []string{"tmp", name})
+		qids, err = c.Walk(root, f3, []string{"live", "tmp", name})
 		must.NoError(err)
-		must.Len(qids, 2)
+		must.Len(qids, 3)
 		err = c.Open(f3, p.OREAD)
 		must.NoError(err)
 		defer func() {
@@ -272,8 +272,8 @@ func TestDMEXCL(t *testing.T) {
 
 		// f4: walk again to same file, check DMEXCL is NOT set.
 		f4 := c.FidAlloc()
-		qids, err = c.Walk(root, f4, []string{"tmp", name})
-		if should.NoError(err) && should.Len(qids, 2) {
+		qids, err = c.Walk(root, f4, []string{"live", "tmp", name})
+		if should.NoError(err) && should.Len(qids, 3) {
 			dir, err := c.Stat(f4)
 			should.NoError(err)
 			should.Equal(uint32(0), dir.Mode&p.DMEXCL)
