@@ -258,17 +258,17 @@ func (node *Node) Unref() int {
 // to their reference counts. Note that a dirty node can not be
 // trimmed because its information can not be retrieved from local
 // or remote storage.
-func (node *Node) Trim() {
+func (node *Node) trim() {
 
 	now := uint32(time.Now().Unix())
 	minAge := uint32(300) // 5 minutes
 
-	var trim func(node *Node)
+	var aux func(node *Node)
 
-	trim = func(node *Node) {
+	aux = func(node *Node) {
 		for _, child := range node.children {
 			if child.flags&loaded != 0 {
-				trim(child)
+				aux(child)
 			}
 		}
 
@@ -289,7 +289,7 @@ func (node *Node) Trim() {
 		node.children = nil
 	}
 
-	trim(node)
+	aux(node)
 }
 
 // Returns the number of children removed (hopefully only 0 or 1).

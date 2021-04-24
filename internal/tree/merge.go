@@ -129,12 +129,12 @@ func merge3way(localTree, baseTree, remoteTree *Tree, local, base, remote *Node,
 				p,
 			)
 			baseVersion := filepath.Join(
-				cfg.SnapshotsFSMount,
+				cfg.MuscleFSMount,
 				baseRev,
 				p,
 			)
 			remoteVersion := filepath.Join(
-				cfg.SnapshotsFSMount,
+				cfg.MuscleFSMount,
 				remoteRev,
 				p,
 			)

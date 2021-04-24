@@ -56,13 +56,10 @@ type C struct {
 	// containers hosted on your computer.  There is no
 	// authentication nor TLS so the file server must not be exposed on a
 	// public address.
-	ListenNet           string
-	ListenAddr          string
-	SnapshotsListenNet  string
-	SnapshotsListenAddr string
+	ListenNet  string
+	ListenAddr string
 
-	MuscleFSMount    string
-	SnapshotsFSMount string
+	MuscleFSMount string
 
 	// 64 hex digits - do not lose this or you lose access to all
 	// data.
@@ -124,14 +121,8 @@ func Load(base string) (*C, error) {
 	if c.ListenNet == "" && c.ListenAddr == "" {
 		c.ListenNet = "unix"
 	}
-	if c.SnapshotsListenNet == "" && c.SnapshotsListenAddr == "" {
-		c.SnapshotsListenNet = "unix"
-	}
 	if c.ListenNet == "unix" && c.ListenAddr == "" {
 		c.ListenAddr = fmt.Sprintf("%s/muscle", clientNamespace())
-	}
-	if c.SnapshotsListenNet == "unix" && c.SnapshotsListenAddr == "" {
-		c.SnapshotsListenAddr = fmt.Sprintf("%s/snapshots", clientNamespace())
 	}
 	return c, err
 }
@@ -169,12 +160,6 @@ func load(f io.Reader) (*C, error) {
 			c.S3SecretKey = val
 		case "s3-region":
 			c.S3Region = val
-		case "snapshotsfs-mount":
-			c.SnapshotsFSMount = val
-		case "snapshots-listen-addr":
-			c.SnapshotsListenAddr = val
-		case "snapshots-listen-net":
-			c.SnapshotsListenNet = val
 		case "storage":
 			c.Storage = val
 		default:
@@ -248,21 +233,13 @@ func (c *C) MountCommands() ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		cmd2, err := linuxMountCommand(c.SnapshotsListenNet, c.SnapshotsListenAddr, c.SnapshotsFSMount)
-		if err != nil {
-			return nil, err
-		}
-		return []string{cmd1, cmd2}, nil
+		return []string{cmd1}, nil
 	case "netbsd":
 		cmd1, err := netbsdMountCommand(c.ListenNet, c.ListenAddr, c.MuscleFSMount)
 		if err != nil {
 			return nil, err
 		}
-		cmd2, err := netbsdMountCommand(c.SnapshotsListenNet, c.SnapshotsListenAddr, c.SnapshotsFSMount)
-		if err != nil {
-			return nil, err
-		}
-		return []string{cmd1, cmd2}, nil
+		return []string{cmd1}, nil
 	default:
 		return nil, fmt.Errorf("don't know now to mount on %v", runtime.GOOS)
 	}
@@ -273,7 +250,6 @@ func (c *C) UmountCommands() ([]string, error) {
 	case "linux", "netbsd":
 		return []string{
 			fmt.Sprintf("sudo umount %s", c.MuscleFSMount),
-			fmt.Sprintf("sudo umount %s", c.SnapshotsFSMount),
 		}, nil
 	default:
 		return nil, fmt.Errorf("don't know now to umount on %v", runtime.GOOS)
@@ -299,10 +275,7 @@ func Initialize(baseDir string) error {
 	port := 49152 + mathrand.Intn(65535-49152)
 	buf.WriteString("listen-net tcp\n")
 	fmt.Fprintf(&buf, "listen-addr 127.0.0.1:%d\n", port)
-	buf.WriteString("snapshots-listen-net tcp\n")
-	fmt.Fprintf(&buf, "snapshots-listen-addr 127.0.0.1:%d\n", port+1)
 	buf.WriteString("musclefs-mount /mnt/muscle\n")
-	buf.WriteString("snapshotsfs-mount /mnt/snapshots\n")
 	b := make([]byte, 32)
 	n, err := rand.Read(b)
 	if err != nil {

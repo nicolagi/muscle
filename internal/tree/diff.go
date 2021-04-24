@@ -46,7 +46,7 @@ func DiffTreesVerbose(value bool) DiffTreesOption {
 }
 
 // DiffTrees produces a metadata diff of the two trees.
-func DiffTrees(a, b *Tree, apath, bpath string, options ...DiffTreesOption) error {
+func DiffTrees(a, b *Tree, arootpath, brootpath string, options ...DiffTreesOption) error {
 	opts := diffTreesOptions{
 		output: ioutil.Discard,
 	}
@@ -68,14 +68,7 @@ func DiffTrees(a, b *Tree, apath, bpath string, options ...DiffTreesOption) erro
 		}
 		bInitial = visitedNodes[len(visitedNodes)-1]
 	}
-	return diffTrees(a, b, apath, bpath, aInitial, bInitial, &opts)
-}
-
-func mountedPath(t *Tree, n *Node, tpath string) string {
-	if n == nil {
-		return "/dev/null"
-	}
-	return filepath.Join(tpath, t.revision.Hex(), strings.TrimPrefix(n.Path(), "root/"))
+	return diffTrees(a, b, arootpath, brootpath, aInitial, bInitial, &opts)
 }
 
 func metaDiff(a, b *Node) string {
@@ -155,31 +148,31 @@ func metaDiff(a, b *Node) string {
 	return w.String()
 }
 
-func diffTrees(atree, btree *Tree, apath, bpath string, a, b *Node, opts *diffTreesOptions) error {
+func diffTrees(atree, btree *Tree, arootpath, brootpath string, a, b *Node, opts *diffTreesOptions) error {
 	output := metaDiff(a, b)
 	if output == "" {
 		return nil
 	}
 
-	var commonp string
-	ap := a.Path()
-	if ap == "" {
+	var ap, bp string
+	if a == nil {
 		ap = "/dev/null"
 	} else {
-		commonp = filepath.Join(bpath, ap)
-		ap = filepath.Join("a", ap)
+		ap = filepath.Join(arootpath, a.Path())
 	}
-	bp := b.Path()
-	if bp == "" {
+	if b == nil {
 		bp = "/dev/null"
 	} else {
-		commonp = filepath.Join(apath, bp)
-		bp = filepath.Join("b", bp)
+		bp = filepath.Join(brootpath, b.Path())
 	}
 
 	if opts.verbose {
 		if opts.namesOnly {
-			_, _ = fmt.Fprintln(opts.output, commonp+"+meta")
+			if b == nil {
+				_, _ = fmt.Fprintln(opts.output, ap+"+meta")
+			} else {
+				_, _ = fmt.Fprintln(opts.output, bp+"+meta")
+			}
 		} else {
 			_, _ = fmt.Fprintf(opts.output, "--- %s+meta\n+++ %s+meta\n", ap, bp)
 			_, _ = fmt.Fprint(opts.output, output)
@@ -188,9 +181,13 @@ func diffTrees(atree, btree *Tree, apath, bpath string, a, b *Node, opts *diffTr
 
 	if a == nil || b == nil || !a.IsDir() || !b.IsDir() {
 		if opts.namesOnly {
-			_, _ = fmt.Fprintln(opts.output, commonp)
+			if b == nil {
+				_, _ = fmt.Fprintln(opts.output, ap)
+			} else {
+				_, _ = fmt.Fprintln(opts.output, bp)
+			}
 		} else {
-			_, _ = fmt.Fprintf(opts.output, "diff -u %s %s\n", mountedPath(atree, a, apath), mountedPath(btree, b, bpath))
+			_, _ = fmt.Fprintf(opts.output, "diff -u %s %s\n", ap, bp)
 		}
 		// We can recurse only if they are both directories.
 		return nil
@@ -206,7 +203,7 @@ func diffTrees(atree, btree *Tree, apath, bpath string, a, b *Node, opts *diffTr
 	achildren := a.childrenMap()
 	bchildren := b.childrenMap()
 	for _, name := range orderedUnionOfChildrenNames(achildren, bchildren) {
-		if err := diffTrees(atree, btree, apath, bpath, achildren[name], bchildren[name], opts); err != nil {
+		if err := diffTrees(atree, btree, arootpath, brootpath, achildren[name], bchildren[name], opts); err != nil {
 			return err
 		}
 	}

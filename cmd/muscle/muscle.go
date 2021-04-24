@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -357,8 +358,8 @@ func main() {
 		err = tree.DiffTrees(
 			remoteTree,
 			localTree,
-			cfg.SnapshotsFSMount,
-			cfg.MuscleFSMount+"/live",
+			filepath.Join(cfg.MuscleFSMount, tag.Pointer.Hex()),
+			filepath.Join(cfg.MuscleFSMount, "live"),
 			tree.DiffTreesOutput(os.Stdout),
 			tree.DiffTreesInitialPath(diffContext.prefix),
 			tree.DiffTreesNamesOnly(diffContext.names),
@@ -386,17 +387,21 @@ func main() {
 			fmt.Println(this)
 			if historyContext.diff && i < len(rr)-1 {
 				var a, b *tree.Tree
+				var arootpath, brootpath string
 				a, _ = tree.NewTree(treeStore, tree.WithRevision(rr[i+1].Key()))
+				arootpath = filepath.Join(cfg.MuscleFSMount, rr[i+1].Key().Hex())
 				if i == 0 && this.Key().IsNull() {
 					b, _ = tree.NewTree(treeStore, tree.WithRoot(rev.RootKey()))
+					brootpath = filepath.Join(cfg.MuscleFSMount, "live")
 				} else {
 					b, _ = tree.NewTree(treeStore, tree.WithRevision(this.Key()))
+					brootpath = filepath.Join(cfg.MuscleFSMount, this.Key().Hex())
 				}
 				err := tree.DiffTrees(
 					a,
 					b,
-					cfg.SnapshotsFSMount,
-					cfg.SnapshotsFSMount,
+					arootpath,
+					brootpath,
 					tree.DiffTreesOutput(os.Stdout),
 					tree.DiffTreesInitialPath(historyContext.prefix),
 					tree.DiffTreesNamesOnly(historyContext.names),

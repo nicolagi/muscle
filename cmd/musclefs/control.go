@@ -3,11 +3,12 @@ package main
 import (
 	"flag"
 	"io"
+	"path/filepath"
 
 	"github.com/nicolagi/muscle/internal/tree"
 )
 
-func doDiff(w io.Writer, localTree *tree.Tree, treeStore *tree.Store, muscleFSMount string, snapshotsFSMount string, args []string) error {
+func doDiff(w io.Writer, localTree *tree.Tree, treeStore *tree.Store, muscleFSMount string, args []string) error {
 	const method = "doDiff"
 	var tagName string
 	var diffContext struct {
@@ -37,8 +38,8 @@ func doDiff(w io.Writer, localTree *tree.Tree, treeStore *tree.Store, muscleFSMo
 	err = tree.DiffTrees(
 		remoteTree,
 		localTree,
-		snapshotsFSMount,
-		muscleFSMount+"/live",
+		filepath.Join(muscleFSMount, tag.Pointer.Hex()),
+		filepath.Join(muscleFSMount, "live"),
 		tree.DiffTreesOutput(w),
 		tree.DiffTreesInitialPath(diffContext.prefix),
 		tree.DiffTreesNamesOnly(diffContext.names),

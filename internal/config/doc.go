@@ -1,5 +1,5 @@
 // The config package encapsulates configuration for all muscle
-// commands (muscle, musclefs, snapshotsfs).
+// commands (muscle, musclefs).
 //
 // All muscle components are expected to store logs, caches, and any
 // runtime information within a dedicated base directory. When loading

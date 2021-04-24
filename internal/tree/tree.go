@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	godebug "runtime/debug"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ type Tree struct {
 	ignored map[string]map[string]struct{}
 
 	lastFlushed time.Time
+	lastTrimmed time.Time
 }
 
 // NewTree constructs a new tree object using the given store, and
@@ -36,10 +38,11 @@ type Tree struct {
 func NewTree(store *Store, opts ...TreeOption) (*Tree, error) {
 	debug.Assert(store.blockFactory != nil)
 	t := &Tree{
-		store:     store,
-		rootName:  "root",
-		readOnly:  true,
-		blockSize: config.BlockSize,
+		store:       store,
+		rootName:    "root",
+		readOnly:    true,
+		blockSize:   config.BlockSize,
+		lastTrimmed: time.Now(),
 	}
 	for _, o := range opts {
 		if err := o(t); err != nil {
@@ -332,4 +335,12 @@ func (tree *Tree) Rename(sourcepath, targetpath string) error {
 	// The source may already be dirty, and fail to propagate the flag to the root of the tree!
 	targetparent.markDirty()
 	return nil
+}
+
+func (tree *Tree) Trim() {
+	if time.Since(tree.lastTrimmed) > time.Minute {
+		tree.root.trim()
+		godebug.FreeOSMemory()
+		tree.lastTrimmed = time.Now()
+	}
 }

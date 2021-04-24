@@ -6,6 +6,7 @@ if(! cmp pre-commit $0){
 sources=`{ du -a cmd internal | awk '$2 ~ /\.go$/ { print $2 }' }
 notformatted=`{ gofmt -l $sources }
 if(! ~ $#notformatted 0){
+	echo Not formatted: $notformatted >[1=2]
 	echo Did you run goimports before adding changes to the index? >[1=2]
 	exit 1
 }

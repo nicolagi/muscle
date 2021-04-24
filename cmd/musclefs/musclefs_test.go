@@ -312,7 +312,7 @@ func setUp(t *testing.T) (client *clnt.Clnt, store *tree.Store, tearDown func(*t
 
 	// Start process asynchronously, creating a process group id, so we can later
 	// kill this process and all its children.
-	command := exec.Command("go", "run", "-race", ".", "-base", dir)
+	command := exec.Command("go", "run", "-race", ".", "-D", "-base", dir)
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	// Attach the ephemeral musclefs stdin and stdout to a file for debugging.
 	serverLog, err := os.Create(path.Join(dir, "combined-output"))

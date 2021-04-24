@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"runtime/debug"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -41,6 +41,8 @@ var (
 		p.DMSETGID:    fmt.Errorf("setgid files are not supported"),
 	}
 	knownModes uint32
+
+	revisionExpr = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
 func init() {
@@ -74,12 +76,14 @@ type nodeKind int
 
 const (
 	controlFile nodeKind = iota
+	historicNode
 	muscleNode
 	syntheticDir
 )
 
 type fsNode struct {
 	kind       nodeKind
+	tree       *tree.Tree       // For muscle and historic nodes.
 	*tree.Node                  // For muscle nodes.
 	dir        p.Dir            // For the control file and synthetic dirs.
 	data       []byte           // For the control file.
@@ -91,7 +95,7 @@ type fsNode struct {
 func (node *fsNode) prepareForReads() {
 	node.dirb.Reset()
 	switch node.kind {
-	case muscleNode:
+	case muscleNode, historicNode:
 		var dir p.Dir
 		for _, child := range node.Children() {
 			p9util.NodeDirVar(child, &dir)
@@ -102,7 +106,7 @@ func (node *fsNode) prepareForReads() {
 			switch child.kind {
 			case controlFile:
 				node.dirb.Write(&child.dir)
-			case muscleNode:
+			case muscleNode, historicNode:
 				var dir p.Dir
 				p9util.NodeDirVar(child.Node, &dir)
 				node.dirb.Write(&dir)
@@ -118,9 +122,8 @@ type ops struct {
 	treeStore   *tree.Store
 
 	// Serializes access to the tree.
-	mu      sync.Mutex
-	tree    *tree.Tree
-	trimmed time.Time
+	mu   sync.Mutex
+	tree *tree.Tree
 
 	root *fsNode
 
@@ -169,7 +172,7 @@ func (ops *ops) FidDestroy(fid *srv.Fid) {
 			node.lock = nil
 		}
 		if refs == 0 && node.Unlinked() {
-			ops.tree.Discard(node.Node)
+			node.tree.Discard(node.Node)
 		}
 	}
 }
@@ -223,19 +226,43 @@ func (ops *ops) walk1(node *fsNode, name string) (*fsNode, error) {
 				}
 			}
 		}
-		return nil, linuxerr.ENOENT
+		// The name can't be looked up.
+		// Try to interpret it as a hash pointer pointing to a revision.
+		if !revisionExpr.MatchString(name) {
+			return nil, linuxerr.ENOENT
+		}
+		revpointer, err := storage.NewPointerFromHex(name)
+		if err != nil {
+			return nil, nil
+		}
+		revtree, err := tree.NewTree(ops.treeStore, tree.WithRevision(revpointer), tree.WithRootName(name))
+		if err != nil {
+			if errors.Is(err, tree.ErrNotExist) || errors.Is(err, linuxerr.ENOENT) {
+				return nil, linuxerr.ENOENT
+			}
+			return nil, err
+		}
+		_, revroot := revtree.Root()
+		revnode := &fsNode{
+			kind: historicNode,
+			tree: revtree,
+			Node: revroot,
+		}
+		node.children = append(node.children, revnode)
+		node.prepareForReads()
+		return revnode, nil
 	default:
 		if node.Unlinked() {
 			return nil, linuxerr.ENOENT
 		}
-		walked, err := ops.tree.Walk(node.Node, name)
+		walked, err := node.tree.Walk(node.Node, name)
 		if err != nil {
 			return nil, err
 		}
 		if len(walked) != 1 {
 			return nil, linuxerr.EPERM // Incorrect, but will do for now.
 		}
-		return &fsNode{kind: muscleNode, Node: walked[0]}, nil
+		return &fsNode{kind: node.kind, tree: node.tree, Node: walked[0]}, nil
 	}
 }
 
@@ -304,6 +331,10 @@ func (ops *ops) Open(r *srv.Req) {
 		node.prepareForReads()
 		r.RespondRopen(&node.dir.Qid, 0)
 	default:
+		if node.kind == historicNode && r.Tc.Mode&(p.OWRITE|p.ORDWR|p.OTRUNC|p.ORCLOSE) != 0 {
+			logRespondError(r, linuxerr.EACCES)
+			return
+		}
 		if node.Unlinked() {
 			logRespondError(r, linuxerr.ENOENT)
 			return
@@ -319,7 +350,7 @@ func (ops *ops) Open(r *srv.Req) {
 		}
 		switch {
 		case node.IsDir():
-			if err := ops.tree.Grow(node.Node); err != nil {
+			if err := node.tree.Grow(node.Node); err != nil {
 				logRespondError(r, err)
 				return
 			}
@@ -341,7 +372,7 @@ func (ops *ops) Create(r *srv.Req) {
 	defer ops.mu.Unlock()
 	parent := r.Fid.Aux.(*fsNode)
 	switch parent.kind {
-	case controlFile, syntheticDir:
+	case controlFile, historicNode, syntheticDir:
 		logRespondError(r, linuxerr.EACCES)
 	default:
 		if parent.Unlinked() {
@@ -352,14 +383,14 @@ func (ops *ops) Create(r *srv.Req) {
 			logRespondError(r, err)
 			return
 		}
-		node, err := ops.tree.Add(parent.Node, r.Tc.Name, r.Tc.Perm)
+		node, err := parent.tree.Add(parent.Node, r.Tc.Name, r.Tc.Perm)
 		if err != nil {
 			logRespondError(r, err)
 			return
 		}
 		node.Ref()
 		parent.Unref()
-		child := &fsNode{kind: muscleNode, Node: node}
+		child := &fsNode{kind: muscleNode, tree: parent.tree, Node: node}
 		r.Fid.Aux = child
 		qid := p9util.NodeQID(node)
 		if r.Tc.Perm&p.DMEXCL != 0 {
@@ -447,7 +478,7 @@ func runCommand(ops *ops, controlNode *fsNode, cmd string) error {
 		if err := ops.tree.Flush(); err != nil {
 			return fmt.Errorf("could not flush: %v", err)
 		}
-		return doDiff(outputBuffer, ops.tree, ops.treeStore, ops.cfg.MuscleFSMount, ops.cfg.SnapshotsFSMount, args)
+		return doDiff(outputBuffer, ops.tree, ops.treeStore, ops.cfg.MuscleFSMount, args)
 	case "lsof":
 		paths := ops.tree.ListNodesInUse()
 		sort.Strings(paths)
@@ -591,9 +622,7 @@ func runCommand(ops *ops, controlNode *fsNode, cmd string) error {
 		// files temporarily. The problem with large files is that they
 		// take up a lot of memory and changes the GC target too much. This
 		// is the only way to free up that memory.
-		_, root := ops.tree.Root()
-		root.Trim()
-		debug.FreeOSMemory()
+		ops.tree.Trim()
 	case "flush":
 		if err := ops.tree.Flush(); err != nil {
 			return fmt.Errorf("could not flush: %v", err)
@@ -731,7 +760,7 @@ func (ops *ops) Write(r *srv.Req) {
 			return
 		}
 		r.RespondRwrite(uint32(len(r.Tc.Data)))
-	case syntheticDir:
+	case historicNode, syntheticDir:
 		logRespondError(r, linuxerr.EACCES)
 	default:
 		if err := node.WriteAt(r.Tc.Data, int64(r.Tc.Offset)); err != nil {
@@ -753,12 +782,7 @@ func (ops *ops) Clunk(r *srv.Req) {
 			unlockNode(node.lock)
 			node.lock = nil
 		}
-		if time.Since(ops.trimmed) > time.Minute {
-			_, root := ops.tree.Root()
-			root.Trim()
-			debug.FreeOSMemory()
-			ops.trimmed = time.Now()
-		}
+		node.tree.Trim()
 	}
 	r.RespondRclunk()
 }
@@ -768,14 +792,14 @@ func (ops *ops) Remove(r *srv.Req) {
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*fsNode)
 	switch node.kind {
-	case controlFile, syntheticDir:
+	case controlFile, historicNode, syntheticDir:
 		logRespondError(r, linuxerr.EACCES)
 	default:
 		if node.Unlinked() {
 			logRespondError(r, linuxerr.ENOENT)
 			return
 		}
-		err := ops.tree.Unlink(node.Node)
+		err := node.tree.Unlink(node.Node)
 		if err != nil {
 			if errors.Is(err, tree.ErrNotEmpty) {
 				logRespondError(r, linuxerr.ENOTEMPTY)
@@ -811,8 +835,8 @@ func (ops *ops) Wstat(r *srv.Req) {
 	defer ops.mu.Unlock()
 	node := r.Fid.Aux.(*fsNode)
 	switch node.kind {
-	case controlFile, syntheticDir:
-		logRespondError(r, linuxerr.EPERM)
+	case controlFile, historicNode, syntheticDir:
+		logRespondError(r, linuxerr.EACCES)
 	default:
 		dir := r.Tc.Dir
 		if dir.ChangeLength() {
@@ -981,9 +1005,9 @@ func main() {
 	}
 	ops.root.children = append(ops.root.children, controlNode)
 
-	main := ops.tree.Attach()
-	main.Ref()
-	ops.root.children = append(ops.root.children, &fsNode{kind: muscleNode, Node: main})
+	live := ops.tree.Attach()
+	live.Ref()
+	ops.root.children = append(ops.root.children, &fsNode{kind: muscleNode, tree: ops.tree, Node: live})
 
 	ops.root.prepareForReads()
 
