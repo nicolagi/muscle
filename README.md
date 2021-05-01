@@ -1,3 +1,31 @@
+**Update 2021-05-01.**
+
+The fs structure has changed.
+The current contents are now in `/live`, while past revisions are at `/$sha` (such revision nodes are attached to the tree by walking to them).
+The program `cmd/snapshotsfs` is gone.
+The control file remains at `/ctl` (thus one can now create `/live/ctl` as a regular file or dir if required).
+In other words:
+
+	; ls /m
+	945e153f1c6ce898e47e06df1ed2998d7649b18d37601d49e047ff3801130fa3
+	9639fc0640c014900c4525ccacc8837e50ce33cb351b4ed8e1e15b8e4fa8e58b
+	ctl
+	f0eed4956ba54f59520ae5f2dbd8c48b156ba2ff39661663139f8b3fc8e3a3ca
+	live
+	; muscle history | awk '/^key/{print $2}'
+	a9249e30222ffbc7003c267defe508202a382372e2c93ef5652ebb2248ecf2f6
+	e444c7389b47863da04bd45a3468169ee4f8211bc33f234ff22bd393cebf15b1
+	9639fc0640c014900c4525ccacc8837e50ce33cb351b4ed8e1e15b8e4fa8e58b
+	; ls -ld /m/a9249e30222ffbc7003c267defe508202a382372e2c93ef5652ebb2248ecf2f6
+	drwx------ 1 nicolagi users 0 Apr 30 07:05 /m/a9249e30222ffbc7003c267defe508202a382372e2c93ef5652ebb2248ecf2f6
+	; ls /m
+	945e153f1c6ce898e47e06df1ed2998d7649b18d37601d49e047ff3801130fa3
+	9639fc0640c014900c4525ccacc8837e50ce33cb351b4ed8e1e15b8e4fa8e58b
+	a9249e30222ffbc7003c267defe508202a382372e2c93ef5652ebb2248ecf2f6
+	ctl
+	f0eed4956ba54f59520ae5f2dbd8c48b156ba2ff39661663139f8b3fc8e3a3ca
+	live
+
 **Update 2021-04-18.**
 
 Lots of small bug fixes where done thanks for a [fs differential testing project](../fsdiff).
